@@ -1,0 +1,11 @@
+Fix: mpss_mem needs device-specific reg size (mainline dtsi leaves it 0).
+Board: msm8916-handsome-openstick-ufi003. 85MiB matches 5.15 BSP layout.
+
+--- a/arch/arm64/boot/dts/qcom/msm8916-handsome-openstick-common.dtsi
++++ b/arch/arm64/boot/dts/qcom/msm8916-handsome-openstick-common.dtsi
+@@ -75,6 +75,9 @@
+ &mpss_mem {
++	/* Mainline dtsi leaves size 0 ("device-specific"): 85MiB as on 5.15 BSP */
++	reg = <0x0 0x86800000 0x0 0x5500000>;
+ 	status = "okay";
+ };
