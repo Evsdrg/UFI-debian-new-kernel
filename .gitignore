@@ -1,0 +1,48 @@
+# Linux kernel build outputs
+*.o
+*.o.d
+*.a
+*.s
+*.ko
+*.cmd
+*.mod
+*.mod.c
+*.order
+*.symvers
+*.c.[0-9]*
+*.ll
+
+# Kernel directory layout outputs
+.tmp_versions/
+modules.order
+modules.builtin
+modules.builtin.modinfo
+
+# Build artifacts
+/arch/arm64/boot/Image
+/arch/arm64/boot/Image.gz
+/arch/arm64/boot/dts/qcom-ipq40xx/*.dtb
+/vmlinux
+/vmlinux.*
+/System.map
+/.config.old
+/auto.conf
+/debian/
+
+# Debian rootfs artifacts
+rootfs-*.tar*
+rootfs-*.squashfs
+
+# Toolchains and downloads
+toolchain/
+dl/
+cache/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# OS
+.DS_Store
