@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick SP970 - MSM8916 4G USB stick
+ *
+ * Board layout (based on HandsomeMod 5.10 DTS):
+ *   - Wi-Fi/BT: WCN3660b (pronto v2)
+ *   - Reset button: GPIO 107
+ *   - LEDs: wifi=28, internet=10, os=9
+ *   - No SIM-select LEDs
+ *   - eMMC: sdhc_1
+ */
+
+/dts-v1/;
+
+#include "msm8916-handsome-openstick-common.dtsi"
+#include <dt-bindings/leds/common.h>
+
+/ {
+	model = "Handsome OpenStick SP970";
+	compatible = "handsome,openstick", "qcom,msm8916";
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_default>;
+
+		button-reset {
+			label = "Reset";
+			gpios = <&tlmm 107 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_leds_default>;
+
+		led-wifi {
+			function = LED_FUNCTION_WLAN;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&tlmm 28 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy0tx";
+		};
+
+		led-internet {
+			function = LED_FUNCTION_WAN;
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 10 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-os {
+			function = LED_FUNCTION_HEARTBEAT;
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&tlmm 9 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+	};
+};
+
+&wcnss {
+	status = "okay";
+};
+
+&wcnss_iris {
+	compatible = "qcom,wcn3660b";
+};
+
+&wcnss_mem {
+	status = "okay";
+};
+
+&tlmm {
+	gpio_leds_default: gpio-leds-default-state {
+		pins = "gpio9", "gpio10", "gpio28";
+		function = "gpio";
+		bias-disable;
+	};
+
+	gpio_keys_default: gpio-keys-default-state {
+		pins = "gpio107";
+		function = "gpio";
+
+		drive-strength = <8>;
+		input-enable;
+		bias-pull-up;
+	};
+};
