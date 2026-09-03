@@ -46,3 +46,12 @@ cache/
 
 # OS
 .DS_Store
+# cloned reference repos (large, 不入版本库)
+handsomemod/
+handsomemod-packages/
+openstick/
+qcom-firmware/
+kernel/
+toolchain/
+out/
+mkbootimg/
