@@ -12,7 +12,7 @@ OUT_DIR="$WORKDIR/out"
 ROOTFS="$OUT_DIR/trixie-arm64"
 MIRROR="https://mirrors.tuna.tsinghua.edu.cn/debian"
 
-PKGS_EXTRA="openssh-server,wpasupplicant,systemd-resolved,iproute2,iw,nano,less,\
+PKGS_EXTRA="openssh-server,wpasupplicant,systemd-resolved,kmod,udev,wireless-regdb,iproute2,iw,nano,less,\
 e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,\
 ca-certificates,locales"
 
@@ -22,12 +22,11 @@ mkdir -p "$OUT_DIR"
 STAGE="$OUT_DIR/stage"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
-# fstab
+# fstab: only root is listed here. systemd owns /tmp and other virtual mounts.
 mkdir -p "$STAGE/etc"
 cat > "$STAGE/etc/fstab" <<'EOF'
 # root by PARTUUID (mmcblk0p14)
 PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e  /      ext4  errors=remount-ro  0 1
-tmpfs                                        /tmp   tmpfs defaults,nosuid,nodev 0 0
 EOF
 
 # wpa_supplicant 固定配置: 连这台 Wi-Fi (REDACTED_SSID)
@@ -56,10 +55,46 @@ DHCP=yes
 IPv6AcceptRA=yes
 EOF
 
-# 内核模块(精简版 6.18.48-ufi003) + 固件(现机完整 firmware)
+# zram: 461MiB RAM, use zstd and enable at boot
+mkdir -p "$STAGE/etc/systemd/system" "$STAGE/etc/modules-load.d"
+cat > "$STAGE/etc/systemd/system/zram-setup.service" <<'EOF'
+[Unit]
+Description=Setup zram swap (zstd)
+After=local-fs.target
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c "modprobe zram && echo zstd > /sys/block/zram0/comp_algorithm && echo 350M > /sys/block/zram0/disksize && mkswap /dev/zram0 && swapon -p 100 /dev/zram0"
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+cat > "$STAGE/etc/modules-load.d/ufi003.conf" <<'EOF'
+# UFI103s mainline hardware
+wcn36xx
+qcom_wcnss_pil
+qcom_q6v5_mss
+qcom_bam_dmux
+qrtr_smd
+zram
+EOF
+
+# 内核模块(精简版 6.18.48-ufix0x) + 固件(现机完整 firmware)
 mkdir -p "$STAGE/lib/modules" "$STAGE/lib/firmware"
-cp -a "$OUT_DIR/modules-ufi003/lib/modules/"* "$STAGE/lib/modules/"
+cp -a "$OUT_DIR/modules-ufix0x/lib/modules/"* "$STAGE/lib/modules/"
 cp -a "$WORKDIR/firmware-from-device/." "$STAGE/lib/firmware/"
+# wireless-regdb is installed by the Debian package above; do not overwrite
+# its /usr/lib/firmware/regulatory.db alternatives symlink.
+
+# Empty mountpoint directories need a placeholder to survive tar/copy hooks.
+for dir in "$STAGE/dev/hugepages" "$STAGE/dev/mqueue" "$STAGE/run/lock" "$STAGE/tmp"; do
+	mkdir -p "$dir"
+	touch "$dir/.keep"
+done
+# wireless-regdb uses these exact filenames with cfg80211
+cp -a "$WORKDIR/firmware-from-device/"regulatory.db* "$STAGE/lib/firmware/" 2>/dev/null || true
 
 # hook 以映射uid运行, 必须放宽stage目录读权限
 chmod -R a+rX "$STAGE"
@@ -76,8 +111,11 @@ mmdebstrap --arch=arm64 \
 	--customize-hook="echo Asia/Shanghai > \$1/etc/timezone" \
 	--customize-hook="echo 'zh_CN.UTF-8 UTF-8' >> \$1/etc/locale.gen" \
 	--customize-hook="mkdir -p \$1/root \$1/usr/lib && cp -a $STAGE/etc/. \$1/etc/ && cp -a $STAGE/lib/. \$1/usr/lib/" \
-	--customize-hook="mkdir -p \$1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/systemd-networkd.service \$1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service && ln -sf /lib/systemd/system/systemd-resolved.service \$1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/wpa_supplicant@.service \$1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service" \
-	--customize-hook="mkdir -p \$1/etc/systemd/system/systemd-resolved.service.d && printf '[Unit]\nFirstJournal=no\n' > \$1/etc/systemd/system/systemd-resolved.service.d/override.conf || true" \
+	--customize-hook="mkdir -p \$1/dev/hugepages \$1/dev/mqueue \$1/run/lock \$1/tmp && touch \$1/dev/hugepages/.keep \$1/dev/mqueue/.keep \$1/run/lock/.keep \$1/tmp/.keep" \
+	--customize-hook="rm -f \$1/etc/systemd/system/systemd-resolved.service.d/override.conf" \
+	--customize-hook="mkdir -p \$1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/systemd-networkd.service \$1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service && ln -sf /lib/systemd/system/systemd-resolved.service \$1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/wpa_supplicant@.service \$1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service && ln -sf /lib/systemd/system/ModemManager.service \$1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service \$1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /lib/systemd/system/qrtr-ns.service \$1/etc/systemd/system/multi-user.target.wants/qrtr-ns.service && ln -sf /etc/systemd/system/zram-setup.service \$1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/multi-user.target \$1/etc/systemd/system/default.target" \
+	--customize-hook="printf 'root:REDACTED\\n' | chroot \$1 /usr/sbin/chpasswd" \
+	--customize-hook="mkdir -p \$1/etc/ssh/sshd_config.d && printf 'PermitRootLogin yes\\nPasswordAuthentication yes\\n' > \$1/etc/ssh/sshd_config.d/99-root-login.conf" \
 	trixie "$ROOTFS" "$MIRROR"
 
 rm -rf "$STAGE"
