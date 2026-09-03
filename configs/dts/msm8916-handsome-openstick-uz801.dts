@@ -73,6 +73,28 @@
 	status = "okay";
 };
 
+/*
+ * CPU overclocking (SAW2 auto-scales via pm8916_s3).
+ * UZ801 is not stable at high freqs; cap at 1.4GHz.
+ */
+&cpu_opp_table {
+	opp-1000000000 {
+		opp-hz = /bits/ 64 <1000000000>;
+	};
+	opp-1100000000 {
+		opp-hz = /bits/ 64 <1100000000>;
+	};
+	opp-1200000000 {
+		opp-hz = /bits/ 64 <1200000000>;
+	};
+	opp-1300000000 {
+		opp-hz = /bits/ 64 <1300000000>;
+	};
+	opp-1400000000 {
+		opp-hz = /bits/ 64 <1400000000>;
+	};
+};
+
 &tlmm {
 	gpio_leds_default: gpio-leds-default-state {
 		pins = "gpio6", "gpio7", "gpio8";

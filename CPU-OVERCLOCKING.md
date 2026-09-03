@@ -140,3 +140,15 @@ cat /sys/class/thermal/thermal_zone0/temp   # 需毫度
 # 5. 观察dmesg有无regulator/voltage警告
 dmesg | grep -iE 'regulator|voltage|cpufreq'
 ```
+
+## 8. 实测体质补充 (2026-09-03, 用户实测数据)
+
+不再依赖保守分档, 按实际体质直接配置:
+| 板子 | 最高频率 | 依据 |
+|---|---|---|
+| UFI001b / UFI001c / UFI103s | 1.6GHz | 大部分 UFI00x 能跑 1.8GHz, 取稳 1.6 |
+| SP970 | 1.8GHz | 实测可达2.1GHz, 为稳定起见降到1.8 |
+| UZ801 | 1.4GHz | 不易稳定高频, 单独限制 |
+
+实现: 各板 dts 里 override &cpu_opp_table, 追加高频档(纯频率, SAW2自动配压)。
+已验证最终 dtb 的 OPP 表正确合并 (基档 200/400/800/998.4 + 各板高频档)。
