@@ -166,8 +166,9 @@ for m in venus-core venus-dec venus-enc; do
   test -f "$VENUS_MODS/kernel/drivers/media/platform/qcom/venus/$m.ko"
   printf 'module:%s=present\n' "$m"
 done
-grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$BASE/build/variant-venus/.config"
-grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$BASE/build/variant-venus/.config"
+VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-venus"
+grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"
+grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$VENUS_BUILD/.config"
 printf 'venus_config=OK\n'
 python3 - "$VENUS_BOOT" <<'PY'
 import struct, sys
@@ -228,8 +229,8 @@ done
 grep -q '^CONFIG_DRM_MSM=m' "$BASE/source/configs/ufi103s-gpu.config" \
   || { printf 'ERROR: gpu fragment lacks CONFIG_DRM_MSM=m\n' >&2; exit 1; }
 printf 'gpu_config_fragment=ok\n'
-# GPU boot 产物（若已构建）
-if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-venus-oc-100-gpu.img" ]; then
+# GPU boot 产物（若已构建）。镜像名带内核版本，与 tools/build-gpu-variant.sh 一致。
+if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-venus-oc-100-gpu-$KERNEL_VERSION.img" ]; then
   printf 'gpu_boot=present\n'
 else
   printf 'gpu_boot=absent (run tools/build-gpu-variant.sh to build it)\n'

@@ -7,6 +7,23 @@
 #   4G/短信 -> ModemManager (mmcli/qmicli) + NM 管 wwan0，qrtr-ns/rmtfs 基础服务
 #   交互    -> nmcli / nmtui（带中文，见 network-manager-l10n）
 # 语言: zh_CN.UTF-8 为默认 locale。
+#
+# 用法与环境变量（四个都容易漏，漏了会得到坏镜像或直接失败）：
+#   MMDEBSTRAP_FORMAT=ext4   不写则默认 directory —— 只产出目录树，没有 .ext4 可刷
+#   KERNEL_RELEASE=<release> 要与之配套的内核 release（默认从 kernel-version.env 派生）
+#   MODULE_TREE=<dir>        该 release 的模块树根（含 lib/modules/<release>/）
+#   EXTRA_MODULE_TREES=<dir>[,<dir>...]
+#                            额外一并装入的模块树。给变体内核用时，把基线树也放进去，
+#                            这样换回基线内核只刷 boot、不必重刷 rootfs。
+#   EXTRA_FIRMWARE_DIR=<dir> 变体固件叠加（如 ufi103s-venus 的 venus.mbn）
+#   EXTRA_PKGS=<pkg,...>     变体额外软件包（如 ffmpeg,v4l-utils）
+#   ROOTFS_DESKTOP=0|1       是否装桌面/xrdp（默认 1）
+#   ROOTFS_WIFI_SSID / ROOTFS_WIFI_PSK
+#                            预置 Wi-Fi。**不传则镜像不带任何网络配置**，
+#                            刷到无屏幕的棒子上会直接失联 —— 给别人刷机时务必传。
+#   TMPDIR=<大盘上的目录>    mmdebstrap 的临时目录。若落在小容量 tmpfs（本机
+#                            /tmp 是 11G tmpfs）上，装桌面包时会 "No space left
+#                            on device" 而失败。
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"

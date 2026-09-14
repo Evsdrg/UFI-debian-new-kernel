@@ -86,6 +86,36 @@ fastboot continue
 WiFi/Venus 等功能立即恢复。设备 boot 分区的完整读回副本在
 `out/rollback/boot-backup-6.18-gpu.img`。
 
+## rootfs 镜像
+
+设备上正在跑的 rootfs 仍是 6.18.49 时构建的那张（内核升级不需要重刷 rootfs）。
+7.1.13 的配套镜像也已构建好，供全新刷机使用：
+
+| 镜像 | 用途 | 内核模块树 |
+|---|---|---|
+| `shared/rootfs/debian13-arm64-ufi103s-7.1.13-venus.ext4` | Venus/GPU 变体 | `7.1.13-ufi003-venus-dirty`（GPU 树）+ `-ufi003-dirty`（基线，随镜像附带） |
+| `shared/rootfs/debian13-arm64-ufi103s-7.1.13.ext4` | 基线（无 Venus） | `7.1.13-ufi003-dirty` |
+
+两张都通过 `tools/verify-layout.sh` 全量校验（exit 0）。
+
+**构建时必须传 Wi-Fi 凭据**，否则镜像里没有预置连接，刷完即失联：
+
+```sh
+MMDEBSTRAP_FORMAT=ext4 \
+KERNEL_RELEASE=7.1.13-ufi003-venus-dirty \
+MODULE_TREE=$PWD/shared/modules/7.1.13-ufi003-gpu \
+EXTRA_MODULE_TREES=$PWD/shared/modules/7.1.13-ufi003-dirty \
+EXTRA_FIRMWARE_DIR=$PWD/shared/firmware/ufi103s-venus \
+ROOTFS_PATH=$PWD/shared/rootfs/debian13-arm64-ufi103s-7.1.13-venus.ext4 \
+EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
+ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
+bash build-rootfs.sh
+```
+
+两个易踩点：`MMDEBSTRAP_FORMAT=ext4` 不写的话只产出目录树（脚本默认
+`directory`）；`TMPDIR` 若落在小容量的 tmpfs 上会在装桌面包时 "No space left
+on device"（本机 `/tmp` 就是 11G tmpfs，需指到大盘上）。
+
 ## 刷机前
 
 **必须先用 Miko 做整片 eMMC 全量备份**，再刷任何分区。只动 `boot` 与
