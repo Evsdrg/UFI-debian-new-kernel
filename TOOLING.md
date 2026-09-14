@@ -23,8 +23,9 @@
 | `tools/ufi-console.sh` | 有界串口控制台（`id` / `read` / `send`） |
 | `edl-tools/` | EDL / Firehose / Miko 工具链（`qdl`、`edl.py` 等） |
 
-见 `FASTBOOT.md`：本设备可以在 Linux 里 `systemctl reboot bootloader` 直接进
-fastboot（内核 qcom-pon 驱动 + OpenStick LK 全链路已打通）。
+见 `FASTBOOT.md`：本设备可以在 Linux 里
+`systemctl reboot --reboot-argument=bootloader` 直接进 fastboot（内核 qcom-pon
+驱动 + OpenStick LK 全链路，已实机验证）。注意必须用 `--reboot-argument=`。
 
 ### 测试与验证
 
@@ -56,6 +57,9 @@ fastboot（内核 qcom-pon 驱动 + OpenStick LK 全链路已打通）。
 `package-boards.py` 只产出 boot 镜像。要发布「某机型的刷机包」，还需要把
 该板 boot 镜像 + 共享 rootfs + 说明文档 + 校验清单打成一个可下载的包。
 目前是手工拼的，没有脚本。
+
+（另：`fastboot-flash rootfs` 之后必须 `resize2fs`，这一步目前只在脚本里打印
+提醒，没有自动执行——因为拉伸要在设备重启回系统之后做。见 `FASTBOOT.md`。）
 
 **3. 刷机前的镜像校验**
 `flash.sh fastboot-flash` 现在会比对同目录 `build.json` 里记录的 sha256，不一致

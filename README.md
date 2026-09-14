@@ -103,9 +103,10 @@ LED 脚本存在之前构建的。这是**已知的预期状态**，重组前的
 - **必须先做整片 eMMC 全量备份**（Miko 全盘 dump），再动手刷任何分区。
 - 只能操作已确认的 `boot`（p12）与 `rootfs`（p14）分区；不动 GPT、aboot、modem、NV。
 - **两条刷机路径**：
-  - **fastboot**（推荐，速度最快）：在设备 Linux 里 `systemctl reboot bootloader`
-    进 LK fastboot，然后 `flash.sh fastboot-flash boot|rootfs <img>`。机制与完整
-    流程见 `FASTBOOT.md`。
+  - **fastboot**（推荐，速度最快）：在设备 Linux 里
+    `systemctl reboot --reboot-argument=bootloader` 进 LK fastboot，然后
+    `flash.sh fastboot-flash boot|rootfs <img>`。机制与完整流程见 `FASTBOOT.md`
+    （已实机验证；注意必须用 `--reboot-argument=`，写成位置参数会报错）。
   - **EDL/9008**：按住 reset 按钮（或把 reset 触点与地短接）后插入电脑，用 Miko
     全片读写。这是任何情况下都能用的兜底路径。
 - 从 fastboot 也能直接进 EDL：`fastboot oem reboot-edl`。

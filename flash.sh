@@ -91,17 +91,21 @@ enter-fastboot)
 WARN
 	read -r -p "数据口已接在本机？输入 yes 继续: " _ack
 	[[ "$_ack" == yes ]] || { echo "已取消。"; exit 1; }
-	run_dev "systemctl reboot bootloader" || true
+	# 注意：不能写 `systemctl reboot bootloader` —— systemd 257 会报
+	# "Too many arguments"，必须用 --reboot-argument=。已实测。
+	run_dev "systemctl reboot --reboot-argument=bootloader" || true
 	echo "已发出重启命令，等待 fastboot 设备出现…"
-	for _ in $(seq 1 30); do
+	# 实测：从发出命令到 fastboot 枚举完成约需 90-100 秒（关机 + LK 探测），
+	# 所以这里给 150 秒窗口，别按 30 秒判失败。
+	for _ in $(seq 1 75); do
 		if fastboot devices 2>/dev/null | grep -q .; then
 			echo "fastboot 设备已出现："
 			fastboot devices
 			exit 0
 		fi
-		sleep 1
+		sleep 2
 	done
-	echo "30 秒内未检测到 fastboot 设备。检查数据线；或按 reset 进 EDL 恢复。" >&2
+	echo "150 秒内未检测到 fastboot 设备。检查数据线；或按 reset 进 EDL 恢复。" >&2
 	exit 1
 	;;
 fastboot-flash)
@@ -115,6 +119,16 @@ fastboot-flash)
 	echo "=== 刷前校验 ==="
 	fb_verify "$_img"
 	echo
+	if [[ "$_part" == rootfs ]]; then
+		# 实测：镜像（~964M）小于分区（3.4G），写入后文件系统仍是镜像的大小，
+		# 不拉伸的话可用空间只剩 ~111M。LK 会拒绝等于分区大小的整分区镜像
+		# （remote: 'size too large'），所以刷的必须是 rootfs 文件系统镜像本身。
+		_img_sz=$(stat -c%s "$_img")
+		echo "注意：刷完 rootfs 必须回系统执行 resize2fs 撑满分区，"
+		echo "      否则可用空间只有镜像大小（实测约剩 111M）。"
+		echo "      命令： ssh root@<设备> resize2fs /dev/mmcblk0p14"
+		echo
+	fi
 	echo "目标分区: $_part"
 	echo "刷任何分区前，请确认已用 Miko 做过整片 eMMC 全量备份。"
 	fastboot devices
