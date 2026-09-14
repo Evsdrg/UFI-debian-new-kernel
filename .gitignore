@@ -22,7 +22,12 @@
 /boards/*/boot/empty-ramdisk
 
 # ==== 不可再生但体积大：备份与刷机证据（仅在本地保留）====
-/recovery/
+# 注意：用 /dir/* 排除内容而不是 /dir/ 排除目录本身，否则无法用 ! 重新包含子路径。
+/recovery/*
+!/recovery/logs/
+/recovery/logs/*
+# 例外：小体积的文本证据值得入库（可追溯），如 fastboot 实测串口日志
+!/recovery/logs/fastboot-test-serial-*.log
 /archive/
 
 # ==== Python ====
