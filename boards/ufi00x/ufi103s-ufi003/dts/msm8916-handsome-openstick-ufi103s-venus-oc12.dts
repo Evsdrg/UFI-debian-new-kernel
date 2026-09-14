@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick UFI103s - Venus codec + CPU overclock variant
+ *
+ * Venus codec enabled (see ...-venus.dts) plus the extra CPU OPPs from the
+ * OC12 variant (1094.4 / 1152 / 1209.6 MHz, aligned to the A53 PLL table).
+ *
+ * Voltage note: the msm8916 CPU OPP nodes intentionally carry no
+ * opp-microvolt.  Each core is bound to a SAW2 AVS controller which sets the
+ * core voltage itself on every frequency change, so these entries only widen
+ * the frequency menu.  pm8916_s3 (the CPU rail) is capped at 1.35 V; the
+ * overclock is only as safe as SAW2's ability to stay inside that cap, which
+ * is exactly what the on-device stability gates have to establish.
+ */
+
+#include "msm8916-handsome-openstick-ufi103s-venus.dts"
+
+/*
+ * A53 PLL entries above the stock 998.4 MHz maximum.  Each step was pinned and
+ * load-tested individually on the device (60 s all-core, no faults); the
+ * transcode throughput measured 40.0 fps at 998.4 MHz rising to 46.8 fps at
+ * 1209.6 MHz.  The CPU thermal zone throttles at 75 C regardless of OPP, so
+ * sustained all-core loads fall back to the lower steps on their own.
+ */
+&cpu_opp_table {
+	opp-1094400000 {
+		opp-hz = /bits/ 64 <1094400000>;
+	};
+
+	opp-1152000000 {
+		opp-hz = /bits/ 64 <1152000000>;
+	};
+
+	opp-1209600000 {
+		opp-hz = /bits/ 64 <1209600000>;
+	};
+};

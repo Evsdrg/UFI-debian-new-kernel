@@ -1,0 +1,15 @@
+{
+  "variant": "venus",
+  "kernel_release": "6.18.49-ufi003-venus-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s-venus.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-venus.img",
+  "boot_size": 7626752,
+  "kernel_size": 7623207,
+  "appended_dtb_offset": 7575292,
+  "appended_dtb_size": 49963,
+  "image_gz_sha256": "bf885e32232d0b6f218992ac4e776040b855f88be853e7eeb3ad5c336bb22d1d",
+  "dtb_sha256": "f0a39c01023b9c613d8c2ffbc360f6f79c7fc374ad9125612da96632823a4182",
+  "boot_sha256": "f48a9080069f0af50170cb255f56214f5f8983179dc999e4b80164aa261c100b",
+  "flash_status": "not flashed"
+}

@@ -1,0 +1,8 @@
+{
+  "board": "ufi103s-ufi003",
+  "kernel_release": "6.18.49-ufi003-dirty",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "status": "offline-validated; not flashed",
+  "firmware": "board-specific firmware and calibration required",
+  "sha256": "a1a8f5de2b05fae0057d8fe44ce869f2f8c66c9eae6e9444b116f06fbea5c261"
+}

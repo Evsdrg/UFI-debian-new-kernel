@@ -1,0 +1,12 @@
+diff --git a/drivers/net/wireless/ath/wcn36xx/debug.c b/drivers/net/wireless/ath/wcn36xx/debug.c
+--- a/drivers/net/wireless/ath/wcn36xx/debug.c
++++ b/drivers/net/wireless/ath/wcn36xx/debug.c
+@@ -200,7 +200,7 @@
+ 
+ 	ADD_FILE(bmps_switcher, 0600, &fops_wcn36xx_bmps, wcn);
+ 	ADD_FILE(dump, 0200, &fops_wcn36xx_dump, wcn);
+-	ADD_FILE(firmware_feat_caps, 0200,
++	ADD_FILE(firmware_feat_caps, 0444,
+ 		 &fops_wcn36xx_firmware_feat_caps, wcn);
+ }
+ 

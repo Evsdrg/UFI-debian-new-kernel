@@ -1,0 +1,13 @@
+[Unit]
+Description=UFI103s three-colour LED status monitor
+After=local-fs.target systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/ufi-led-state.sh monitor
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

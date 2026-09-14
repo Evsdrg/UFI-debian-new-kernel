@@ -1,0 +1,8 @@
+{
+  "board": "sp970",
+  "kernel_release": "6.18.49-ufi003-dirty",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "status": "offline-validated; not flashed",
+  "firmware": "board-specific firmware and calibration required",
+  "sha256": "de3af92cb160ef85dd131a87a59ee275c455695c7e67c7d51944c1d46f4a8f19"
+}

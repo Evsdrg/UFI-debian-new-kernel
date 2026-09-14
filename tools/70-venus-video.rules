@@ -1,0 +1,9 @@
+# Stable names for the Qualcomm Venus m2m nodes.
+#
+# video_register_device() is called with -1, so the kernel hands out
+# /dev/videoN dynamically, and venus-dec / venus-enc are separate modules that
+# udev autoloads in parallel -- the decoder and encoder swap numbers between
+# boots.  Match on the stable V4L2 name instead and publish symlinks, so
+# userspace never has to guess which node is which.
+KERNEL=="video[0-9]*", ATTR{name}=="qcom-venus-decoder", SYMLINK+="video-decoder"
+KERNEL=="video[0-9]*", ATTR{name}=="qcom-venus-encoder", SYMLINK+="video-encoder"

@@ -1,0 +1,8 @@
+{
+  "board": "uz801",
+  "kernel_release": "6.18.49-ufi003-dirty",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "status": "offline-validated; not flashed",
+  "firmware": "board-specific firmware and calibration required",
+  "sha256": "c5934ffe3f3d9e67baa1eb114ecee0578e83b07d657b071dac9cdc5dc95519b1"
+}

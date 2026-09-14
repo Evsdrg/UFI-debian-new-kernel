@@ -1,0 +1,247 @@
+diff --git a/drivers/net/wireless/ath/wcn36xx/debug.c b/drivers/net/wireless/ath/wcn36xx/debug.c
+--- a/drivers/net/wireless/ath/wcn36xx/debug.c
++++ b/drivers/net/wireless/ath/wcn36xx/debug.c
+@@ -22,6 +22,7 @@
+ #include "debug.h"
+ #include "pmc.h"
+ #include "firmware.h"
++#include "smd.h"
+ 
+ #ifdef CONFIG_WCN36XX_DEBUGFS
+ 
+@@ -173,6 +174,86 @@
+ 	.read = read_file_firmware_feature_caps,
+ };
+ 
++/*
++ * Runtime firmware-config knob.  Writing "<cfg_id> <value>" (either decimal or
++ * 0x-prefixed) pushes one WCN36XX_HAL_CFG_* value to the firmware through the
++ * same HAL update-cfg request the driver already uses for the RTS threshold.
++ *
++ * This exists because the firmware owns TX rate adaptation on this chip
++ * (IEEE80211_HW_HAS_RATE_CONTROL) and the driver only sends its config table at
++ * start time, so there is otherwise no way to observe the effect of a rate or
++ * retry parameter without rebuilding and rebooting.  Reading the file prints the
++ * raw value handed to the HAL with no interpretation.
++ */
++static ssize_t read_file_cfg(struct file *file, char __user *user_buf,
++			     size_t count, loff_t *ppos)
++{
++	struct wcn36xx *wcn = file->private_data;
++	char buf[64];
++	int len;
++
++	len = scnprintf(buf, sizeof(buf), "last_cfg_id=%u last_cfg_value=%u\n",
++			wcn->dfs_last_cfg_id, wcn->dfs_last_cfg_value);
++
++	return simple_read_from_buffer(user_buf, count, ppos, buf, len);
++}
++
++static ssize_t write_file_cfg(struct file *file, const char __user *user_buf,
++			      size_t count, loff_t *ppos)
++{
++	struct wcn36xx *wcn = file->private_data;
++	char buf[64], *sep;
++	unsigned long id, value = 0;
++	ssize_t len;
++	int ret;
++
++	len = min_t(size_t, count, sizeof(buf) - 1);
++	if (copy_from_user(buf, user_buf, len))
++		return -EFAULT;
++	buf[len] = '\0';
++
++	/*
++	 * Expect "id" or "id value".  Split the two tokens explicitly: kstrtoul()
++	 * wants a bare number, so the separator has to be terminated here.
++	 */
++	sep = strpbrk(buf, " \t");
++	if (sep)
++		*sep++ = '\0';
++
++	ret = kstrtoul(buf, 0, &id);
++	if (ret)
++		return ret;
++
++	if (sep) {
++		while (*sep == ' ' || *sep == '\t')
++			sep++;
++		if (*sep) {
++			ret = kstrtoul(sep, 0, &value);
++			if (ret)
++				return ret;
++		}
++	}
++
++	ret = wcn36xx_smd_update_cfg(wcn, (u32)id, (u32)value);
++	if (ret) {
++		wcn36xx_err("cfg write failed: id=%lu value=%lu ret=%d\n",
++			    id, value, ret);
++		return ret;
++	}
++
++	wcn->dfs_last_cfg_id = (u32)id;
++	wcn->dfs_last_cfg_value = (u32)value;
++	wcn36xx_info("cfg write: id=%lu value=%lu\n", id, value);
++
++	return count;
++}
++
++static const struct file_operations fops_wcn36xx_cfg = {
++	.open = simple_open,
++	.read = read_file_cfg,
++	.write = write_file_cfg,
++};
++
+ #define ADD_FILE(name, mode, fop, priv_data)		\
+ 	do {							\
+ 		struct dentry *d;				\
+@@ -202,6 +283,7 @@
+ 	ADD_FILE(dump, 0200, &fops_wcn36xx_dump, wcn);
+ 	ADD_FILE(firmware_feat_caps, 0444,
+ 		 &fops_wcn36xx_firmware_feat_caps, wcn);
++	ADD_FILE(cfg, 0600, &fops_wcn36xx_cfg, wcn);
+ }
+ 
+ void wcn36xx_debugfs_exit(struct wcn36xx *wcn)
+diff --git a/drivers/net/wireless/ath/wcn36xx/debug.h b/drivers/net/wireless/ath/wcn36xx/debug.h
+--- a/drivers/net/wireless/ath/wcn36xx/debug.h
++++ b/drivers/net/wireless/ath/wcn36xx/debug.h
+@@ -32,6 +32,7 @@
+ 	struct wcn36xx_dfs_file file_bmps_switcher;
+ 	struct wcn36xx_dfs_file file_dump;
+ 	struct wcn36xx_dfs_file file_firmware_feat_caps;
++	struct wcn36xx_dfs_file file_cfg;
+ };
+ 
+ void wcn36xx_debugfs_init(struct wcn36xx *wcn);
+diff --git a/drivers/net/wireless/ath/wcn36xx/main.c b/drivers/net/wireless/ath/wcn36xx/main.c
+--- a/drivers/net/wireless/ath/wcn36xx/main.c
++++ b/drivers/net/wireless/ath/wcn36xx/main.c
+@@ -33,6 +33,22 @@
+ module_param_named(debug_mask, wcn36xx_dbg_mask, uint, 0644);
+ MODULE_PARM_DESC(debug_mask, "Debugging mask");
+ 
++/*
++ * Override any WCN36XX_HAL_CFG_* value handed to the firmware at MAC start, as
++ * a comma-separated list of "id=value" pairs (decimal or 0x-prefixed), e.g.
++ * "9=20000".  The firmware latches its configuration when the MAC starts, so a
++ * runtime update-cfg request is accepted but has no effect: after changing this
++ * the link has to be re-started (ip link down/up) for it to take effect.
++ *
++ * This exists because the rate the firmware actually transmits at is not
++ * settable from the host -- it does not honour WCN36XX_HAL_CFG_FIXED_RATE for HT
++ * rates at all -- so behavioural knobs like MAX_MEDIUM_TIME can only be probed
++ * this way.
++ */
++char *wcn36xx_cfg_override;
++module_param_named(cfg_override, wcn36xx_cfg_override, charp, 0644);
++MODULE_PARM_DESC(cfg_override, "Comma-separated firmware cfg overrides, e.g. \"9=20000\"");
++
+ #define CHAN2G(_freq, _idx) { \
+ 	.band = NL80211_BAND_2GHZ, \
+ 	.center_freq = (_freq), \
+diff --git a/drivers/net/wireless/ath/wcn36xx/smd.c b/drivers/net/wireless/ath/wcn36xx/smd.c
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -188,6 +188,56 @@
+ 	WCN36XX_CFG_VAL(ENABLE_POWERSAVE_OFFLOAD, 0),
+ };
+ 
++/*
++ * Look up an override for one config id in the wcn36xx_cfg_override module
++ * parameter ("id=value,id=value,...").  Returns the replacement value, or the
++ * caller's value unchanged when there is no match.
++ */
++static u32 wcn36xx_cfg_lookup_override(u32 id, u32 value)
++{
++	const char *p;
++
++	if (!wcn36xx_cfg_override || !*wcn36xx_cfg_override)
++		return value;
++
++	p = wcn36xx_cfg_override;
++	while (*p) {
++		char token[32];
++		const char *comma;
++		char *eq;
++		size_t tlen;
++		unsigned long oid, oval;
++
++		comma = strchrnul(p, ',');
++		tlen = comma - p;
++		if (tlen == 0 || tlen >= sizeof(token)) {
++			p = *comma ? comma + 1 : comma;
++			continue;
++		}
++		memcpy(token, p, tlen);
++		token[tlen] = '\0';
++		p = *comma ? comma + 1 : comma;
++
++		/* An entry is "id=value"; a bare "id" means value 0. */
++		eq = strchr(token, '=');
++		if (eq)
++			*eq++ = '\0';
++
++		if (kstrtoul(token, 0, &oid))
++			continue;
++		if (oid != id)
++			continue;
++
++		oval = 0;
++		if (eq && kstrtoul(eq, 0, &oval))
++			continue;
++
++		return (u32)oval;
++	}
++
++	return value;
++}
++
+ static int put_cfg_tlv_u32(struct wcn36xx *wcn, size_t *len, u32 id, u32 value)
+ {
+ 	struct wcn36xx_hal_cfg *entry;
+@@ -647,8 +697,17 @@
+ 	}
+ 
+ 	for (i = 0; i < cfg_elements; i++) {
+-		ret = put_cfg_tlv_u32(wcn, &len, cfg_vals[i].cfg_id,
+-				      cfg_vals[i].value);
++		u32 cfg_id = cfg_vals[i].cfg_id;
++		u32 cfg_value = cfg_vals[i].value;
++
++		/* Diagnostic override; see the cfg_override comment in main.c. */
++		cfg_value = wcn36xx_cfg_lookup_override(cfg_id, cfg_value);
++
++		if (cfg_value != cfg_vals[i].value)
++			wcn36xx_info("cfg override: id=%u value=%u (table %u)\n",
++				     cfg_id, cfg_value, cfg_vals[i].value);
++
++		ret = put_cfg_tlv_u32(wcn, &len, cfg_id, cfg_value);
+ 		if (ret)
+ 			goto out;
+ 	}
+diff --git a/drivers/net/wireless/ath/wcn36xx/wcn36xx.h b/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
+--- a/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
++++ b/drivers/net/wireless/ath/wcn36xx/wcn36xx.h
+@@ -35,6 +35,9 @@
+ 
+ extern unsigned int wcn36xx_dbg_mask;
+ 
++/* Diagnostic override for the firmware config table; see main.c. */
++extern char *wcn36xx_cfg_override;
++
+ enum wcn36xx_debug_mask {
+ 	WCN36XX_DBG_DXE		= 0x00000001,
+ 	WCN36XX_DBG_DXE_DUMP	= 0x00000002,
+@@ -292,6 +295,10 @@
+ #ifdef CONFIG_WCN36XX_DEBUGFS
+ 	/* Debug file system entry */
+ 	struct wcn36xx_dfs_entry    dfs;
++
++	/* Last value pushed through the debugfs "cfg" knob, for readback. */
++	u32			dfs_last_cfg_id;
++	u32			dfs_last_cfg_value;
+ #endif /* CONFIG_WCN36XX_DEBUGFS */
+ 
+ 	struct ieee80211_supported_band *band;

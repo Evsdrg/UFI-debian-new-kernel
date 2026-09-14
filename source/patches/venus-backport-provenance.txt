@@ -1,0 +1,28 @@
+Venus hfi_parser backport provenance
+
+Local patch: 0001-venus-hfi_parser-fix-payload-size.patch
+Target tree: Linux 6.18.49 (source/linux-6.18.49)
+
+Upstream commits backported (torvalds/linux), merged 2026-07-30, first released in v7.3:
+
+  a51cea23e409278f6e2ea072280aba93cc1dd75e
+    media: venus: fix payload size returned by parse_caps() and parse_alloc_mode()
+    hfi_parser.c | 4 ++--   (2 insertions, 2 deletions)
+
+  bd595b745eb770e80347c31ffc25351046935305
+    media: venus: fix payload size calculation in parse_raw_formats()
+    hfi_parser.c | 5 ++---  (2 insertions, 3 deletions)
+
+Combined: 1 file changed, 4 insertions(+), 5 deletions(-) - matches our local diff exactly.
+
+Bug origin: 9edaaa8e3e15 ("media: venus: hfi_parser: refactor hfi packet
+parsing logic"), committed 2025-03-03 (v6.15 window). Any v6.15..v7.2 tree is
+affected, including all HFI v1 platforms (msm8916, msm8939).
+
+Why backport instead of upgrading: the fix is in v7.3 only; the 6.18.y stable
+branch has not picked it up yet. Both upstream commits carry Cc: stable, so a
+6.18.y backport is expected eventually and should match this patch.
+
+Applicability: applies cleanly with no fuzz. The three functions were untouched
+between the 6.15 refactor and the 7.3 fix, so our 6.18.49 context lines are
+byte-identical to upstream's.

@@ -1,0 +1,8 @@
+{
+  "board": "ufi001b",
+  "kernel_release": "6.18.49-ufi003-dirty",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "status": "offline-validated; not flashed",
+  "firmware": "board-specific firmware and calibration required",
+  "sha256": "868785172f1814007e0a0b576d9f7b0e2ea03685f7299426902afd8a4af53b7e"
+}

@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick UFI103s - MSM8916 4G USB stick
+ *
+ * Board layout (verified against live device tree dump of the
+ * HandsomeMod 5.15 BSP running on the device):
+ *   - Wi-Fi/BT: WCN3620 (pronto v2)
+ *   - Reset button: GPIO 37
+ *   - LEDs: wifi=20, internet=21, os=22,
+ *     sim_sel=2 (default on), sim_en=1, sim_sel2=0, sim_en2=3
+ *   - eMMC: sdhc_1, rootfs on mmcblk0p14
+ */
+
+/dts-v1/;
+
+#include "msm8916-handsome-openstick-common.dtsi"
+#include <dt-bindings/leds/common.h>
+
+/ {
+	model = "Handsome OpenStick UFI103s";
+	compatible = "handsome,openstick", "qcom,msm8916";
+
+	gpio-keys {
+		compatible = "gpio-keys";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_default>;
+
+		button-reset {
+			label = "Reset";
+			gpios = <&tlmm 37 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_leds_default>;
+
+		led-wifi {
+			function = LED_FUNCTION_WLAN;
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy0tx";
+		};
+
+		led-internet {
+			function = LED_FUNCTION_WAN;
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 21 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-os {
+			function = LED_FUNCTION_HEARTBEAT;
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			default-state = "on";
+		};
+
+		led-sim-sel {
+			label = "sim:sel";
+			gpios = <&tlmm 2 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		led-sim-en {
+			label = "sim:en";
+			gpios = <&tlmm 1 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-sim-sel2 {
+			label = "sim:sel2";
+			gpios = <&tlmm 0 GPIO_ACTIVE_HIGH>;
+		};
+
+		led-sim-en2 {
+			label = "sim:en2";
+			gpios = <&tlmm 3 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+&wcnss {
+	status = "okay";
+};
+
+&wcnss_iris {
+	compatible = "qcom,wcn3620";
+};
+
+&wcnss_mem {
+	status = "okay";
+};
+
+
+/*
+ * Research variant: OPPs aligned with the MSM8916 A53 PLL table.
+ * This image is separate from the conservative baseline and is not a voltage experiment.
+ */
+&cpu_opp_table {
+	opp-1094400000 {
+		opp-hz = /bits/ 64 <1094400000>;
+	};
+
+	opp-1152000000 {
+		opp-hz = /bits/ 64 <1152000000>;
+	};
+
+	opp-1209600000 {
+		opp-hz = /bits/ 64 <1209600000>;
+	};
+};
+
+&tlmm {
+	gpio_leds_default: gpio-leds-default-state {
+		pins = "gpio0", "gpio1", "gpio2", "gpio3",
+		       "gpio20", "gpio21", "gpio22";
+		function = "gpio";
+		bias-disable;
+	};
+
+	gpio_keys_default: gpio-keys-default-state {
+		pins = "gpio37";
+		function = "gpio";
+
+		drive-strength = <8>;
+		input-enable;
+		bias-pull-up;
+	};
+};

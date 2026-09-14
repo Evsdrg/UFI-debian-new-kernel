@@ -1,0 +1,50 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick UFI103s - Venus codec + CPU burst policy
+ *
+ * Adds the A53 PLL steps above the stock 998.4 MHz maximum and raises the CPU
+ * passive-cooling trip from 75 C to 85 C, keeping the 110 C critical trip as
+ * the hard safety net.
+ *
+ * MEASURED CEILING: the CPU core stops getting faster at about 1209.6 MHz.
+ * Interleaved single-thread measurements (openssl sha256, libx264 threads=1)
+ * showed 998.4 -> 1209.6 MHz scaling +21% (exactly the clock ratio) and then
+ * 1209.6 -> 1401.6 MHz adding nothing, even though the PLL really does move to
+ * 1401.6 MHz.  The transcode workload plateaus at the same point.  So the OPPs
+ * here stop at 1209.6 MHz -- the highest step that actually pays off -- and the
+ * higher rates are deliberately NOT exposed, because they only add heat and
+ * reach the 85 C trip sooner for no gain.  1.6 GHz would be pointless.
+ *
+ * The msm8916 CPU OPP nodes carry no opp-microvolt: each core is bound to a
+ * SAW2 AVS controller, and pm8916_s3 is fixed at 1.30 V (1.35 V cap).  That
+ * fixed rail is why the core tops out where it does.
+ */
+
+#include "msm8916-handsome-openstick-ufi103s-venus.dts"
+
+&cpu_opp_table {
+	opp-1094400000 {
+		opp-hz = /bits/ 64 <1094400000>;
+	};
+
+	opp-1152000000 {
+		opp-hz = /bits/ 64 <1152000000>;
+	};
+
+	opp-1209600000 {
+		opp-hz = /bits/ 64 <1209600000>;
+	};
+};
+
+/*
+ * Short-burst policy: postpone passive cooling to 85 C so bursts keep the top
+ * step longer; sustained load is still throttled automatically by the thermal
+ * governor well before the 110 C critical trip.
+ */
+&cpu0_1_alert0 {
+	temperature = <85000>;
+};
+
+&cpu2_3_alert0 {
+	temperature = <85000>;
+};

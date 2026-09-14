@@ -1,0 +1,21 @@
+diff --git a/drivers/net/wireless/ath/wcn36xx/smd.c b/drivers/net/wireless/ath/wcn36xx/smd.c
+--- a/drivers/net/wireless/ath/wcn36xx/smd.c
++++ b/drivers/net/wireless/ath/wcn36xx/smd.c
+@@ -44,7 +44,16 @@
+ 	WCN36XX_CFG_VAL(CAL_CONTROL, 1),
+ 	WCN36XX_CFG_VAL(PROXIMITY, 0),
+ 	WCN36XX_CFG_VAL(NETWORK_DENSITY, 3),
+-	WCN36XX_CFG_VAL(MAX_MEDIUM_TIME, 6000),
++	/*
++	 * MEDIUM_TIME is the firmware's per-channel occupancy budget in
++	 * microseconds.  6000 is too small for HT: with it the firmware's rate
++	 * adaptation settles at MCS0 and stays there (measured ~6 Mbit/s TX on a
++	 * clean, 40 MHz, -27 dBm link), while 10000 and above let it hold
++	 * MCS4-MCS5 (~45-50 Mbit/s).  Values 8000 and 16000 were also observed to
++	 * fall back to MCS0, so this is not a smooth scaling knob and the choice
++	 * has to be tested, not derived.
++	 */
++	WCN36XX_CFG_VAL(MAX_MEDIUM_TIME, 20000),
+ 	WCN36XX_CFG_VAL(MAX_MPDUS_IN_AMPDU, 64),
+ 	WCN36XX_CFG_VAL(RTS_THRESHOLD, 2347),
+ 	WCN36XX_CFG_VAL(SHORT_RETRY_LIMIT, 15),

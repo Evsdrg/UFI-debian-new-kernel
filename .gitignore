@@ -1,4 +1,42 @@
-# Linux kernel build outputs
+# 本仓库只跟踪“项目自身的工作”：脚本、文档、DTS、配置、补丁、清单。
+# 大体积产物与上游参考树不入版本库（见 README.md 的目录说明）。
+
+# ==== 源码与上游参考（可从上游重新获取）====
+/source/linux-6.18.49/
+/upstream/
+
+# ==== 工具链与刷机工具（体积大、可重下）====
+/edl-tools/
+/mkbootimg/
+
+# ==== 产物与中间态（可用 tools/ 下的脚本重建）====
+/build/
+/out/
+/shared/
+/boards/*/*/boot/*.img
+/boards/*/boot/*.img
+# Image.gz + DTB 的拼接中间产物，可由内核镜像与 DTS 重建
+/boards/*/*/boot/kernel-*-dtb
+/boards/*/boot/kernel-*-dtb
+/boards/*/*/boot/empty-ramdisk
+/boards/*/boot/empty-ramdisk
+
+# ==== 不可再生但体积大：备份与刷机证据（仅在本地保留）====
+/recovery/
+/archive/
+
+# ==== Python ====
+__pycache__/
+*.pyc
+
+# ==== 编辑器 / 系统 ====
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# ==== 内核编译产物（若在树内就地构建）====
 *.o
 *.o.d
 *.a
@@ -9,49 +47,9 @@
 *.mod.c
 *.order
 *.symvers
-*.c.[0-9]*
 *.ll
-
-# Kernel directory layout outputs
+*.c.[0-9]*
 .tmp_versions/
 modules.order
 modules.builtin
 modules.builtin.modinfo
-
-# Build artifacts
-/arch/arm64/boot/Image
-/arch/arm64/boot/Image.gz
-/arch/arm64/boot/dts/qcom-ipq40xx/*.dtb
-/vmlinux
-/vmlinux.*
-/System.map
-/.config.old
-/auto.conf
-/debian/
-
-# Debian rootfs artifacts
-rootfs-*.tar*
-rootfs-*.squashfs
-
-# Toolchains and downloads
-toolchain/
-dl/
-cache/
-
-# Editor / IDE
-.vscode/
-.idea/
-*.swp
-*~
-
-# OS
-.DS_Store
-# cloned reference repos (large, 不入版本库)
-handsomemod/
-handsomemod-packages/
-openstick/
-qcom-firmware/
-kernel/
-toolchain/
-out/
-mkbootimg/

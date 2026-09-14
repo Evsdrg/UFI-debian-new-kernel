@@ -1,0 +1,209 @@
+diff --git a/drivers/media/platform/qcom/venus/hfi_parser.c b/drivers/media/platform/qcom/venus/hfi_parser.c
+index c4cf6cd50..e88a65819 100644
+--- a/drivers/media/platform/qcom/venus/hfi_parser.c
++++ b/drivers/media/platform/qcom/venus/hfi_parser.c
+@@ -85,7 +85,7 @@ parse_alloc_mode(struct venus_core *core, u32 codecs, u32 domain, void *data)
+ 		type++;
+ 	}
+ 
+-	return sizeof(*mode);
++	return mode->num_entries * sizeof(u32) + sizeof(*mode);
+ }
+ 
+ static void fill_profile_level(struct hfi_plat_caps *cap, const void *data,
+@@ -146,7 +146,7 @@ parse_caps(struct venus_core *core, u32 codecs, u32 domain, void *data)
+ 	for_each_codec(core->caps, ARRAY_SIZE(core->caps), codecs, domain,
+ 		       fill_caps, caps_arr, num_caps);
+ 
+-	return sizeof(*caps);
++	return num_caps * sizeof(*cap) + sizeof(u32);
+ }
+ 
+ static void fill_raw_fmts(struct hfi_plat_caps *cap, const void *fmts,
+@@ -171,7 +171,7 @@ parse_raw_formats(struct venus_core *core, u32 codecs, u32 domain, void *data)
+ 	u32 entries = fmt->format_entries;
+ 	unsigned int i = 0;
+ 	u32 num_planes = 0;
+-	u32 size;
++	u32 size = 2 * sizeof(u32);
+ 
+ 	while (entries) {
+ 		num_planes = pinfo->num_planes;
+@@ -186,6 +186,7 @@ parse_raw_formats(struct venus_core *core, u32 codecs, u32 domain, void *data)
+ 		if (pinfo->num_planes > MAX_PLANES)
+ 			break;
+ 
++		size += sizeof(*constr) * num_planes + 2 * sizeof(u32);
+ 		pinfo = (void *)pinfo + sizeof(*constr) * num_planes +
+ 			2 * sizeof(u32);
+ 		entries--;
+@@ -193,8 +194,6 @@ parse_raw_formats(struct venus_core *core, u32 codecs, u32 domain, void *data)
+ 
+ 	for_each_codec(core->caps, ARRAY_SIZE(core->caps), codecs, domain,
+ 		       fill_raw_fmts, rawfmts, i);
+-	size = fmt->format_entries * (sizeof(*constr) * num_planes + 2 * sizeof(u32))
+-		+ 2 * sizeof(u32);
+ 
+ 	return size;
+ }
+diff --git a/drivers/media/platform/qcom/venus/vdec.c b/drivers/media/platform/qcom/venus/vdec.c
+index 27cb02442..eddc12726 100644
+--- a/drivers/media/platform/qcom/venus/vdec.c
++++ b/drivers/media/platform/qcom/venus/vdec.c
+@@ -253,8 +253,23 @@ static int vdec_check_src_change(struct venus_inst *inst)
+ 
+ 	if (inst->subscriptions & V4L2_EVENT_SOURCE_CHANGE &&
+ 	    inst->codec_state == VENUS_DEC_STATE_INIT &&
+-	    !inst->reconfig)
++	    !inst->reconfig) {
++		/*
++		 * A subscribed client is supposed to wait for the source-change
++		 * event before asking for the capture format.  However ffmpeg's
++		 * v4l2m2m wrapper issues G_FMT right after STREAMON on the output
++		 * queue (with the first frame already queued) and stops decoding
++		 * if it receives -EINVAL before the event has been delivered.
++		 * Give the firmware a bounded chance to report the resolution
++		 * first; only fall back to -EINVAL when nothing arrives, which
++		 * keeps the spec behaviour for clients that do the right thing.
++		 */
++		if (wait_event_timeout(inst->reconf_wait, inst->reconfig,
++				       msecs_to_jiffies(100)))
++			return 0;
++
+ 		return -EINVAL;
++	}
+ 
+ 	if (inst->subscriptions & V4L2_EVENT_SOURCE_CHANGE)
+ 		return 0;
+diff --git a/drivers/media/platform/qcom/venus/venc.c b/drivers/media/platform/qcom/venus/venc.c
+index fba07557a..ae3af6523 100644
+--- a/drivers/media/platform/qcom/venus/venc.c
++++ b/drivers/media/platform/qcom/venus/venc.c
+@@ -24,6 +24,17 @@
+ 
+ #define NUM_B_FRAMES_MAX	4
+ 
++/*
++ * Alignment the encoder input actually requires.  The firmware reports a step
++ * of 1 through HFI_CAPABILITY_FRAME_WIDTH/HEIGHT but the hardware works on
++ * 128x32 tiles: a geometry that is not aligned is accepted and then fails (or
++ * produces a garbage bitstream) instead of being rejected.  Publish the real
++ * alignment so that ENUM_FRAMESIZES, TRY_FMT and S_FMT all agree and clients
++ * can discover the constraint, as other V4L2 drivers do.
++ */
++#define VENC_WIDTH_ALIGN	128
++#define VENC_HEIGHT_ALIGN	32
++
+ /*
+  * Three resons to keep MPLANE formats (despite that the number of planes
+  * currently is one):
+@@ -197,8 +208,8 @@ venc_try_fmt_common(struct venus_inst *inst, struct v4l2_format *f)
+ 	pixmp->height = clamp(pixmp->height, frame_height_min(inst),
+ 			      frame_height_max(inst));
+ 
+-	pixmp->width = ALIGN(pixmp->width, 128);
+-	pixmp->height = ALIGN(pixmp->height, 32);
++	pixmp->width = ALIGN(pixmp->width, VENC_WIDTH_ALIGN);
++	pixmp->height = ALIGN(pixmp->height, VENC_HEIGHT_ALIGN);
+ 
+ 	pixmp->width = ALIGN(pixmp->width, 2);
+ 	pixmp->height = ALIGN(pixmp->height, 2);
+@@ -455,12 +466,21 @@ static int venc_enum_framesizes(struct file *file, void *fh,
+ 	if (fsize->index)
+ 		return -EINVAL;
+ 
+-	fsize->stepwise.min_width = frame_width_min(inst);
+-	fsize->stepwise.max_width = frame_width_max(inst);
+-	fsize->stepwise.step_width = frame_width_step(inst);
+-	fsize->stepwise.min_height = frame_height_min(inst);
+-	fsize->stepwise.max_height = frame_height_max(inst);
+-	fsize->stepwise.step_height = frame_height_step(inst);
++	/*
++	 * Report the alignment actually enforced by venc_try_fmt_common()
++	 * rather than the firmware's nominal 1; min/max are rounded to the same
++	 * step so that every advertised geometry is one the driver accepts.
++	 */
++	fsize->stepwise.step_width = VENC_WIDTH_ALIGN;
++	fsize->stepwise.step_height = VENC_HEIGHT_ALIGN;
++	fsize->stepwise.min_width =
++		ALIGN(frame_width_min(inst), VENC_WIDTH_ALIGN);
++	fsize->stepwise.max_width =
++		ALIGN(frame_width_max(inst), VENC_WIDTH_ALIGN);
++	fsize->stepwise.min_height =
++		ALIGN(frame_height_min(inst), VENC_HEIGHT_ALIGN);
++	fsize->stepwise.max_height =
++		ALIGN(frame_height_max(inst), VENC_HEIGHT_ALIGN);
+ 
+ 	return 0;
+ }
+@@ -722,15 +742,24 @@ static int venc_set_properties(struct venus_inst *inst)
+ 		if (ret)
+ 			return ret;
+ 
+-		ptype = HFI_PROPERTY_PARAM_VENC_H264_TRANSFORM_8X8;
+-		h264_transform.enable_type = 0;
+-		if (ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_HIGH ||
+-		    ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
+-			h264_transform.enable_type = ctr->h264_8x8_transform;
+-
+-		ret = hfi_session_set_property(inst, ptype, &h264_transform);
+-		if (ret)
+-			return ret;
++		/*
++		 * The 8x8 transform property is only understood by the HFI 4xx/6xx
++		 * packet builders; pkt_session_set_property() returns -EINVAL for it
++		 * on 1xx/3xx, which aborts session init and makes the encoder
++		 * unusable on msm8916/msm8996. Only send it where it can be packed.
++		 */
++		if (inst->core->res->hfi_version == HFI_VERSION_4XX ||
++		    inst->core->res->hfi_version == HFI_VERSION_6XX) {
++			ptype = HFI_PROPERTY_PARAM_VENC_H264_TRANSFORM_8X8;
++			h264_transform.enable_type = 0;
++			if (ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_HIGH ||
++			    ctr->profile.h264 == V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_HIGH)
++				h264_transform.enable_type = ctr->h264_8x8_transform;
++
++			ret = hfi_session_set_property(inst, ptype, &h264_transform);
++			if (ret)
++				return ret;
++		}
+ 
+ 		if (ctr->layer_bitrate) {
+ 			unsigned int i;
+@@ -875,7 +904,16 @@ static int venc_set_properties(struct venus_inst *inst)
+ 	if (inst->fmt_cap->pixfmt == V4L2_PIX_FMT_H264 ||
+ 	    inst->fmt_cap->pixfmt == V4L2_PIX_FMT_HEVC) {
+ 		ptype = HFI_PROPERTY_CONFIG_VENC_SYNC_FRAME_SEQUENCE_HEADER;
+-		if (ctr->header_mode == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE)
++		/*
++		 * HFI 1xx firmware does not deliver a separate codec-config
++		 * buffer: with the in-band sequence header disabled it emits an
++		 * IDR without any SPS/PPS, and mainline has no
++		 * V4L2_BUF_FLAG_CODECCONFIG path to hand one out either. Keep the
++		 * headers in-band on 1xx so the bitstream stays decodable, even
++		 * when the client asks for separate headers.
++		 */
++		if (ctr->header_mode == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE &&
++		    inst->core->res->hfi_version != HFI_VERSION_1XX)
+ 			en.enable = 0;
+ 		else
+ 			en.enable = 1;
+diff --git a/drivers/media/platform/qcom/venus/venc_ctrls.c b/drivers/media/platform/qcom/venus/venc_ctrls.c
+index 4d36c44f9..3bac50ca7 100644
+--- a/drivers/media/platform/qcom/venus/venc_ctrls.c
++++ b/drivers/media/platform/qcom/venus/venc_ctrls.c
+@@ -220,7 +220,13 @@ static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
+ 		ctr->header_mode = ctrl->val;
+ 		mutex_lock(&inst->lock);
+ 		if (inst->streamon_out && inst->streamon_cap) {
+-			if (ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE)
++			/*
++			 * HFI 1xx can only emit SPS/PPS in-band (see
++			 * venc_set_properties), so keep the headers joined even
++			 * if the client switches the control to separate.
++			 */
++			if (ctrl->val == V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE &&
++			    inst->core->res->hfi_version != HFI_VERSION_1XX)
+ 				en.enable = 0;
+ 			else
+ 				en.enable = 1;
