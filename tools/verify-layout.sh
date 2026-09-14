@@ -19,7 +19,12 @@ board_dir() {
 }
 
 printf '== shell ==\n'
-bash -n "$BASE/tools/build-rootfs.sh" "$BASE/tools/flash.sh" "$BASE/tools/build-boot-images.sh"
+# 对脚本做语法检查。注意 tools/flash.sh 已于 2026-09-14 归档——它是根
+# flash.sh 的旧子集且引用了不存在的路径；权威版本在仓库根。
+bash -n "$BASE/build-rootfs.sh" "$BASE/flash.sh" \
+        "$BASE/tools/build-rootfs.sh" "$BASE/tools/build-boot-images.sh" \
+        "$BASE/tools/build-kernel-variant.sh" "$BASE/tools/build-gpu-variant.sh" \
+        "$BASE/tools/verify-layout.sh" "$BASE/tools/ufi-console.sh"
 printf 'scripts=OK\n'
 
 printf '\n== source ==\n'
@@ -155,21 +160,38 @@ for board in ufi103s-ufi003 ufi001b ufi001c sp970 uz801; do
 done
 
 printf '\n== venus codec variant ==\n'
-VENUS_BOOT="$(board_dir ufi103s-ufi003)/boot/boot-venus.img"
+# boot 镜像命名有两种约定：7.1.13 起带内核版本后缀（boot-venus-7.1.13.img），
+# 6.18 时期是无后缀（boot-venus.img）。按版本名优先、无后缀兜底，两种都能校验。
+_venus_boot_dir="$(board_dir ufi103s-ufi003)/boot"
+VENUS_BOOT="$_venus_boot_dir/boot-venus-$KERNEL_VERSION.img"
+[ -f "$VENUS_BOOT" ] || VENUS_BOOT="$_venus_boot_dir/boot-venus.img"
 VENUS_ROOTFS="$ROOTFS_VENUS"
 VENUS_REL="${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty"
 VENUS_MODS="$MODULES_DIR_VENUS/lib/modules/$VENUS_REL"
 test -f "$VENUS_BOOT"
 test -f "$VENUS_ROOTFS"
 test -f "$BASE/source/configs/ufi103s-venus.config"
+
+# 配置片段静态检查：片段本身必须打开 venus 与 media platform 支持。
+grep -q '^CONFIG_VIDEO_QCOM_VENUS=m' "$BASE/source/configs/ufi103s-venus.config"
+grep -q '^CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$BASE/source/configs/ufi103s-venus.config"
+
+# 动态检查：产物里必须真的有这三个模块。这条同时兜住了"合并失败"的情形——
+# 若基线把 MEDIA_SUPPORT 关掉、片段没顶回来，就不会有这些 .ko。
 for m in venus-core venus-dec venus-enc; do
   test -f "$VENUS_MODS/kernel/drivers/media/platform/qcom/venus/$m.ko"
   printf 'module:%s=present\n' "$m"
 done
+
+# 若变体构建树还在（未清理中间产物），再做一次解析后配置的强校验。
 VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-venus"
-grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"
-grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$VENUS_BUILD/.config"
-printf 'venus_config=OK\n'
+if [ -f "$VENUS_BUILD/.config" ]; then
+  grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"
+  grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$VENUS_BUILD/.config"
+  printf 'venus_config=OK (resolved)\n'
+else
+  printf 'venus_config=OK (fragment; build tree cleaned)\n'
+fi
 python3 - "$VENUS_BOOT" <<'PY'
 import struct, sys
 data = open(sys.argv[1], 'rb').read()

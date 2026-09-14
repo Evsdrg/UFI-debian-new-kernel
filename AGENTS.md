@@ -301,7 +301,9 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 - `desktop/ufi-stream-push.sh` / `-clock.sh` / `-play.sh`：GPU 推流链路
   （见 `GPU-STREAMING.md`）
 - `ufi-console.sh`：有界串口访问
-- `flash.sh` / `tools/flash.sh`：刷机（`fastboot-flash` 会比对 build.json 的 sha256）
+- `flash.sh`（仓库根）：刷机，`fastboot-flash` 会比对 build.json 的 sha256 再写。
+  （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 归档到
+  `archive/superseded-20260914/tools/`。）
 
 ---
 
@@ -322,6 +324,28 @@ KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh
 产物名与构建目录都带版本号 —— **这是必须保持的**：早先不带版本号时，换版本重编
 会覆盖掉旧版本的 `Image.gz`，而 boot 镜像不在 git 里（`.gitignore` 排除 `*.img`），
 覆盖后旧镜像再也拼不回来（真的发生过一次）。
+
+### 5.1b 内核镜像**不是**逐位可复现的（模块是）
+
+重编同一个变体会得到**不同的 sha256**，这不是出错。实测（2026-09-14，同源同配置
+重编）解压后 21374984 字节里只有 **47 字节**不同：
+
+| 差异 | 字节数 | 性质 |
+|---|---|---|
+| 内嵌版本串（`#N SMP PREEMPT <日期时间>`） | 12 | 构建序号与时间戳 |
+| `GNU` build-id 注记 | 20 | 每次链接都变 |
+| 地址表条目 | 15 | 随 build-id 变化微移 |
+
+代码段与数据段**完全一致**；**模块（.ko）是逐字节可复现的**（697 个逐个哈希相同）。
+
+实践含义：
+- 别用内核镜像哈希判断"是否重建成功"——比对解压后的内容，或看
+  `dmesg | grep 'Linux version'` 里的版本串（`#N` 与时间戳会变）。
+- `build.json` 里的 `boot_sha256` 是"这一份文件"的指纹，重编就会变
+  （打包脚本会同步更新，所以它始终自洽，可放心用于刷前校验）。
+- 要逐位复现需固定 `KBUILD_BUILD_TIMESTAMP`/`KBUILD_BUILD_VERSION` 与确定的
+  `--build-id` 选项；目前没做，也没必要。
+- 需要确认"设备上跑的是哪一份"时，比 `out/rollback/` 下的 p12 读回副本。
 
 ### 5.2 常用命令
 
