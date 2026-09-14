@@ -19,9 +19,11 @@ PKGS_EXTRA="login,openssh-server,network-manager,network-manager-l10n,wpasupplic
 STAGE="$WORKDIR/build/rootfs-stage-common"
 rm -rf "$STAGE"; mkdir -p "$STAGE/etc" "$STAGE/etc/NetworkManager/system-connections" "$STAGE/etc/NetworkManager/conf.d" "$STAGE/etc/systemd/system/rmtfs.service.d" "$STAGE/etc/systemd/system/sysinit.target.wants" "$STAGE/etc/modules-load.d" "$STAGE/lib/modules" "$STAGE/lib/firmware"
 
-if [[ -n "${ROOTFS_ROOT_PARTUUID:-}" ]]; then
-  printf 'PARTUUID=%s / ext4 errors=remount-ro 0 1\n' "$ROOTFS_ROOT_PARTUUID" > "$STAGE/etc/fstab"
-else
+  if [[ -n "${ROOTFS_ROOT_PARTUUID:-}" ]]; then
+    # x-systemd.growfs：开机自动把文件系统撑满分区（镜像比分区小，不拉伸会只剩
+    # 一百多 MB 可用空间）。
+    printf 'PARTUUID=%s / ext4 errors=remount-ro,x-systemd.growfs 0 1\n' "$ROOTFS_ROOT_PARTUUID" > "$STAGE/etc/fstab"
+  else
   : > "$STAGE/etc/fstab"
 fi
 # Headless appliance: never let debconf pick a dialog/Readline frontend.  The
@@ -160,6 +162,7 @@ DEBIAN_FRONTEND=noninteractive mmdebstrap --arch=arm64 --mode=unshare --variant=
   '--customize-hook=printf "127.0.0.1\tlocalhost\n::1\tlocalhost\n" > $1/etc/hosts' \
   '--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service' \
   "--customize-hook=mkdir -p \$1/root \$1/usr/lib && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/" \
+  '--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true' \
   '--customize-hook=ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime && echo Asia/Shanghai > $1/etc/timezone' \
   '--customize-hook=sed -i "s/^# *\(zh_CN.UTF-8 UTF-8\)/\1/" $1/etc/locale.gen' \
   '--customize-hook=grep -q "^zh_CN.UTF-8 UTF-8" $1/etc/locale.gen || echo "zh_CN.UTF-8 UTF-8" >> $1/etc/locale.gen' \

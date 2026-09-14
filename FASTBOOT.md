@@ -51,7 +51,7 @@ USB 上设备是 `18d1:d00d`（Android/fastboot 标准 ID），实测出现在�
 
 ### 3. 刷 rootfs：可行，但有两个坑
 
-刷 `venus-led.ext4`（964M）成功：
+刷 `venus.ext4`（1019M）成功：
 
 ```
 Sending sparse 'rootfs' 1/4 (190568 KB)  OKAY
@@ -63,28 +63,27 @@ Finished. Total time: 202.691s
 刷完 fs UUID 精确变成镜像的 `0a861856…`、Block count 与镜像一致，系统正常启动。
 
 **坑 1：`-S` 是必需的，且分片上限受 LK 约束。**
-`fastboot getvar max-download-size` 实测 = `0x10000000`（256 M）。964M 的镜像
-一次传不完，必须 `-S`（官方用 `-S 200M`，我们实测 4 片、203 秒）。
+`fastboot getvar max-download-size` 实测 = `0x10000000`（256 M）。~1G 的镜像
+一次传不完，必须 `-S`（官方用 `-S 200M`；实测 1019M 的镜像分 5 片、204 秒）。
 
-**坑 2（最要紧）：刷完必须 `resize2fs`，否则可用空间只剩 111M。**
-rootfs 镜像是 **964M**，而分区是 **3.4G**。写入后文件系统仍是镜像的大小：
+**坑 2：不处理的话可用空间只剩 111M——现已由镜像自动解决。**
+rootfs 镜像（~1G）比 `rootfs` 分区（3.4G）小，写入后文件系统仍是镜像的大小：
 
 ```
 $ df -h /
-/dev/root  930M  755M  111M  88% /      <- 刷完立刻的状态
+/dev/root  930M  755M  111M  88% /      <- 不做处理时的状态
 ```
 
-在设备上执行一次拉伸即可撑满分区：
+镜像的 `/etc/fstab` 现在给 root 行带了 `x-systemd.growfs`，开机时
+`systemd-growfs-root.service` 自动拉伸。**实测刷完即 `3.3G 总 / 2.4G 可用`，
+无需任何手工步骤。** 老镜像没有这一项，需要手动：
 
 ```sh
 resize2fs /dev/mmcblk0p14
 # => The filesystem on /dev/mmcblk0p14 is now 871931 (4k) blocks long.
-$ df -h /
-/dev/root  3.3G  755M  2.4G  24% /      <- 可用 111M -> 2.4G
 ```
 
-系统里**没有**自动拉伸：`systemd-growfs-root.service` 虽然存在，但 fstab 里的
-root 行没有 `x-systemd.growfs`。
+`verify-layout.sh` 会断言 `x-systemd.growfs` 存在。
 
 **不要刷「等于分区大小的整分区读回」。** 我一开始拿 3.4G 的整分区备份回刷，LK
 直接拒绝：
@@ -184,15 +183,16 @@ fastboot devices
 # 3) 刷 boot（本板变体见 boards/ufi00x/ufi103s-ufi003/README.md）
 fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-burst.img
 
-# 4) 刷 rootfs。-S 必需：LK 的 max-download-size 只有 256M，而镜像 ~964M。
+# 4) 刷 rootfs。-S 必需：LK 的 max-download-size 只有 256M，而镜像 ~1G。
 #    刷的是 rootfs 文件系统镜像，不是 3.4G 的整分区 dump（后者会被 LK 拒绝）。
-fastboot -S 200M flash rootfs shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus-led.ext4
+fastboot -S 200M flash rootfs shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus.ext4
 
 # 5) 正常启动
 fastboot reboot
 
-# 6) 【必须】回系统后把文件系统撑满分区，否则可用空间只有 ~111M
-ssh root@<设备IP> resize2fs /dev/mmcblk0p14
+# 6) 不需要手动撑满：镜像 fstab 里的 x-systemd.growfs 会在开机时自动拉伸。
+#    只有刷老镜像（fstab 无该项）时才需要：
+#    ssh root@<设备IP> resize2fs /dev/mmcblk0p14
 ```
 
 分区名用 GPT 里的名字，小写：`boot`（p12）、`rootfs`（p14）。LK 侧打印的分区表：
@@ -204,8 +204,9 @@ ptn[13]:Name[rootfs]  First[659456] Last[7634910]
 
 只刷这两个，不要碰 `aboot`/`modem`/`NV` 等。
 
-**最容易踩的坑**：rootfs 刷完一定要 `resize2fs`。见上面「实测结果 3」——镜像
-964M、分区 3.4G，不拉伸的话可用空间只剩 111M，系统虽然能启动但很快会满。
+**关于空间**：镜像 ~1G、分区 3.4G，镜像的 fstab 带 `x-systemd.growfs`，
+开机自动撑满（实测刷完即 2.4G 可用）。若刷的是不带该项的老镜像，仍需手动
+`resize2fs /dev/mmcblk0p14`。见上面「实测结果 3」。
 
 `flash.sh` 已经把这套流程封装好了，见 `flash.sh enter-fastboot` 等子命令
 （`fastboot-flash rootfs` 会打印 resize2fs 提醒）。
@@ -251,8 +252,8 @@ fastboot reboot
 | 重启进 fastboot 后电脑看不到设备 | 数据线没接到这台机器。把数据口插到电脑即可，LK 会立刻被识别 |
 | 等了几十秒还没出现 fastboot 设备 | 正常。实测需约 96 秒，别急着判定失败 |
 | 在 fastboot 里想放弃刷机直接开机 | `fastboot continue`（实测可用） |
-| 刷 rootfs 报 `size too large` | 刷错对象了。要刷 `shared/rootfs/*.ext4`（~964M），不是 3.4G 的整分区 dump |
-| 刷完 rootfs 后 `df /` 只有 930M | 忘了 `resize2fs /dev/mmcblk0p14`（实测可从 111M 恢复到 2.4G 可用） |
+| 刷 rootfs 报 `size too large` | 刷错对象了。要刷 `shared/rootfs/*.ext4`（~1G），不是 3.4G 的整分区 dump |
+| 刷完 rootfs 后 `df /` 只有 930M | 镜像缺 `x-systemd.growfs`（老镜像）。手动 `resize2fs /dev/mmcblk0p14` 可从 111M 恢复到 2.4G |
 | fastboot 下刷错变体 | 重新 `fastboot flash boot <正确变体>` |
 | 刷完开不了机 | 回到 fastboot 刷回原变体；必要时用 `recovery/original/boot-original-p12.img` |
 | 完全进不去 | 按 reset 进 EDL，用 Miko 恢复整片备份 |
@@ -267,8 +268,9 @@ fastboot reboot
   - **刷 boot**：`boot-baseline.img` 刷入后 `uname -r` 由
     `…-venus-dirty` 变为 `…-dirty`；再刷回 `boot-venus-oc-100.img`，p12 的 sha256
     与测试前备份逐字节一致。
-  - **刷 rootfs**：`venus-led.ext4`（964M）用 `-S 200M` 分 4 片、203 秒刷入成功，
+  - **刷 rootfs**：`venus.ext4`（1019M）用 `-S 200M` 分 5 片、204 秒刷入成功，
     fs UUID 与 Block count 均与镜像一致。踩到并解决了两个坑：整分区 dump 会被拒
-    （size too large）；刷完必须 `resize2fs`（111M → 2.4G）。
+    （size too large）；后续镜像加了 fstab 的 x-systemd.growfs，刷完自动撑满
+    （111M → 2.4G 无需手工）。
   - **返回**：`fastboot continue` 与 `fastboot reboot` 均正常回 Linux。
   - 测试后设备 state：systemd running、0 failed、WiFi 与 ModemManager 正常。

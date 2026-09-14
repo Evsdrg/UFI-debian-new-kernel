@@ -47,6 +47,28 @@ device (wlan0): supplicant interface keeps failing, giving up
 `systemd-networkd.service`、`systemd-networkd.socket`、`wpa_supplicant@wlan0.service`
 的启用软链，以及早期方案遗留的 `/etc/wpa_supplicant/wpa_supplicant-wlan0.conf`。
 
+**连接的 keyfile 权限必须是 600。** NetworkManager 会**静默忽略**组或其它用户可
+读的连接文件（这是安全设计：文件里有明文 PSK）。踩到的坑是：构建脚本为了让
+mmdebstrap 的 hook 能读到 STAGE 里的文件，有一段 `chmod -R a+rX "$STAGE"`，
+它把预置 Wi-Fi 文件的 600 改成了 644，结果镜像刷进去后 NM 根本不用那份配置。
+现在拷贝进镜像后会重新 `chmod 600`。
+
+## rootfs 自动撑满分区
+
+rootfs 镜像（约 1G）比它要写入的分区（`rootfs`，3.4G）小，刷完不会自动变大。
+不加处理的话可用空间只剩一百多 MB——实测第一次刷完 `df /` 是
+`930M 总 / 111M 可用`，手动 `resize2fs` 后才变成 `3.3G 总 / 2.4G 可用`。
+
+镜像的 `/etc/fstab` 现在在 root 行带 `x-systemd.growfs`，开机时由
+`systemd-growfs-root.service` 自动拉伸：
+
+```
+PARTUUID=…  /  ext4  errors=remount-ro,x-systemd.growfs  0 1
+```
+
+`verify-layout.sh` 会断言这一项存在。老镜像没有它，仍需要手动
+`resize2fs /dev/mmcblk0p14`（`flash.sh` 会提示）。
+
 ## 中文
 
 系统默认简体中文（`zh_CN.UTF-8`）。已实测的输出：

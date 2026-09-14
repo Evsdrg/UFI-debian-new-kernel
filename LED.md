@@ -81,9 +81,25 @@ RED_OFF_PCT=75
 2026-09-14 在 UFI103s 上验证：
 - 灯发现：三颗都正确定位；把提示名改成不存在的名字后，颜色兜底仍能找到；
 - 状态：Wi-Fi `solid`（NM 报 `已连接`），无 SIM 时 4G 正确判 `off`；
+- 红灯档位：起 4 条满载循环后模式变 `on,solid,off`（红灯亮），停掉后回到
+  `off,solid,off`（红灯灭）；
 - 容错：路径为空、路径不存在时 `led_off`/`led_solid`/`led_blink` 都不报错；
-- 服务：`systemctl restart ufi-led-state` 后模式 `off,solid,off`，与三颗灯实际
-  亮度值完全一致。
+- 服务：`systemctl restart ufi-led-state` 后模式与实际灯值一致，停止耗时 125ms。
+
+### 修过的两个 bug（都是实机测出来的）
+
+1. **`systemctl stop` 卡满超时**。原来 `trap 'apply off off off' INT TERM EXIT`
+   只关灯、不退出，收到 SIGTERM 后进程继续跑循环，systemd 只能等
+   `TimeoutStopSec` 到点再 SIGKILL——服务会长时间停在 `deactivating`。
+   现在 trap 里显式 `exit 0`，且把 `sleep $POLL_SECS` 换成逐秒分片等待
+   （否则 sleep 期间收到 TERM 要等它睡完才处理）。停止耗时 90s+ → 125ms。
+2. **脚本被 `. script` 引入时会误执行子命令分发**：位置参数为空时落进 `case`
+   兜底分支直接 `exit 2`，把 source 方一起带走。现在只在"以正常脚本名执行"
+   或"显式带了子命令"时才分发。
+3. **开机后蓝灯慢闪约一分钟才变常亮**：网络状态默认每 `NET_EVERY`(20) 个周期
+   （60s）刷新一次，而开机时 NetworkManager 还没连上，第一次采样必然拿到
+   `slow`。现在前 8 个周期每拍都刷新，连上后立刻回到低频版本——实测服务启动
+   **3 秒内**蓝灯就变常亮。
 
 其余四个机型**没有实机**，它们的灯名一致性是从各自 DTS 逐条核对得出的，不是
 实测；但即使某机型与预期不同，颜色兜底也会兜住。

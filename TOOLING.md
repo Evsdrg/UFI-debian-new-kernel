@@ -56,10 +56,7 @@
 **2. 刷机包组装脚本**
 `package-boards.py` 只产出 boot 镜像。要发布「某机型的刷机包」，还需要把
 该板 boot 镜像 + 共享 rootfs + 说明文档 + 校验清单打成一个可下载的包。
-目前是手工拼的，没有脚本。
-
-（另：`fastboot-flash rootfs` 之后必须 `resize2fs`，这一步目前只在脚本里打印
-提醒，没有自动执行——因为拉伸要在设备重启回系统之后做。见 `FASTBOOT.md`。）
+目前是手工拼的，没有脚本。这是面向「给别人刷机」最缺的一块。
 
 **3. 刷机前的镜像校验**
 `flash.sh fastboot-flash` 现在会比对同目录 `build.json` 里记录的 sha256，不一致
@@ -77,20 +74,12 @@ cmdline 有 PARTUUID/PARTLABEL 两种混用（见
 `boards/README.md` 里那张家族差异表是临时手写 diff 得出的。要加新机型时
 （判断能否复用 DTB），值得有个一行命令的比对脚本。
 
-**6. LED 镜像的新旧不一致**
-LED 这一侧其实是**做完了的**：`tools/ufi-led-state.sh` 与 `.service` 都在，
-`build-rootfs.sh` 会安装并启用它们，`shared/rootfs/…-venus-led.ext4` 里也确认
-有。问题只是**三张 rootfs 镜像新旧不一**：
-`…-venus-led.ext4` 带 LED，而较早的 `…-chrony.ext4` 和 `…-venus.ext4` 不带。
-`verify-layout.sh` 检查的是那张旧的 `…-chrony.ext4`，所以固定在最末一项报
-`ufi-led-state.sh=MISSING`——**这是预期状态，不是故障**。收尾动作是重建旧的
-那张镜像，或把它们统一为同一版本，而不是再写脚本。
-
-**7. 三张 rootfs 镜像的内容已经落后于构建脚本**
-构建脚本在本轮已经改成 NetworkManager + 中文 + 通用 LED，但
-`shared/rootfs/` 里的三张镜像是改动之前构建的（仍是 networkd + 无 LED 或半套）。
-需要重建镜像，`verify-layout.sh` 的新断言（NM 必须存在、networkd 必须移除、
-zh_CN 必须已生成）才会全绿。重建流程见 `build-rootfs.sh` 头部注释。
+**6. ~~LED 镜像新旧不一致~~（已解决）**
+`shared/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
+没 NetworkManager、没中文）。现已重建为两张同源镜像，内容统一：
+`debian13-arm64-ufi103s-6.18.49.ext4`（基线）与 `…-venus.ext4`（Venus 变体），
+都带 NetworkManager + 中文 + 通用 LED 脚本 + fstab 的 x-systemd.growfs。
+旧镜像归档在 `archive/superseded-20260914/rootfs-networkd/`。
 
 ## 不建议做的
 

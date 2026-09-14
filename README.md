@@ -103,11 +103,15 @@ cd /opt/helloworld/ufi00x-mainline && sh tools/check-repo.sh \
   /opt/helloworld/openstick/source/linux-6.18.49
 ```
 
-`tools/verify-layout.sh` 目前会在最后一项 LED 检查处报 `ufi-led-state.sh=MISSING`。
-原因不是脚本没做——LED 脚本与 systemd unit 都已在 `tools/` 里，且
-`build-rootfs.sh` 会安装并启用它们（`shared/rootfs/…-venus-led.ext4` 就是带
-LED 镜像）。失效的是它检查的那张**较旧的 `…-chrony.ext4` 镜像**，那张是在
-LED 脚本存在之前构建的。这是**已知的预期状态**，重组前的旧树报同一处。
+`tools/verify-layout.sh` 现在应当全过（exit 0）。它覆盖：内核源码与配置、
+共享模块树、rootfs 内容（chrony/rmtfs/rmtfs_mem）、**NetworkManager 已装且
+networkd/wpa_supplicant 已移除**、**zh_CN locale 已生成**、**fstab 带
+x-systemd.growfs**、LED 脚本与 unit、各板 boot 产物、Venus 变体。
+
+> 历史：重组前它会在最后一项报 `ufi-led-state.sh=MISSING`，因为当时
+> `shared/rootfs/` 里几张镜像新旧不一（旧镜像没装 LED）。现在两张镜像都是
+> 同一轮构建出来的（NetworkManager + 中文 + 通用 LED + growfs），这个不一致
+> 已经消除。
 
 ## 刷机前必读
 

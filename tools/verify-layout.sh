@@ -2,7 +2,7 @@
 set -euo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
-ROOTFS="${ROOTFS_IMAGE:-$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49-chrony.ext4}"
+ROOTFS="${ROOTFS_IMAGE:-$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49.ext4}"
 MODULES="$BASE/shared/modules/6.18.49-ufi003-dirty/lib/modules/6.18.49-ufi003-dirty"
 SRC="$BASE/source/linux-6.18.49"
 
@@ -74,7 +74,7 @@ printf 'systemd-timesyncd=absent\n'
 
 # 网络栈现在是 NetworkManager（早期用 networkd + wpa_supplicant，已切换）。
 # 这里断言 NM 在、且 networkd / wpa_supplicant@ 的启用软链不在（避免两者抢网卡）。
-for path in /usr/bin/NetworkManager /usr/bin/nmcli /usr/bin/nmtui \
+for path in /usr/sbin/NetworkManager /usr/bin/nmcli /usr/bin/nmtui \
             /var/lib/dpkg/info/network-manager.list \
             /usr/share/locale/zh_CN/LC_MESSAGES/NetworkManager.mo \
             /etc/systemd/system/multi-user.target.wants/NetworkManager.service \
@@ -98,14 +98,14 @@ printf 'nm_backend=keyfile\n'
 
 # 中文化：locale 必须真正生成，只写 locale.gen 是不够的（apt variant 不跑
 # locale-gen，`locale -a` 里没有 zh_CN 时中文会回退成 C）。
-debugfs -R 'stat /etc/default/locale' "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'ERROR: /etc/default/locale missing\n' >&2; exit 1; }
-if command -v debugfs >/dev/null 2>&1; then
-  _loc="$(debugfs -R 'cat /etc/default/locale' "$ROOTFS" 2>/dev/null || true)"
-  case "$_loc" in
-    *LANG=zh_CN.UTF-8*) printf 'locale_default=zh_CN.UTF-8\n' ;;
-    *) printf 'ERROR: /etc/default/locale does not select zh_CN.UTF-8\n' >&2; exit 1 ;;
-  esac
-fi
+# Debian 13 把 /etc/default/locale 做成了指向 /etc/locale.conf 的符号链接
+# （update-locale 写的是后者），所以这里两个路径都要看，不能只读链接。
+_loc="$(debugfs -R 'cat /etc/locale.conf' "$ROOTFS" 2>/dev/null || true)"
+[ -n "$_loc" ] || _loc="$(debugfs -R 'cat /etc/default/locale' "$ROOTFS" 2>/dev/null || true)"
+case "$_loc" in
+  *LANG=zh_CN.UTF-8*) printf 'locale_default=zh_CN.UTF-8\n' ;;
+  *) printf 'ERROR: default locale does not select zh_CN.UTF-8 (looked at /etc/locale.conf and /etc/default/locale)\n' >&2; exit 1 ;;
+esac
 # 已生成的 locale 存档（/usr/lib/locale/locale-archive 或 zh_CN 目录）
 if debugfs -R 'stat /usr/lib/locale/locale-archive' "$ROOTFS" 2>/dev/null | grep -q '^Inode:'; then
   printf 'locale_generated=locale-archive\n'
@@ -115,6 +115,14 @@ else
   printf 'ERROR: zh_CN locale was not generated (only locale.gen was edited)\n' >&2
   exit 1
 fi
+
+# fstab 必须带 x-systemd.growfs：镜像只有 ~1G 而分区 3.4G，不自动拉伸的话
+# 刷完只剩一百多 MB 可用（实测过）。
+_fstab="$(debugfs -R 'cat /etc/fstab' "$ROOTFS" 2>/dev/null || true)"
+case "$_fstab" in
+  *x-systemd.growfs*) printf 'rootfs_growfs=auto\n' ;;
+  *) printf 'ERROR: /etc/fstab lacks x-systemd.growfs on / (rootfs will not auto-grow)\n' >&2; exit 1 ;;
+esac
 
 printf '\n== LED and test assets ==\n'
 for path in /usr/local/sbin/ufi-led-state.sh /etc/systemd/system/ufi-led-state.service /etc/systemd/system/multi-user.target.wants/ufi-led-state.service /etc/default/ufi-led-state /root/venus-test.sh; do
@@ -147,7 +155,7 @@ done
 
 printf '\n== venus codec variant ==\n'
 VENUS_BOOT="$(board_dir ufi103s-ufi003)/boot/boot-venus.img"
-VENUS_ROOTFS="$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus-led.ext4"
+VENUS_ROOTFS="$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus.ext4"
 VENUS_MODS="$BASE/shared/modules/6.18.49-ufi003-venus/lib/modules/6.18.49-ufi003-venus-dirty"
 test -f "$VENUS_BOOT"
 test -f "$VENUS_ROOTFS"

@@ -18,12 +18,12 @@
 
 `boot-venus*.img` 需要配套的 venus rootfs 和模块树：
 
-- rootfs：`shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus-led.ext4`
-  （或 `…-venus.ext4`）
+- rootfs：`shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus.ext4`
+  
 - 模块：`shared/modules/6.18.49-ufi003-venus/`
 - 固件：`shared/firmware/ufi103s-venus/`（比 common 多 `qcom/venus-1.8/venus.mbn`）
 
-基线镜像配 `shared/rootfs/debian13-arm64-ufi103s-6.18.49-chrony.ext4` +
+基线镜像配 `shared/rootfs/debian13-arm64-ufi103s-6.18.49.ext4` +
 `shared/modules/6.18.49-ufi003-dirty/` + `shared/firmware/common/`。
 
 ## 一个需要注意的不一致

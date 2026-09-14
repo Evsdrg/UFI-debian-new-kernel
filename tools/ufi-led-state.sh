@@ -324,20 +324,40 @@ auto_once() {
 monitor() {
     mkdir -p "$STATE"
     led_paths
-    trap 'apply off off off' INT TERM EXIT
+    # 收到 TERM/INT 时关灯并**真正退出**。只 apply 不 exit 会让进程继续跑循环，
+    # systemd 只能等 TimeoutStopSec 到点后 SIGKILL，于是 `systemctl stop/restart`
+    # 每次都卡满超时（实测服务会停在 deactivating）。
+    trap 'apply off off off; exit 0' INT TERM
+    trap 'apply off off off' EXIT
     blue=slow
     green=off
     tick=0
+    # 开机后 NetworkManager / ModemManager 往往还没连上，而正常刷新间隔是
+    # NET_EVERY 个周期（默认 60s）。若只按常规节奏走，用户会先看到蓝灯慢闪
+    # 一分钟才变常亮。所以前 WARMUP_TICKS 个周期每拍都刷新一次网络状态，
+    # 让灯尽快反映真实状态；之后就回到低频刷新（避免频繁 fork nmcli/mmcli）。
+    warmup=${WARMUP_TICKS:-8}
     while :; do
-        if [ $(( tick % NET_EVERY )) -eq 0 ]; then
+        if [ "$warmup" -gt 0 ] || [ $(( tick % NET_EVERY )) -eq 0 ]; then
             blue=$(wifi_mode)
             green=$(modem_mode)
+            # 一旦已经连上，就没必要继续密集刷新了
+            if [ "$warmup" -gt 0 ] && { [ "$blue" = solid ] || [ "$green" = solid ]; }; then
+                warmup=0
+            fi
+            [ "$warmup" -gt 0 ] && warmup=$(( warmup - 1 ))
         fi
         red=$(override_red)
         [ -n "$red" ] || red=$(red_for_load "$(cpu_busy_pct)")
         apply_modes "$red" "$blue" "$green"
         tick=$(( tick + 1 ))
-        sleep "$POLL_SECS"
+        # 用可被打断的等待代替 sleep：sleep 期间收到 TERM 要等它睡完才处理 trap，
+        # 最长会拖一个 POLL_SECS。分片等待让停止几乎立刻生效。
+        _left=$POLL_SECS
+        while [ "$_left" -gt 0 ]; do
+            sleep 1
+            _left=$(( _left - 1 ))
+        done
     done
 }
 

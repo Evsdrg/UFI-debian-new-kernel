@@ -41,10 +41,13 @@ STAGE="$OUT_DIR/stage"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 
 # fstab: only root is listed here. systemd owns /tmp and other virtual mounts.
+# x-systemd.growfs 让 systemd 开机自动把文件系统撑满分区：rootfs 镜像是
+# ~1G，而 p14 分区有 3.4G，不拉伸的话装完只剩一百多 MB 可用。有了它就不必
+# 再手工 resize2fs（构建脚本仍会在刷机提示里提一句，作为兜底）。
 mkdir -p "$STAGE/etc"
 cat > "$STAGE/etc/fstab" <<'EOF'
 # root by PARTUUID (mmcblk0p14)
-PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e  /      ext4  errors=remount-ro  0 1
+PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e  /      ext4  errors=remount-ro,x-systemd.growfs  0 1
 EOF
 
 # Headless appliance: never let debconf pick a dialog/Readline frontend.  The
@@ -250,15 +253,23 @@ if [[ ! -d "$MODULE_TREE/lib/modules/$KERNEL_RELEASE" ]]; then
     echo "缺少匹配内核模块树: $MODULE_TREE/lib/modules/$KERNEL_RELEASE" >&2
     exit 1
 fi
-cp -a "$MODULE_TREE/lib/modules/"* "$STAGE/lib/modules/"
-for module in wwan.ko rpmsg_wwan_ctrl.ko; do
-    if [[ ! -f "$RPMSG_MODULE_DIR/$module" ]]; then
-        echo "缺少匹配内核模块: $RPMSG_MODULE_DIR/$module" >&2
-        exit 1
-    fi
-    install -D -m 0644 "$RPMSG_MODULE_DIR/$module" \
-        "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/net/wwan/$module"
-done
+  cp -a "$MODULE_TREE/lib/modules/"* "$STAGE/lib/modules/"
+  # rpmsg-wwan 是从 6.18.48 时代单独交付的模块；6.18.49 的模块树已经把它们
+  # 编进去了（kernel/drivers/net/wwan/ 下就有）。所以这里只在树里确实缺
+  # 这两个模块时才要求 RPMSG_MODULE_DIR，避免为了一个已经满足的前提而
+  # 强迫使用者准备一份旧的 out/rpmsg-wwan-final。
+  _wwandir="$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/net/wwan"
+  for module in wwan.ko rpmsg_wwan_ctrl.ko; do
+      if [[ -f "$_wwandir/$module" ]]; then
+          continue
+      fi
+      if [[ -z "${RPMSG_MODULE_DIR:-}" || ! -f "$RPMSG_MODULE_DIR/$module" ]]; then
+          echo "模块树里缺少 $_wwandir/$module，且 RPMSG_MODULE_DIR 未提供该文件" >&2
+          echo "（请用 RPMSG_MODULE_DIR=<含 wwan.ko 与 rpmsg_wwan_ctrl.ko 的目录> 指定）" >&2
+          exit 1
+      fi
+      install -D -m 0644 "$RPMSG_MODULE_DIR/$module" "$_wwandir/$module"
+  done
 if command -v depmod >/dev/null 2>&1; then
     depmod -b "$STAGE" "$KERNEL_RELEASE"
 else
@@ -321,6 +332,10 @@ MMDEBSTRAP_ARGS=(
 	'--customize-hook=chroot $1 locale -a | grep -qi "^zh_CN.utf8"'
 	'--customize-hook=chroot $1 update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN:zh'
 	"--customize-hook=mkdir -p \$1/root \$1/usr && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/ && cp -a --no-preserve=ownership $STAGE/usr/. \$1/usr/ && cp -a --no-preserve=ownership $STAGE/root/. \$1/root/"
+	# NetworkManager 会忽略组/其它用户可读的连接文件，预置 Wi-Fi 就失效了。
+	# STAGE 上必须 chmod -R a+rX 才能让 hook 读到文件，那个会把这里的 600
+	# 变成 644，所以拷进镜像后要重新收权。
+	'--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true'
 	'--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep'
 	'--customize-hook=rm -f $1/etc/systemd/system/systemd-resolved.service.d/override.conf'
 	# NetworkManager 接管网络：不再启用 networkd / 独立的 wpa_supplicant 实例。

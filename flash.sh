@@ -20,7 +20,7 @@ DEV="${DEV:-root@192.0.2.10}"
 PW="${PW:-REDACTED}"
 # 默认用本工作区的权威产物；均可用环境变量覆盖。
 BOARD_DIR="${BOARD_DIR:-$WORKDIR/boards/ufi00x/ufi103s-ufi003/boot}"
-ROOTFS_IMAGE="${ROOTFS_IMAGE:-$WORKDIR/shared/rootfs/debian13-arm64-ufi103s-6.18.49-chrony.ext4}"
+ROOTFS_IMAGE="${ROOTFS_IMAGE:-$WORKDIR/shared/rootfs/debian13-arm64-ufi103s-6.18.49.ext4}"
 
 run_dev() {
 	expect -c "
@@ -120,13 +120,13 @@ fastboot-flash)
 	fb_verify "$_img"
 	echo
 	if [[ "$_part" == rootfs ]]; then
-		# 实测：镜像（~964M）小于分区（3.4G），写入后文件系统仍是镜像的大小，
-		# 不拉伸的话可用空间只剩 ~111M。LK 会拒绝等于分区大小的整分区镜像
-		# （remote: 'size too large'），所以刷的必须是 rootfs 文件系统镜像本身。
-		_img_sz=$(stat -c%s "$_img")
-		echo "注意：刷完 rootfs 必须回系统执行 resize2fs 撑满分区，"
-		echo "      否则可用空间只有镜像大小（实测约剩 111M）。"
-		echo "      命令： ssh root@<设备> resize2fs /dev/mmcblk0p14"
+		# 实测：镜像（~1G）小于分区（3.4G）。新版镜像在 fstab 里带了
+		# x-systemd.growfs，开机自动撑满；老镜像没有，需要手工 resize2fs，
+		# 否则可用空间只有镜像大小（实测约剩 111M）。
+		# LK 会拒绝等于分区大小的整分区镜像（remote: 'size too large'），
+		# 所以刷的必须是 rootfs 文件系统镜像本身。
+		echo "注意：若该镜像的 /etc/fstab 没有 x-systemd.growfs，开机后需手动拉伸："
+		echo "       ssh root@<设备> resize2fs /dev/mmcblk0p14"
 		echo
 	fi
 	echo "目标分区: $_part"
