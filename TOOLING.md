@@ -35,7 +35,7 @@
 | `tools/venus-test.sh` / `venus-transcode.sh` | Venus 硬编解码验证与转码 |
 | `tools/wcn36xx-cfg-sweep.sh` 等 3 个 | WiFi 固件参数 / 速率扫描 |
 | `tools/cpu-freq-verify.sh` / `cpu-power-tradeoff.sh` | CPU 频率与功耗验证 |
-| `tools/ufi-led-state.sh`（+ `.service`） | 三色 LED 状态指示（**已写好，未部署进镜像**） |
+| `tools/ufi-led-state.sh`（+ `.service`、`.default`） | 三色 LED 状态指示，**机型通用**（见 `LED.md`） |
 
 ### 在分发仓（不在本工作区，属正常分工）
 
@@ -85,6 +85,12 @@ LED 这一侧其实是**做完了的**：`tools/ufi-led-state.sh` 与 `.service`
 `verify-layout.sh` 检查的是那张旧的 `…-chrony.ext4`，所以固定在最末一项报
 `ufi-led-state.sh=MISSING`——**这是预期状态，不是故障**。收尾动作是重建旧的
 那张镜像，或把它们统一为同一版本，而不是再写脚本。
+
+**7. 三张 rootfs 镜像的内容已经落后于构建脚本**
+构建脚本在本轮已经改成 NetworkManager + 中文 + 通用 LED，但
+`shared/rootfs/` 里的三张镜像是改动之前构建的（仍是 networkd + 无 LED 或半套）。
+需要重建镜像，`verify-layout.sh` 的新断言（NM 必须存在、networkd 必须移除、
+zh_CN 必须已生成）才会全绿。重建流程见 `build-rootfs.sh` 头部注释。
 
 ## 不建议做的
 

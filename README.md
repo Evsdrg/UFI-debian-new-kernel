@@ -13,6 +13,10 @@ UFI001b / UFI001c / SP970 / UZ801**。
 ```
 openstick/
 ├── README.md              本文件
+├── LED.md                 LED 跨型号适配说明
+├── NETWORK.md             网络（NetworkManager）与中文说明
+├── FASTBOOT.md            fastboot 刷机（含实测数据与两个坑）
+├── TOOLING.md             工具清单与缺口
 ├── boards/                各机型产物，按硬件家族分组
 │   ├── README.md          家族划分依据（含 DTS 逐字节 diff 表）
 │   ├── ufi00x/            ufi103s-ufi003 / ufi001b / ufi001c
@@ -75,6 +79,13 @@ openstick/
   `archive/reports/` 与分发仓 `docs/wifi-tx-throughput.md`。
 - **监管域**：镜像内已用 `update-alternatives` 固定为 upstream
   `regulatory.db`（含 `country CN`）。
+- **网络栈是 NetworkManager**（不是早期的 networkd + wpa_supplicant）：用户可用
+  `nmtui`/`nmcli` 交互配网，改网络不用重启。详见 `NETWORK.md`。
+- **系统默认简体中文**（`zh_CN.UTF-8`）：`nmcli`、`apt`、`man` 都有中文输出。
+  注意 `network-manager-l10n`（NM 汉化）与 `man-db`（man 命令本身）必须显式
+  安装，前者只是 NM 的 Recommends。详见 `NETWORK.md`。
+- **LED 脚本机型通用**：五机型的三颗状态灯语义一致、sysfs 名字一致，脚本按名字
+  发现（失败时按颜色兜底），不需要按型号分支。详见 `LED.md`。
 - **固件**：`shared/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
   `qcom/venus-1.8/venus.mbn`。
 - **补丁只有一套**：`source/patches/` 与分发仓 `/opt/helloworld/ufi00x-mainline/patches/`

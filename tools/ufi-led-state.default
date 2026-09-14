@@ -1,0 +1,28 @@
+# OpenStick 三色状态灯配置（被 /usr/local/sbin/ufi-led-state.sh 读取）
+#
+# 所有支持机型（UFI103s/UFI003、UFI001b、UFI001c、SP970、UZ801）的三颗状态灯
+# 在设备树里的语义一致，只有 GPIO 编号不同，而 GPIO 由各自的 DTB 承担。
+# 因此正常情况下本文件不需要改动，三项灯的 sysfs 名会自动发现。
+#
+# 若某机型的灯名与默认不同，用下面的 HINT 覆盖即可（脚本会先按名字找，
+# 找不到再按名字里的颜色词兜底）。
+
+# 三颗状态灯的 sysfs 名（/sys/class/leds/ 下）
+#LED_BLUE_HINT=blue:wlan
+#LED_GREEN_HINT=green:wan
+#LED_RED_HINT=red:heartbeat
+
+# 无线网口；留空则自动取第一个 wlan*
+#WIFI_IFACE=wlan0
+
+# 4G 状态来源：auto（默认，优先 NetworkManager）/ nm / mm（ModemManager）
+#MODEM_MGMT=auto
+
+# 红灯负载档位（%）：CPU 占用超过 ON 点亮，降到 OFF 以下熄灭。
+# OFF 必须小于 ON 以形成滞回，避免灯在阈值附近抖动。
+#RED_ON_PCT=70
+#RED_OFF_PCT=65
+
+# 采样周期（秒）与网络状态刷新间隔（周期数）
+#POLL_SECS=3
+#NET_EVERY=20

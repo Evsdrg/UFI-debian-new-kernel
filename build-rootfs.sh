@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# 103s - Debian 13 (trixie) arm64 rootfs builder for OpenStick UFI103s (ufi003)
+# Debian 13 (trixie) arm64 rootfs builder for OpenStick (UFI103s/ufi003 为默认板)
 # Rootless: mmdebstrap unshare mode + qemu-user binfmt, 后处理经 --customize-hook
 #
-# 网络方案: systemd-networkd + wpa_supplicant (固定化配置)，不装 NetworkManager。
-#   wlan0   -> wpa_supplicant@wlan0 认证, systemd-networkd 配 IP/DHCP
-#   4G/短信 -> ModemManager (mmcli/qmicli), qrtr-ns/rmtfs 基础服务
+# 网络方案: NetworkManager（为了方便用户上手；替代早期的 networkd + wpa_supplicant）。
+#   wlan0   -> NM 管理 Wi-Fi（/etc/NetworkManager/system-connections/*.nmconnection）
+#   4G/短信 -> ModemManager (mmcli/qmicli) + NM 管 wwan0，qrtr-ns/rmtfs 基础服务
+#   交互    -> nmcli / nmtui（带中文，见 network-manager-l10n）
+# 语言: zh_CN.UTF-8 为默认 locale。
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
@@ -16,10 +18,14 @@ KERNEL_RELEASE="${KERNEL_RELEASE:-6.18.48-ufi003-dirty}"
 MODULE_TREE="${MODULE_TREE:-$OUT_DIR/modules-ufi003}"
 RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 
-PKGS_EXTRA="login,openssh-server,wpasupplicant,systemd-resolved,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,nano,less,\
+# network-manager-l10n 是 NetworkManager 的中文（及其它语言）翻译包，
+# NM 主包只 Recommends 它，不显式安装的话 nmcli/nmtui 输出全是英文。
+# manpages-zh 提供中文 man 手册；man-db 是 man 命令本身（缺它则 manpages-zh
+# 只是躺在那儿的文件、`man` 命令根本不存在）。
+PKGS_EXTRA="login,openssh-server,network-manager,network-manager-l10n,wpasupplicant,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,nano,less,\
 e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,\
 iperf3,\
-ca-certificates,locales"
+ca-certificates,locales,man-db,manpages-zh"
 
 # Variant hook: comma-separated extra packages (e.g. ffmpeg,v4l-utils) and
 # additional module trees to ship alongside the primary one, so a variant
@@ -48,31 +54,87 @@ EOF
 # database is seeded to Noninteractive by a hook further below.
 printf 'DEBIAN_FRONTEND=noninteractive\n' > "$STAGE/etc/environment"
 
-# wpa_supplicant 固定配置: 连这台 Wi-Fi (REDACTED_SSID)
-mkdir -p "$STAGE/etc/wpa_supplicant"
-cat > "$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf" <<'EOF'
-ctrl_interface=/run/wpa_supplicant
-update_config=1
-country=CN
-
-network={
-    ssid="REDACTED_SSID"
-    psk="qw123123"
-    priority=10
-}
+# ---------------------------------------------------------------- 语言（中文）
+# 系统默认中文。仅写 locale.gen 是不够的：mmdebstrap 的 apt variant 不会跑
+# locale-gen，不生成的话 `locale -a` 里没有 zh_CN，中文全是乱码/回退到 C。
+# 真正的 locale-gen 与 LANG 在下面的 customize-hook 里做（需要 chroot）。
+mkdir -p "$STAGE/etc/default"
+cat > "$STAGE/etc/default/locale" <<'EOF'
+# 由镜像构建脚本写入：系统默认中文（简体，UTF-8）
+LANG=zh_CN.UTF-8
+LANGUAGE=zh_CN:zh
+LC_TIME=zh_CN.UTF-8
+LC_MONETARY=zh_CN.UTF-8
+LC_PAPER=zh_CN.UTF-8
+LC_NAME=zh_CN.UTF-8
+LC_ADDRESS=zh_CN.UTF-8
+LC_TELEPHONE=zh_CN.UTF-8
+LC_MEASUREMENT=zh_CN.UTF-8
 EOF
-chmod 600 "$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
 
-# systemd-networkd: wlan0 用 DHCP
-mkdir -p "$STAGE/etc/systemd/network"
-cat > "$STAGE/etc/systemd/network/20-wlan0.network" <<'EOF'
-[Match]
-Name=wlan0
+# ---------------------------------------------------------------- 网络（NetworkManager）
+# 用 NetworkManager 而不是 networkd + wpa_supplicant：更方便用户上手
+# （nmcli / nmtui 可交互配置，中文界面）。
+mkdir -p "$STAGE/etc/NetworkManager/system-connections" \
+         "$STAGE/etc/NetworkManager/conf.d"
 
-[Network]
-DHCP=yes
-IPv6AcceptRA=yes
+# NM 主配置：keyfile 后端（Debian 默认），并让 NM 在启动时读取连接配置。
+cat > "$STAGE/etc/NetworkManager/NetworkManager.conf" <<'EOF'
+[main]
+plugins=keyfile
+# 让 NM 生成的配置也用 keyfile 格式，便于手工编辑
+[keyfile]
+unmanaged-devices=none
 EOF
+
+# WPA 漫游/节能等无线策略：交给 NM 默认值；这里只确保不把 wlan0 设为 unmanaged。
+cat > "$STAGE/etc/NetworkManager/conf.d/10-openstick.conf" <<'EOF'
+[device]
+# wwan 由 ModemManager + NM 共同管理（NM 负责建立数据连接）
+# 这里显式声明，避免某些版本把 wwan 当 unmanaged
+match-device=type:wwan;type:wifi
+
+[connection]
+# DHCP 客户端拿不到地址时不要无限等待，快速失败便于换网络
+ipv4.dhcp-timeout=30
+ipv6.dhcp-timeout=30
+EOF
+
+# 预置 Wi-Fi 连接（keyfile 格式）。变量由环境提供；未提供则镜像不带预置 Wi-Fi，
+# 用户可用 nmtui / nmcli 自己配。
+if [[ -n "${ROOTFS_WIFI_SSID:-}" && -n "${ROOTFS_WIFI_PSK:-}" ]]; then
+    _nm_wifi="$STAGE/etc/NetworkManager/system-connections/openstick-wifi.nmconnection"
+    cat > "$_nm_wifi" <<EOF
+[connection]
+id=openstick-wifi
+type=wifi
+autoconnect=true
+autoconnect-priority=10
+
+[wifi]
+mode=infrastructure
+ssid=${ROOTFS_WIFI_SSID}
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=${ROOTFS_WIFI_PSK}
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+addr-gen-mode=stable-privacy
+EOF
+    # NM 要求连接文件对其它用户不可读
+    chmod 600 "$_nm_wifi"
+fi
+
+# 无线监管域（country），NM 自己有 wifi.country？NM 不自管监管域：由 wireless-regdb
+# 与内核 cfg80211 决定，镜像里已把 regulatory.db 固定为 upstream 变体（见下方 hook）。
+# 这里不改。
+
+# ---------------------------------------------------------------- zram 等
 
 # zram: 461MiB RAM, use zstd and enable at boot
 mkdir -p "$STAGE/etc/systemd/system" "$STAGE/etc/modules-load.d" "$STAGE/usr/local/sbin" "$STAGE/root"
@@ -109,9 +171,11 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 # LED status service and the Venus test harness live in tools/ as the single
-# source of truth for both files and units.
+# source of truth for both files and units.  The default file holds the knobs a
+# board may need to override (LED names, wifi iface, red thresholds).
 install -D -m 755 "$WORKDIR/tools/ufi-led-state.sh" "$STAGE/usr/local/sbin/ufi-led-state.sh"
 install -D -m 644 "$WORKDIR/tools/ufi-led-state.service" "$STAGE/etc/systemd/system/ufi-led-state.service"
+install -D -m 644 "$WORKDIR/tools/ufi-led-state.default" "$STAGE/etc/default/ufi-led-state"
 install -D -m 755 "$WORKDIR/tools/venus-test.sh" "$STAGE/root/venus-test.sh"
 install -D -m 755 "$WORKDIR/tools/venus-transcode.sh" "$STAGE/usr/local/sbin/venus-transcode.sh"
 # Stable /dev/video-decoder + /dev/video-encoder names: the m2m node numbers are
@@ -249,11 +313,33 @@ MMDEBSTRAP_ARGS=(
 	'--customize-hook=printf '\''127.0.0.1\tlocalhost\n127.0.1.1\tufi103s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n'\'' > $1/etc/hosts'
 	'--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service'
 	'--customize-hook=echo Asia/Shanghai > $1/etc/timezone && ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime'
-	'--customize-hook=echo '\''zh_CN.UTF-8 UTF-8'\'' >> $1/etc/locale.gen'
+	# 中文 locale：既要写 locale.gen，也要真正生成（apt variant 不会自动跑
+	# locale-gen）。不生成的话 LANG=zh_CN.UTF-8 无效，中文会回退成 C。
+	'--customize-hook=sed -i '\''s/^# *\(zh_CN.UTF-8 UTF-8\)/\1/'\'' $1/etc/locale.gen'
+	'--customize-hook=grep -q "^zh_CN.UTF-8 UTF-8" $1/etc/locale.gen || echo "zh_CN.UTF-8 UTF-8" >> $1/etc/locale.gen'
+	'--customize-hook=chroot $1 locale-gen'
+	'--customize-hook=chroot $1 locale -a | grep -qi "^zh_CN.utf8"'
+	'--customize-hook=chroot $1 update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN:zh'
 	"--customize-hook=mkdir -p \$1/root \$1/usr && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/ && cp -a --no-preserve=ownership $STAGE/usr/. \$1/usr/ && cp -a --no-preserve=ownership $STAGE/root/. \$1/root/"
 	'--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep'
 	'--customize-hook=rm -f $1/etc/systemd/system/systemd-resolved.service.d/override.conf'
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/systemd-networkd.service $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/wpa_supplicant@.service $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service && ln -sf /lib/systemd/system/ModemManager.service $1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service $1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /lib/systemd/system/qrtr-ns.service $1/etc/systemd/system/multi-user.target.wants/qrtr-ns.service && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/chrony.service $1/etc/systemd/system/multi-user.target.wants/chrony.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	# NetworkManager 接管网络：不再启用 networkd / 独立的 wpa_supplicant 实例。
+	# NM 自己通过 D-Bus 拉起 wpa_supplicant（`wpa_supplicant -u -s` 那个全局
+	# 实例），所以不需要 wpa_supplicant@<iface>.service，也不能让
+	# wpa_supplicant.service 或 systemd-networkd 抢在 NM 前面占住 wlan0。
+	#   （实测教训：只要 wpa_supplicant@wlan0 还在，NM 会反复报
+	#    "wpa_supplicant couldn't grab this interface" 并最终放弃，
+	#    设备开机后 wlan0 一直 unavailable。）
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && ln -sf /lib/systemd/system/NetworkManager.service $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service && ln -sf /lib/systemd/system/NetworkManager-wait-online.service $1/etc/systemd/system/network-online.target.wants/NetworkManager-wait-online.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/ModemManager.service $1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service $1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /lib/systemd/system/qrtr-ns.service $1/etc/systemd/system/multi-user.target.wants/qrtr-ns.service && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/chrony.service $1/etc/systemd/system/multi-user.target.wants/chrony.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	# 清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要清，它会
+	# 从 sockets.target 自动拉起 networkd）、以及早期 networkd 方案遗留的
+	# 每接口 wpa_supplicant 配置。
+	'--customize-hook=for u in systemd-networkd.service systemd-networkd.socket wpa_supplicant@wlan0.service wpa_supplicant.service; do rm -f $1/etc/systemd/system/multi-user.target.wants/$u $1/etc/systemd/system/sockets.target.wants/$u; done; rm -f $1/etc/systemd/system/dbus-org.freedesktop.network1.service $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
+	# 断言：NM 已启用、networkd/每接口 wpa 未被启用（缺失符号链接即视为未启用）。
+	'--customize-hook=test -L $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service'
+	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service'
+	'--customize-hook=test ! -e $1/etc/systemd/system/sockets.target.wants/systemd-networkd.socket'
+	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service'
 	'--customize-hook=printf '\''root:REDACTED\n'\'' | chroot $1 /usr/sbin/chpasswd'
 	'--customize-hook=echo "debconf debconf/frontend select Noninteractive" | chroot $1 debconf-set-selections'
 	# cfg80211 verifies regulatory.db against certificates built into the kernel.

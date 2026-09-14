@@ -12,9 +12,12 @@ FIRMWARE_DIR="${FIRMWARE_DIR:-$WORKDIR/shared/firmware/common}"
 PROFILE="${ROOTFS_PROFILE:-$WORKDIR/tools/rootfs-common.env}"
 [[ -f "$PROFILE" ]] && . "$PROFILE"
 
-PKGS_EXTRA="login,openssh-server,wpasupplicant,systemd-resolved,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,iperf3,ca-certificates,locales"
+# network-manager-l10n 提供 NetworkManager 的 zh_CN 翻译（主包只 Recommends 它）：
+# 不装的话 nmcli/nmtui 输出是英文。manpages-zh 是中文 man 手册，man-db 是 man
+# 命令本身（缺它则只有手册文件、没有 man 命令）。
+PKGS_EXTRA="login,openssh-server,network-manager,network-manager-l10n,wpasupplicant,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,iperf3,ca-certificates,locales,man-db,manpages-zh"
 STAGE="$WORKDIR/build/rootfs-stage-common"
-rm -rf "$STAGE"; mkdir -p "$STAGE/etc" "$STAGE/etc/systemd/network" "$STAGE/etc/wpa_supplicant" "$STAGE/etc/systemd/system/rmtfs.service.d" "$STAGE/etc/systemd/system/sysinit.target.wants" "$STAGE/etc/modules-load.d" "$STAGE/lib/modules" "$STAGE/lib/firmware"
+rm -rf "$STAGE"; mkdir -p "$STAGE/etc" "$STAGE/etc/NetworkManager/system-connections" "$STAGE/etc/NetworkManager/conf.d" "$STAGE/etc/systemd/system/rmtfs.service.d" "$STAGE/etc/systemd/system/sysinit.target.wants" "$STAGE/etc/modules-load.d" "$STAGE/lib/modules" "$STAGE/lib/firmware"
 
 if [[ -n "${ROOTFS_ROOT_PARTUUID:-}" ]]; then
   printf 'PARTUUID=%s / ext4 errors=remount-ro 0 1\n' "$ROOTFS_ROOT_PARTUUID" > "$STAGE/etc/fstab"
@@ -26,24 +29,55 @@ fi
 # debconf's default (Dialog) makes every apt run print three "falling back to
 # frontend" warnings.  debconf's database is also seeded by a hook below.
 printf 'DEBIAN_FRONTEND=noninteractive\n' > "$STAGE/etc/environment"
-cat > "$STAGE/etc/systemd/network/20-wlan0.network" <<'EOF'
-[Match]
-Name=wlan0
-[Network]
-DHCP=yes
-IPv6AcceptRA=yes
+
+# 默认中文（真正生成在 customize-hook 里做）
+mkdir -p "$STAGE/etc/default"
+cat > "$STAGE/etc/default/locale" <<'EOF'
+LANG=zh_CN.UTF-8
+LANGUAGE=zh_CN:zh
+LC_TIME=zh_CN.UTF-8
+LC_MONETARY=zh_CN.UTF-8
+LC_PAPER=zh_CN.UTF-8
+LC_NAME=zh_CN.UTF-8
+LC_ADDRESS=zh_CN.UTF-8
+LC_TELEPHONE=zh_CN.UTF-8
+LC_MEASUREMENT=zh_CN.UTF-8
+EOF
+
+# 网络改由 NetworkManager 管理
+cat > "$STAGE/etc/NetworkManager/NetworkManager.conf" <<'EOF'
+[main]
+plugins=keyfile
+[keyfile]
+unmanaged-devices=none
+EOF
+cat > "$STAGE/etc/NetworkManager/conf.d/10-openstick.conf" <<'EOF'
+[device]
+match-device=type:wwan;type:wifi
+[connection]
+ipv4.dhcp-timeout=30
+ipv6.dhcp-timeout=30
 EOF
 if [[ -n "${ROOTFS_WIFI_SSID:-}" && -n "${ROOTFS_WIFI_PSK:-}" ]]; then
-cat > "$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf" <<EOF
-ctrl_interface=/run/wpa_supplicant
-update_config=1
-country=CN
-network={
-    ssid="$ROOTFS_WIFI_SSID"
-    psk="$ROOTFS_WIFI_PSK"
-}
+cat > "$STAGE/etc/NetworkManager/system-connections/openstick-wifi.nmconnection" <<EOF
+[connection]
+id=openstick-wifi
+type=wifi
+autoconnect=true
+autoconnect-priority=10
+[wifi]
+mode=infrastructure
+ssid=${ROOTFS_WIFI_SSID}
+[wifi-security]
+key-mgmt=wpa-psk
+psk=${ROOTFS_WIFI_PSK}
+[ipv4]
+method=auto
+[ipv6]
+method=auto
+addr-gen-mode=stable-privacy
 EOF
-chmod 600 "$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+chmod 600 "$STAGE/etc/NetworkManager/system-connections/openstick-wifi.nmconnection"
 fi
 cat > "$STAGE/etc/modules-load.d/openstick-common.conf" <<'EOF'
 wcn36xx
@@ -127,8 +161,20 @@ DEBIAN_FRONTEND=noninteractive mmdebstrap --arch=arm64 --mode=unshare --variant=
   '--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service' \
   "--customize-hook=mkdir -p \$1/root \$1/usr/lib && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/" \
   '--customize-hook=ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime && echo Asia/Shanghai > $1/etc/timezone' \
+  '--customize-hook=sed -i "s/^# *\(zh_CN.UTF-8 UTF-8\)/\1/" $1/etc/locale.gen' \
+  '--customize-hook=grep -q "^zh_CN.UTF-8 UTF-8" $1/etc/locale.gen || echo "zh_CN.UTF-8 UTF-8" >> $1/etc/locale.gen' \
+  '--customize-hook=chroot $1 locale-gen' \
+  '--customize-hook=chroot $1 locale -a | grep -qi "^zh_CN.utf8"' \
+  '--customize-hook=chroot $1 update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN:zh' \
   '--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep' \
-  '--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/sysinit.target.wants && ln -sf /lib/systemd/system/systemd-networkd.service $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/wpa_supplicant@.service $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service && ln -sf /lib/systemd/system/ModemManager.service $1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service $1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/chrony.service $1/etc/systemd/system/multi-user.target.wants/chrony.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target' \
+  '--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/sysinit.target.wants $1/etc/systemd/system/network-online.target.wants && ln -sf /lib/systemd/system/NetworkManager.service $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service && ln -sf /lib/systemd/system/NetworkManager-wait-online.service $1/etc/systemd/system/network-online.target.wants/NetworkManager-wait-online.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/ModemManager.service $1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service $1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/chrony.service $1/etc/systemd/system/multi-user.target.wants/chrony.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target' \
+  # 清掉会与 NetworkManager 抢 wlan0 的启用项（含 networkd 的 socket 激活）与
+  # 早期 networkd 方案遗留的每接口 wpa_supplicant 配置。详见 build-rootfs.sh 里
+  # 同段注释：只要 wpa_supplicant@wlan0 还在，NM 就抓不到网卡。
+  '--customize-hook=for u in systemd-networkd.service systemd-networkd.socket wpa_supplicant@wlan0.service wpa_supplicant.service; do rm -f $1/etc/systemd/system/multi-user.target.wants/$u $1/etc/systemd/system/sockets.target.wants/$u; done; rm -f $1/etc/systemd/system/dbus-org.freedesktop.network1.service $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf' \
+  '--customize-hook=test -L $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service' \
+  '--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service' \
+  '--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service' \
   '--customize-hook=echo "debconf debconf/frontend select Noninteractive" | chroot $1 debconf-set-selections' \
   '--customize-hook=chroot $1 update-alternatives --set regulatory.db /lib/firmware/regulatory.db-upstream' \
   '--customize-hook=chroot $1 readlink /etc/alternatives/regulatory.db | grep -q regulatory.db-upstream' \

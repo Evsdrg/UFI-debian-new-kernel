@@ -1,7 +1,10 @@
 [Unit]
-Description=UFI103s three-colour LED status monitor
-After=local-fs.target systemd-udev-settle.service
+Description=OpenStick three-colour LED status monitor
+Documentation=file:/usr/local/share/doc/ufi-led-state.md
+After=local-fs.target systemd-udev-settle.service NetworkManager.service
 Wants=systemd-udev-settle.service
+# Wi-Fi/4G 状态来自 NetworkManager；NM 没起来时脚本会退回 wpa_cli/mmcli，
+# 所以这里只是"希望"它先起（Wants 而非 Requires，避免 NM 故障拖垮灯服务）。
 
 [Service]
 Type=simple

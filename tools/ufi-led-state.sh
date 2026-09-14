@@ -1,26 +1,49 @@
 #!/bin/sh
-# UFI103s three-colour LED status (red / blue / green).
+# OpenStick 三色状态灯监控（red / blue / green）
 #
-# The LEDs are gpio-leds with max_brightness=1: on/off only, and the red lamp is
-# much brighter than the other two.  Software PWM is deliberately NOT used -- the
-# kernel blink timer arms once per transition and every toggle pulls the CPU out
-# of deep idle (4ms/16ms measured ~100 extra idle exits per second).  Red is a
-# load gear instead:
+# 适用机型：UFI103s/UFI003、UFI001b、UFI001c、SP970、UZ801
+# 这些板子的三颗状态灯在设备树里的语义完全一致，只有 GPIO 编号不同：
+#     blue  = LED_FUNCTION_WLAN        -> sysfs 名 blue:wlan
+#     green = LED_FUNCTION_WAN         -> sysfs 名 green:wan
+#     red   = LED_FUNCTION_HEARTBEAT   -> sysfs 名 red:heartbeat
+# GPIO 差异由各自的 DTB 承担，所以本脚本不需要按机型分支。
 #
-#   red    DC on while aggregate CPU load >= 70%, off once it drops below 65%
-#          (the lower release point is hysteresis so the lamp cannot chatter)
-#   blue   wifi  -- solid = carrier + IPv4 route, slow = no link,
-#                   fast = associating
-#   green  modem -- solid = data session, slow = registered or searching,
-#                   fast = connecting, off = no SIM / locked / no modem
+# 三颗灯都是 gpio-leds、max_brightness=1，只能开关；红灯明显比另外两颗亮。
+# 因此**故意不用软件 PWM**：内核 blink timer 每次翻转都会把 CPU 从深空闲拉出
+# （实测 4ms/16ms 翻转约 100 次/秒，深空闲退出 +101 次/秒）。红灯改用负载档位：
 #
-# Idle state (no CPU load, wifi associated, no SIM) is red off + blue solid +
-# green off, and no LED is driven by a timer.
+#   red    DC 常亮：CPU 总负载 >= 70% 时亮，降到 65% 以下时灭
+#          （释放点更低是滞回，避免灯在阈值附近抖动）
+#   blue   Wi-Fi：常亮 = 已连接，慢闪 = 无链路，快闪 = 正在关联
+#   green  4G：  常亮 = 数据会话已建立，慢闪 = 已注册/搜索中，
+#                快闪 = 正在连接，灭 = 无 SIM / 已锁 / 无模块
+#
+# 空闲稳定态（无 CPU 负载、Wi-Fi 已连、无 SIM）是 红灯灭 + 蓝灯常亮 + 绿灯灭，
+# 此时没有任何灯由定时器驱动。
+#
+# 可用 /etc/default/ufi-led-state 覆盖默认值（见下方"配置"段的变量）。
+
 set -u
 
-RED=/sys/class/leds/red:heartbeat
-BLUE=/sys/class/leds/blue:wlan
-GREEN=/sys/class/leds/green:wan
+# ---------------------------------------------------------------- 配置
+
+# 灯与网口的发现方式：设备树里三颗状态灯的默认（function,color）组合在所有
+# 机型上都是 WLAN/blue、WAN/green、HEARTBEAT/red。sysfs 里没有 color/function
+# 属性，所以先按已知名字匹配，匹配不到再按名字里的颜色词兜底。
+LED_BLUE_HINT=${LED_BLUE_HINT:-blue:wlan}
+LED_GREEN_HINT=${LED_GREEN_HINT:-green:wan}
+LED_RED_HINT=${LED_RED_HINT:-red:heartbeat}
+
+WIFI_IFACE=${WIFI_IFACE:-}
+MODEM_MGMT=${MODEM_MGMT:-auto}      # auto | nm | mm  (auto：有 nmcli 用 nm，否则 mmcli)
+
+RED_ON_PCT=${RED_ON_PCT:-70}
+RED_OFF_PCT=${RED_OFF_PCT:-65}
+POLL_SECS=${POLL_SECS:-3}
+NET_EVERY=${NET_EVERY:-20}
+
+# 允许用 /etc/default/ufi-led-state 覆盖上面的默认值（发行版惯例）
+[ -r /etc/default/ufi-led-state ] && . /etc/default/ufi-led-state
 
 STATE=/run/ufi-led-state
 CUR=$STATE/modes
@@ -28,26 +51,62 @@ REDMEM=$STATE/red
 CPUPREV=$STATE/cpu
 OVERRIDE=$STATE/override
 
-RED_ON_PCT=${RED_ON_PCT:-70}
-RED_OFF_PCT=${RED_OFF_PCT:-65}
-POLL_SECS=${POLL_SECS:-3}
-NET_EVERY=${NET_EVERY:-20}
+# ---------------------------------------------------------------- LED 发现
+
+# 在 /sys/class/leds 里找一个灯：$1 首选名，$2 颜色兜底。
+# 找到就打印目录路径；找不到返回 1。
+find_led() {
+    _want=$1
+    _color=$2
+    if [ -d "/sys/class/leds/$_want" ]; then
+        printf '%s\n' "/sys/class/leds/$_want"
+        return 0
+    fi
+    # 兜底：名字里含该颜色词。按通配展开顺序取第一个，保证可重复。
+    for _d in /sys/class/leds/*"$_color"*; do
+        [ -d "$_d" ] || continue
+        printf '%s\n' "$_d"
+        return 0
+    done
+    return 1
+}
+
+led_paths() {
+    RED=$(find_led "$LED_RED_HINT" red)
+    BLUE=$(find_led "$LED_BLUE_HINT" blue)
+    GREEN=$(find_led "$LED_GREEN_HINT" green)
+}
+
+# 找无线网口：优先配置值，其次第一个 wlan*。
+find_wifi_iface() {
+    if [ -n "$WIFI_IFACE" ]; then
+        [ -e "/sys/class/net/$WIFI_IFACE" ] && { printf '%s\n' "$WIFI_IFACE"; return 0; }
+    fi
+    for _d in /sys/class/net/wlan*; do
+        [ -e "$_d" ] || continue
+        printf '%s\n' "$(basename "$_d")"
+        return 0
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------- LED 原语
 
 led_off() {
-    [ -d "$1" ] || return 0
+    [ -n "${1:-}" ] && [ -d "$1" ] || return 0
     printf 'none\n' > "$1/trigger" 2>/dev/null || true
     printf '0\n' > "$1/brightness" 2>/dev/null || true
 }
 
 led_solid() {
-    [ -d "$1" ] || return 0
+    [ -n "${1:-}" ] && [ -d "$1" ] || return 0
     printf 'none\n' > "$1/trigger" 2>/dev/null || true
     printf '1\n' > "$1/brightness" 2>/dev/null || true
 }
 
-# Blink only the low-rate blue/green states; red is never put on a timer.
+# 只让低速的蓝/绿闪；红灯永远不上定时器。
 led_blink() {
-    [ -d "$1" ] || return 0
+    [ -n "${1:-}" ] && [ -d "$1" ] || return 0
     printf 'none\n' > "$1/trigger" 2>/dev/null || true
     printf '1\n' > "$1/brightness" 2>/dev/null || true
     if ! printf 'timer\n' > "$1/trigger" 2>/dev/null; then
@@ -59,7 +118,9 @@ led_blink() {
     printf '1\n' > "$1/brightness" 2>/dev/null || true
 }
 
-# CPU utilisation (%) over the interval since the previous call; 0 on first call.
+# ---------------------------------------------------------------- 状态采集
+
+# 自上次调用以来的 CPU 占用率（%）；首次调用返回 0。
 cpu_busy_pct() {
     read -r _ u n s i w irq sirq st rest _ < /proc/stat 2>/dev/null || { echo 0; return 0; }
 
@@ -78,7 +139,7 @@ cpu_busy_pct() {
     echo $(( 100 * (dt - di) / dt ))
 }
 
-# Red gear with hysteresis.  Prints on / off.
+# 红灯档位，带滞回。打印 on / off。
 red_for_load() {
     busy=$1
     last=$(cat "$REDMEM" 2>/dev/null || echo 0)
@@ -92,21 +153,124 @@ red_for_load() {
     [ "$on" = 1 ] && echo on || echo off
 }
 
-apply() {
-    red=$1; blue=$2; green=$3
+# --- Wi-Fi ---
+# 优先用 nmcli（NetworkManager 是现在的默认网络栈），退回 wpa_cli，再退回路由表。
+wifi_state_nm() {
+    command -v nmcli >/dev/null 2>&1 || return 1
+    _if=$1
+    # 设备状态行形如：wlan0:wifi:connected:REDACTED_SSID
+    _line=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null |
+        awk -F: -v want="$_if" '$1 == want { print; exit }')
+    [ -n "$_line" ] || return 1
+    _st=$(printf '%s\n' "$_line" | cut -d: -f3)
+    case "$_st" in
+        connected)                echo solid; return 0 ;;
+        connecting|disconnecting) echo fast;  return 0 ;;
+        *)                        echo slow;  return 0 ;;
+    esac
+}
 
-    case "$red" in
+wifi_state_wpa() {
+    command -v wpa_cli >/dev/null 2>&1 || return 1
+    _if=$1
+    _st=$(wpa_cli -i "$_if" status 2>/dev/null |
+        while IFS= read -r l; do
+            case "$l" in wpa_state=*) echo "${l#wpa_state=}" ;; esac
+        done)
+    case "$_st" in
+        ASSOCIATING|AUTHENTICATING|ASSOCIATED) echo fast;  return 0 ;;
+        COMPLETED)                             echo solid; return 0 ;;
+        '')                                    return 1 ;;
+        *)                                     echo slow;  return 0 ;;
+    esac
+}
+
+wifi_mode() {
+    _if=$(find_wifi_iface) || { echo slow; return 0; }
+
+    wifi_state_nm "$_if" && return 0
+    wifi_state_wpa "$_if" && return 0
+
+    # 都没有：只看载波与默认 IPv4 路由。
+    _carrier=$(cat "/sys/class/net/$_if/carrier" 2>/dev/null || echo 0)
+    [ "$_carrier" = 1 ] || { echo slow; return 0; }
+    if awk -v d="$_if" '$1 == d && $2 == "00000000" { found = 1 } END { exit !found }' \
+         /proc/net/route 2>/dev/null; then
+        echo solid
+    else
+        echo slow
+    fi
+}
+
+# --- 4G ---
+# 数据会话优先问 NetworkManager（wwan0 由 NM 管）；没有 nmcli 时退回 mmcli。
+modem_state_nm() {
+    command -v nmcli >/dev/null 2>&1 || return 1
+    # 没有任何 wwan 设备说明模块没起来
+    _has=$(nmcli -t -f DEVICE,TYPE,STATE device status 2>/dev/null | awk -F: '$2 == "wwan" { print; exit }')
+    [ -n "$_has" ] || return 1
+    _st=$(printf '%s\n' "$_has" | cut -d: -f3)
+    case "$_st" in
+        connected)                echo solid; return 0 ;;
+        connecting|disconnecting) echo fast;  return 0 ;;
+        *)                        echo slow;  return 0 ;;
+    esac
+}
+
+modem_state_mm() {
+    command -v mmcli >/dev/null 2>&1 || return 1
+    _modem=$(mmcli -L 2>/dev/null | sed -n 's#.*Modem/\([0-9][0-9]*\).*#\1#p' | head -1)
+    [ -n "$_modem" ] || return 1
+
+    _details=$(mmcli -m "$_modem" --output-keyvalue 2>/dev/null || true)
+    _st=$(printf '%s\n' "$_details" | sed -n 's/^modem\.generic\.state[[:space:]]*:[[:space:]]*//p' | head -1)
+    _reason=$(printf '%s\n' "$_details" | sed -n 's/^modem\.generic\.state-failed-reason[[:space:]]*:[[:space:]]*//p' | head -1)
+
+    case "$_st" in
+        connected)                echo solid; return 0 ;;
+        connecting|disconnecting) echo fast;  return 0 ;;
+        registered)               echo slow;  return 0 ;;
+        failed)
+            case "$_reason" in
+                sim-missing|sim-not-inserted|sim-pin|sim-puk) echo off; return 0 ;;
+                *) echo slow; return 0 ;;
+            esac ;;
+        searching|enabled|initializing|enabling|disabling) echo slow; return 0 ;;
+        '') return 1 ;;
+        *)  echo off; return 0 ;;
+    esac
+}
+
+modem_mode() {
+    case "$MODEM_MGMT" in
+        nm) modem_state_nm || { echo off; return 0; } ;;
+        mm) modem_state_mm || { echo off; return 0; } ;;
+        *)
+            # auto：先看 NM，再看 mmcli；两者都问不到就按"无模块"处理。
+            _r=$(modem_state_nm) && { printf '%s\n' "$_r"; return 0; }
+            _r=$(modem_state_mm) && { printf '%s\n' "$_r"; return 0; }
+            echo off
+            ;;
+    esac
+}
+
+# ---------------------------------------------------------------- 应用
+
+apply() {
+    _red=$1; _blue=$2; _green=$3
+
+    case "$_red" in
         on) led_solid "$RED" ;;
         *)  led_off "$RED" ;;
     esac
 
-    case "$blue" in
+    case "$_blue" in
         solid) led_solid "$BLUE" ;;
         fast)  led_blink "$BLUE" 100 100 ;;
         *)     led_blink "$BLUE" 100 1900 ;;
     esac
 
-    case "$green" in
+    case "$_green" in
         solid) led_solid "$GREEN" ;;
         fast)  led_blink "$GREEN" 100 100 ;;
         slow)  led_blink "$GREEN" 100 900 ;;
@@ -114,62 +278,10 @@ apply() {
     esac
 }
 
-wifi_mode() {
-    [ -e /sys/class/net/wlan0 ] || { echo slow; return 0; }
+# ---------------------------------------------------------------- 调试覆盖
 
-    state=''
-    if command -v wpa_cli >/dev/null 2>&1; then
-        state=$(wpa_cli -i wlan0 status 2>/dev/null |
-            while IFS= read -r l; do
-                case "$l" in wpa_state=*) echo "${l#wpa_state=}" ;; esac
-            done)
-    fi
-    carrier=$(cat /sys/class/net/wlan0/carrier 2>/dev/null || echo 0)
-
-    case "$state" in
-        ASSOCIATING|AUTHENTICATING|ASSOCIATED) echo fast; return 0 ;;
-    esac
-    [ "$carrier" = 1 ] || { echo slow; return 0; }
-
-    if [ -n "$state" ]; then
-        [ "$state" = COMPLETED ] && echo solid || echo slow
-        return 0
-    fi
-
-    # No wpa_cli: fall back to a default IPv4 route on wlan0.
-    if awk '$1 == "wlan0" && $2 == "00000000" { found = 1 } END { exit !found }' /proc/net/route 2>/dev/null; then
-        echo solid
-    else
-        echo slow
-    fi
-}
-
-modem_mode() {
-    command -v mmcli >/dev/null 2>&1 || { echo off; return 0; }
-
-    modem=$(mmcli -L 2>/dev/null | sed -n 's#.*Modem/\([0-9][0-9]*\).*#\1#p' | head -1)
-    [ -n "$modem" ] || { echo off; return 0; }
-
-    details=$(mmcli -m "$modem" --output-keyvalue 2>/dev/null || true)
-    state=$(echo "$details" | sed -n 's/^modem\.generic\.state[[:space:]]*:[[:space:]]*//p' | head -1)
-    reason=$(echo "$details" | sed -n 's/^modem\.generic\.state-failed-reason[[:space:]]*:[[:space:]]*//p' | head -1)
-
-    case "$state" in
-        connected)                echo solid ;;
-        connecting|disconnecting) echo fast ;;
-        registered)               echo slow ;;
-        failed)
-            case "$reason" in
-                sim-missing|sim-not-inserted|sim-pin|sim-puk) echo off ;;
-                *) echo slow ;;
-            esac ;;
-        searching|enabled|initializing|enabling|disabling) echo slow ;;
-        *) echo off ;;
-    esac
-}
-
-# Print an active debug override for red, or nothing.  These only affect red and
-# expire by themselves; they exist for the Venus regression script.
+# 打印生效中的红灯覆盖值，没有则打印空。这些只影响红灯且会自行过期；
+# 供 Venus 回归脚本使用。
 override_red() {
     [ -r "$OVERRIDE" ] || return 0
     set -- $(cat "$OVERRIDE" 2>/dev/null)
@@ -205,11 +317,13 @@ apply_modes() {
 
 auto_once() {
     mkdir -p "$STATE"
+    led_paths
     apply_modes "$(red_for_load "$(cpu_busy_pct)")" "$(wifi_mode)" "$(modem_mode)"
 }
 
 monitor() {
     mkdir -p "$STATE"
+    led_paths
     trap 'apply off off off' INT TERM EXIT
     blue=slow
     green=off
@@ -227,14 +341,34 @@ monitor() {
     done
 }
 
+# 打印本次发现的灯与网口，供排错（设备上跑 `ufi-led-state.sh paths` 即可核对）
+show_paths() {
+    led_paths
+    printf 'red   = %s\n' "${RED:-<未找到>}"
+    printf 'blue  = %s\n' "${BLUE:-<未找到>}"
+    printf 'green = %s\n' "${GREEN:-<未找到>}"
+    _if=$(find_wifi_iface) && printf 'wifi  = %s\n' "$_if" || printf 'wifi  = <未找到>\n'
+    printf 'modem = %s\n' "$MODEM_MGMT"
+}
+
+# 子命令分发。
+# 允许本脚本被 `. script` 引入（此时只定义函数，不应有任何动作或退出）。
+# 判断依据：正常名字直接执行，或显式带了子命令，才进入分发。这样
+#   - systemd 按固定路径执行          -> 分发
+#   - 改名后带子命令执行              -> 分发
+#   - 被 source（无参数）             -> 静默，只定义函数
+# POSIX sh 无法可靠判断"是否被 source"，这是常见做法里最稳的一种。
+if [ "${0##*/}" = "ufi-led-state.sh" ] || [ $# -gt 0 ]; then
 case "${1:-}" in
     monitor) monitor ;;
     auto|ready) auto_once ;;
     status) cat "$CUR" 2>/dev/null || echo none ;;
+    paths) show_paths ;;
     testing|pass|fail) set_override "$1" ;;
-    off) apply off off off; echo "off,off,off" > "$CUR" ;;
+    off) led_paths; apply off off off; echo "off,off,off" > "$CUR" ;;
     *)
-        echo "usage: $0 {monitor|auto|status|testing|pass|fail|off}" >&2
+        echo "用法: $0 {monitor|auto|status|paths|testing|pass|fail|off}" >&2
         exit 2
         ;;
 esac
+fi

@@ -71,25 +71,70 @@ for path in \
 done
 debugfs -R 'stat /lib/systemd/system/systemd-timesyncd.service' "$ROOTFS" 2>/dev/null | grep -q '^Inode:' && { printf 'ERROR: systemd-timesyncd present\n' >&2; exit 1; }
 printf 'systemd-timesyncd=absent\n'
-if debugfs -R 'stat /usr/bin/NetworkManager' "$ROOTFS" 2>&1 | grep -q '^Inode:'; then
-  printf 'ERROR: NetworkManager executable present\n' >&2
+
+# 网络栈现在是 NetworkManager（早期用 networkd + wpa_supplicant，已切换）。
+# 这里断言 NM 在、且 networkd / wpa_supplicant@ 的启用软链不在（避免两者抢网卡）。
+for path in /usr/bin/NetworkManager /usr/bin/nmcli /usr/bin/nmtui \
+            /var/lib/dpkg/info/network-manager.list \
+            /usr/share/locale/zh_CN/LC_MESSAGES/NetworkManager.mo \
+            /etc/systemd/system/multi-user.target.wants/NetworkManager.service \
+            /etc/NetworkManager/NetworkManager.conf; do
+  debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'rootfs:%s=MISSING\n' "$path" >&2; exit 1; }
+  printf 'rootfs:%s=present\n' "$path"
+done
+printf 'NetworkManager=present\n'
+for path in /etc/systemd/system/multi-user.target.wants/systemd-networkd.service \
+            /etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service \
+            /etc/systemd/network/20-wlan0.network \
+            /etc/wpa_supplicant/wpa_supplicant-wlan0.conf; do
+  if debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:'; then
+    printf 'ERROR: legacy networkd/wpa_supplicant artifact still present: %s\n' "$path" >&2
+    exit 1
+  fi
+done
+printf 'networkd_wpa_supplicant=removed\n'
+# NM 的 Wi-Fi 连接由 keyfile 承载（预置账号时才存在，故只做格式校验不做存在性断言）
+printf 'nm_backend=keyfile\n'
+
+# 中文化：locale 必须真正生成，只写 locale.gen 是不够的（apt variant 不跑
+# locale-gen，`locale -a` 里没有 zh_CN 时中文会回退成 C）。
+debugfs -R 'stat /etc/default/locale' "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'ERROR: /etc/default/locale missing\n' >&2; exit 1; }
+if command -v debugfs >/dev/null 2>&1; then
+  _loc="$(debugfs -R 'cat /etc/default/locale' "$ROOTFS" 2>/dev/null || true)"
+  case "$_loc" in
+    *LANG=zh_CN.UTF-8*) printf 'locale_default=zh_CN.UTF-8\n' ;;
+    *) printf 'ERROR: /etc/default/locale does not select zh_CN.UTF-8\n' >&2; exit 1 ;;
+  esac
+fi
+# 已生成的 locale 存档（/usr/lib/locale/locale-archive 或 zh_CN 目录）
+if debugfs -R 'stat /usr/lib/locale/locale-archive' "$ROOTFS" 2>/dev/null | grep -q '^Inode:'; then
+  printf 'locale_generated=locale-archive\n'
+elif debugfs -R 'stat /usr/lib/locale/zh_CN.utf8' "$ROOTFS" 2>/dev/null | grep -q '^Inode:'; then
+  printf 'locale_generated=zh_CN.utf8-dir\n'
+else
+  printf 'ERROR: zh_CN locale was not generated (only locale.gen was edited)\n' >&2
   exit 1
 fi
-if debugfs -R 'stat /var/lib/dpkg/info/network-manager.list' "$ROOTFS" 2>&1 | grep -q '^Inode:'; then
-  printf 'ERROR: NetworkManager package record present\n' >&2
-  exit 1
-fi
-printf 'NetworkManager=absent\n'
+
 printf '\n== LED and test assets ==\n'
-for path in /usr/local/sbin/ufi-led-state.sh /etc/systemd/system/ufi-led-state.service /etc/systemd/system/multi-user.target.wants/ufi-led-state.service /root/venus-test.sh; do
+for path in /usr/local/sbin/ufi-led-state.sh /etc/systemd/system/ufi-led-state.service /etc/systemd/system/multi-user.target.wants/ufi-led-state.service /etc/default/ufi-led-state /root/venus-test.sh; do
   debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'rootfs:%s=MISSING\n' "$path" >&2; exit 1; }
   printf 'rootfs:%s=present\n' "$path"
 done
 printf 'led_policy=three-colour-red-load-gear\n'
-grep -q 'GREEN=/sys/class/leds/green:wan' "$BASE/tools/ufi-led-state.sh"
+# 脚本现在是机型中立的：按颜色发现灯、自动找网口，不再硬编码某一机型的路径。
+grep -q 'find_led()' "$BASE/tools/ufi-led-state.sh"
+grep -q 'find_wifi_iface()' "$BASE/tools/ufi-led-state.sh"
+grep -q 'LED_BLUE_HINT=${LED_BLUE_HINT:-blue:wlan}' "$BASE/tools/ufi-led-state.sh"
 grep -q 'RED_ON_PCT=${RED_ON_PCT:-70}' "$BASE/tools/ufi-led-state.sh"
 grep -q 'on) led_solid "\$RED"' "$BASE/tools/ufi-led-state.sh"
+# 旧的硬编码路径必须已经消失，否则说明回退到了非通用版本
+if grep -qE '^(RED|BLUE|GREEN)=/sys/class/leds/' "$BASE/tools/ufi-led-state.sh"; then
+  printf 'ERROR: ufi-led-state.sh still hardcodes an LED sysfs path\n' >&2
+  exit 1
+fi
 grep -q 'ExecStart=/usr/local/sbin/ufi-led-state.sh monitor' "$BASE/tools/ufi-led-state.service"
+printf 'led_discovery=auto\n'
 
 printf '\n== board boot status ==\n'
 for board in ufi103s-ufi003 ufi001b ufi001c sp970 uz801; do
