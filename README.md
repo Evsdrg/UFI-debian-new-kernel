@@ -15,11 +15,16 @@ UFI001b / UFI001c / SP970 / UZ801**。
 > IPQ4019 + ath10k + 内核 5.15，那是拆机前的误判。实机是 MSM8916 +
 > wcn36xx。该错误文档已移入 `archive/reports/`。
 
+> **先读哪个**：`AGENTS.md` 是给在这个仓库里干活的人/agent 看的——硬约束、
+> 平台限制、以及我们相对上游做过的所有改动；下面这些专题文档讲的是具体怎么做。
+> 违反 `AGENTS.md` 里的约束往往不会立刻报错，而是静默出错或把设备变砖。
+
 ## 目录结构
 
 ```
 openstick/
-├── README.md              本文件
+├── README.md              本文件（结构与整体状态）
+├── AGENTS.md              ★ 给 agent 的作业须知：硬约束、平台限制、我们做过的改动
 ├── LED.md                 LED 跨型号适配说明
 ├── NETWORK.md             网络（NetworkManager）与中文说明
 ├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
@@ -139,6 +144,9 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 产物、Venus 变体。
 ## 刷机前必读
 
 - **必须先做整片 eMMC 全量备份**（Miko 全盘 dump），再动手刷任何分区。
+  注意这条目前**无法脚本化**：Miko 是 Windows GUI 工具，仓库里能依赖的是
+  `recovery/backups/` 的分区级读回。动手前先确认目标分区有对应副本
+  （见 `AGENTS.md` §1.2）。
 - 只能操作已确认的 `boot`（p12）与 `rootfs`（p14）分区；不动 GPT、aboot、modem、NV。
 - **两条刷机路径**：
   - **fastboot**（推荐，速度最快）：在设备 Linux 里

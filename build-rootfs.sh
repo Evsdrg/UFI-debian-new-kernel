@@ -178,7 +178,7 @@ fi
 
 # ---------------------------------------------------------------- zram 等
 
-# zram: 461MiB RAM, use zstd and enable at boot
+# zram: 376MiB RAM (measured), use zstd and enable at boot
 mkdir -p "$STAGE/etc/systemd/system" "$STAGE/etc/modules-load.d" "$STAGE/usr/local/sbin" "$STAGE/root"
 mkdir -p "$STAGE/etc/systemd/system/rmtfs.service.d" "$STAGE/etc/systemd/system/sysinit.target.wants"
 
