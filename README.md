@@ -160,14 +160,19 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 产物、Venus 变体。
 
 ## 历史
 
-- **中间产物已清理（2026-09-14）**：删掉了约 **7 GB** 可再生产物——
+- **中间产物已清理（2026-09-14）**：删掉了约 **9 GB** 可再生产物——
   `out/` 下 4 个与 `shared/rootfs`、`archive/` 重复的 rootfs 镜像（3.0G）、
   内核构建树（`out/build-ufi003-*-os` + `build/variant-*`，3.8G）、boot 打包中间态
-  （`.kernel-dtb` 拼接物与 `-check` 解包目录）、以及 6.18.48 时代的陈旧模块树与
-  构建日志。清理后**已实测可重建并启动**：重编 → 打包 → 刷入 → p12 逐字节校验
-  → 启动 → 功能验证全通过。
-  保留：`out/rollback/`（设备 p12 读回）、`out/boot-*/` 的 `.img` 产物（文档引用）、
-  `shared/`、`boards/`、`recovery/`、`archive/`。
+  （`out/` 与各板 `boot/` 下的 `kernel-*-dtb` 拼接物与 `-check` 解包目录，96M+）、
+  6.18.48 时代的陈旧模块树与构建日志、以及被 9/14 版取代的
+  `build/…-venus-led-v3.ext4`（751M；其 LED 脚本内容与 git 提交 `1a75a2b` 逐字节
+  相同，可从仓库重建）。清理后**已实测可重建并启动**：重编 → 打包 → 刷入 →
+  p12 逐字节校验 → 启动 → 功能验证全通过。
+  删除前逐个核实过：rootfs 镜像都有同内容副本；12 个 `kernel-*-dtb` 都能从对应
+  `.img` 的内核载荷反解出来（逐字节相同）；另删了 1 个无对应产物的孤儿
+  `kernel-venus-oc16-dtb`。
+  保留：`out/rollback/`（设备 p12 读回）、`out/boot-*/` 与各板 `boot/` 的 `.img`
+  产物（文档引用）、`shared/`、`boards/`、`recovery/`、`archive/`。
   同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
   `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
   自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。
