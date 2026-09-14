@@ -54,7 +54,12 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 
 # ---- 基础包（所有档位都要）----
 # login/shell/SSH/网络/时间/存储/固件加载 —— 这些是 Linux 的"核心功能"底座。
-PKGS_BASE="login,openssh-server,nano,less,bash,coreutils,util-linux,procps,\
+#
+# systemd-sysv 必须**显式**列出来：它提供 /usr/sbin/init（→ /lib/systemd/systemd）。
+# 它只是 systemd 的 Recommends，不显式要就会靠依赖链"碰巧"带进来——实测 tiny
+# 档位移除 4G 包后那条链断了，镜像里没有 /sbin/init，内核找不到 init 直接落到
+# /bin/sh，**系统起不来**（这种镜像刷上去就是砖，只能按复位键走 EDL 恢复）。
+PKGS_BASE="login,openssh-server,systemd-sysv,nano,less,bash,coreutils,util-linux,procps,\
 network-manager,network-manager-l10n,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
 chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,locales,bluez,rfkill"
 
@@ -448,6 +453,13 @@ fi
 cp -a "$WORKDIR/shared/firmware/common/." "$STAGE/lib/firmware/"
 # wireless-regdb is installed by the Debian package above; do not overwrite
 # its /usr/lib/firmware/regulatory.db alternatives symlink.
+
+# 固件是体积大头：common/ 里 modem.* 有 39MB，而 WiFi/BT 只占 3MB。
+# tiny 档位不含 4G，modem 固件永远不会被加载（模块不装、ModemManager 不在），
+# 留着纯属浪费 —— 去掉后 tiny 能少 39MB（约 12% 的镜像）。
+if [[ "$ROOTFS_FLAVOR" == tiny ]]; then
+    rm -f "$STAGE/lib/firmware/"modem.* "$STAGE/lib/firmware/mba.mbn"
+fi
 
 # Empty mountpoint directories need a placeholder to survive tar/copy hooks.
 for dir in "$STAGE/dev/hugepages" "$STAGE/dev/mqueue" "$STAGE/run/lock" "$STAGE/tmp"; do
