@@ -163,4 +163,9 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 产物、Venus 变体。
 - `archive/reports/`：各专题研究与交付证据（CPU 频率/电压、EDL、刷机证据等）
 - `archive/superseded-20260914/`：本次重组中被取代的重复/分叉文件
 - `WORKSPACE-INDEX.txt`：重组前的完整状态索引（保留作对照）
-- `/opt/helloworld/103s/`：重组前的旧工作区，原样保留作回退
+- **旧工作区已删除**：重组前的 `/opt/helloworld/103s/` 已于 2026-09-14 清理。
+  删前做过逐文件核对：本仓是它的**完整超集**——`recovery/` 备份、rootfs 镜像、
+  内核树、上游克隆、`archive/` 都有同内容副本；它那 4666 个"独有"文件里 4650 个
+  是 `build/` 下可再生目标文件，其余是本仓已更新过的同名脚本/文档；两个仓的提交
+  历史同源，无独有提交。因此内核回退**不再依赖第二棵树**，用本仓自带的 6.18.49
+  树与产物重建即可：`KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh`。
