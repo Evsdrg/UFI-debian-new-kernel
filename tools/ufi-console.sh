@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 # Bounded serial access to the UFI103s console.
 #
-# PORT/BAUD are discovered facts, not assumptions: the CH343 adapter on this
-# bench enumerates as cdc_acm and needs 57600 baud (a nominal 115200 setting
-# comes out as garbage because of the adapter's clock).  Run `ufi-console.sh id`
-# after any re-plug, since the USB path and tty name can change.
+# 波特率默认 115200，两端一致：内核 cmdline 是 `console=ttyMSM0,115200`，
+# 设备侧 `stty -F /dev/ttyMSM0` 也报 115200。实测（2026-09-14，主机侧逐档抓包）
+# 只有 115200 能解出可读内容，57600 / 230400 是乱码、9600 无输出——说明这个
+# CH343（USB 1a86:55d3，CDC-ACM 模式）确实遵守主机设的波特率，**不存在"适配器
+# 时钟偏差"这回事**。
+#
+# 曾误记为"需要 57600"，来源是：串口的速率会被 getty 沿用，而
+# serial-getty@ttyMSM0 用 `--keep-baud`，会把端口保持在上次遗留的速率上。
+# 若发现解不出内容，先在设备上 `stty -F /dev/ttyMSM0 115200` 复位，再按 115200 抓。
+#
+# PORT 必须重derive：同一类适配器曾先后以 ch341-uart(/dev/ttyUSB0) 与
+# cdc_acm(/dev/ttyACM0) 绑定，重插后 tty 名与 USB 序列号都会变。
+# 用 `ufi-console.sh id` 确认；不确定时用波特率扫描（115200 等）识别端口。
 set -u
 
 PORT="${UFI_CONSOLE_PORT:-/dev/ttyACM0}"
-BAUD="${UFI_CONSOLE_BAUD:-57600}"
+BAUD="${UFI_CONSOLE_BAUD:-115200}"
 SUDO_PW="${SUDO_PW:-REDACTED}"
 
 sudo_do() { echo "$SUDO_PW" | sudo -S "$@" 2>/dev/null; }

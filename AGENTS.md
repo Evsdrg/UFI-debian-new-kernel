@@ -53,13 +53,18 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
 不使用 `devmem`、不做 Firehose poke、不写入猜测的寄存器值。这个平台已经有
 能工作的主线驱动，绕过驱动直接改寄存器只会得到难以复现的挂死。
 
-### 1.5 串口：一个特定的适配器，且端口名会变
+### 1.5 串口：两端都是 115200，但端口名会变
 
-- 台架上的 **CH343 USB 适配器**枚举为 cdc_acm，**需要 57600 波特率** ——
-  按内核 cmdline 里的 115200 设会出乱码（适配器时钟问题，不是内核问题）。
-  内核侧确实是 `console=ttyMSM0,115200`，两者不矛盾。
-- **端口名每次重插都会变**（`/dev/ttyACM0` ↔ `/dev/ttyUSB0` 都出现过）。
-  用之前先跑 `tools/ufi-console.sh id` 重新确认，不要写死。
+- **波特率 115200**，两端一致：内核 cmdline 是 `console=ttyMSM0,115200`，设备侧
+  `stty -F /dev/ttyMSM0` 也报 115200。实测（主机侧逐档抓包）只有 115200 能解出
+  可读内容，57600 / 230400 是乱码、9600 无输出 —— 这个 CH343（USB `1a86:55d3`，
+  CDC-ACM 模式）**确实遵守主机设的波特率，没有"适配器时钟偏差"这回事**。
+- **若解不出内容**，多半是串口速率被 getty 沿用了：`serial-getty@ttyMSM0` 用
+  `--keep-baud`（`115200,57600,38400,9600`），会把端口保持在上次遗留的速率上。
+  先在设备上 `stty -F /dev/ttyMSM0 115200` 复位，再按 115200 抓。
+- **端口名每次重插都会变**：同一类适配器曾先后以 `ch341-uart`（`/dev/ttyUSB0`）
+  与 `cdc_acm`（`/dev/ttyACM0`）绑定，重插后 tty 名与 USB 序列号都会变。
+  用之前先跑 `tools/ufi-console.sh id`；不确定时用波特率扫描识别端口。
 - `/dev/ttyACM1` 属于**另一台设备（LubanCat）**，任何时候都不要用它。
 
 ### 1.6 凭据现状
@@ -371,7 +376,7 @@ sh tools/check-repo.sh "$K"
 |---|---|
 | 内核 | `7.1.13-ufi003-venus-dirty`（venus/GPU 变体）／`7.1.13-ufi003-dirty`（基线） |
 | rootfs PARTUUID | `a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`（cmdline 必须匹配） |
-| 串口 | `/dev/ttyACM0` @ **57600**（CH343 适配器），端口名会变 |
+| 串口 | `/dev/ttyACM0` @ **115200**（CH343，CDC-ACM）；端口名会变，用前 `tools/ufi-console.sh id` 确认 |
 | 设备 root 密码 | `REDACTED` |
 | 宿主机 sudo 密码 | `REDACTED` |
 | 设备地址 | DHCP，历史上出现过 `.102`/`.108`，用前先 `ping` |
