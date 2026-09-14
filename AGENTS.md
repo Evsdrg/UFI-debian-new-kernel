@@ -62,11 +62,15 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
   用之前先跑 `tools/ufi-console.sh id` 重新确认，不要写死。
 - `/dev/ttyACM1` 属于**另一台设备（LubanCat）**，任何时候都不要用它。
 
-### 1.6 凭据
+### 1.6 凭据现状
 
-本仓库已提交台架凭据（root 密码 `REDACTED`、主 sudo 密码 `REDACTED`、
-台架 WiFi SSID/PSK）。这些是本地测试设备的，不是需要保守的机密；
-但**不要把新的私有凭据提交进来**。
+- **已提交**（脚本默认值）：设备 root 密码 `REDACTED`、主机 sudo 密码 `REDACTED`。
+  `flash.sh` / `build-rootfs.sh` / `tools/ufi-console.sh` 都把它们当默认值，
+  所以脚本能直接跑。这些是本地台架设备的，不是需要保守的机密。
+- **未提交**：盘面 WiFi 的 PSK（只在构建 rootfs 时通过环境变量传入，刻意不落仓库；
+  SSID 仅作为注释里的示例出现在 `tools/ufi-led-state.sh` 的状态行格式说明中）。
+- 规则：**不要把新的私有凭据提交进来**；需要凭据的地方用环境变量传
+  （`ROOTFS_WIFI_SSID`/`ROOTFS_WIFI_PSK`、`PW`、`SUDO_PW`）。
 
 ---
 
