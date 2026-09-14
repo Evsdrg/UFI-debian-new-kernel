@@ -51,19 +51,68 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 #   i3-wm/i3status/dmenu 轻量窗口管理器（376MB 内存下比 LXQt 合适）
 #   xterm/x11-utils     基础 X 客户端与调试工具
 #   fonts-wqy-microhei  中文点阵/矢量字体（5MB，比 fonts-noto-cjk 的 91MB 轻）
-DESKTOP_PKGS="xrdp,xorgxrdp,xserver-xorg-core,xserver-xorg-video-dummy,xserver-xorg-legacy,\
-xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,\
-fonts-wqy-microhei,fonts-dejavu-core,libgl1-mesa-dri,libgbm1,libegl1,libgles2,mesa-utils"
 
-PKGS_EXTRA="login,openssh-server,network-manager,network-manager-l10n,wpasupplicant,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,nano,less,\
-e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,\
-iperf3,\
-ca-certificates,locales,man-db,manpages-zh"
+# ---- 基础包（所有档位都要）----
+# login/shell/SSH/网络/时间/存储/固件加载 —— 这些是 Linux 的"核心功能"底座。
+PKGS_BASE="login,openssh-server,nano,less,bash,coreutils,util-linux,procps,\
+network-manager,network-manager-l10n,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
+chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,locales,bluez,rfkill"
 
-# 桌面默认装上（DESKTOP=0 可做一个纯服务端镜像）。
-ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-1}"
-if [[ "$ROOTFS_DESKTOP" == 1 ]]; then
-    PKGS_EXTRA="$PKGS_EXTRA,$DESKTOP_PKGS"
+# ---- 4G / 蜂窝（modemmanager 管 ModemManager 服务；qmi/qrtr/rmtfs 是 QMI 通道与
+#      NV 存取；usb-modeswitch 处理模组从存储模式切到 modem 模式）----
+PKGS_4G="modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch"
+
+# ---- 文档（man 命令 + 中文手册）----
+PKGS_DOC="man-db,manpages-zh"
+
+# ---- 基准测试工具 ----
+PKGS_BENCH="iperf3"
+
+# 镜像档位：
+#   full    （默认）现状：桌面/xrdp/GPU + 4G + 中文 + man
+#   minimal （任务2）无桌面、无 GPU/mesa、无 man；**保留 nmtui + 4G** + 中文 + SSH
+#   tiny    （任务3）在 minimal 基础上**移除 4G**
+# 说明：nmtui 就在 network-manager 包里（只需 libnewt/libslang），所以精简掉
+# 桌面后 nmtui 依然可用；实测它不依赖 perl/python。
+ROOTFS_FLAVOR="${ROOTFS_FLAVOR:-full}"
+
+case "$ROOTFS_FLAVOR" in
+full)
+    PKGS_EXTRA="$PKGS_BASE,$PKGS_4G,$PKGS_DOC,$PKGS_BENCH,$DESKTOP_PKGS"
+    ;; 
+minimal)
+    PKGS_EXTRA="$PKGS_BASE,$PKGS_4G"
+    ;; 
+tiny)
+    PKGS_EXTRA="$PKGS_BASE"
+    ;; 
+*)
+    echo "未知 ROOTFS_FLAVOR: $ROOTFS_FLAVOR（可选 full|minimal|tiny）" >&2
+    exit 2
+    ;; 
+esac
+
+# 桌面默认在 full 档位下装上；其它档位强制关闭（ROOTFS_DESKTOP=0 亦可显式关闭）。
+ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-$([[ $ROOTFS_FLAVOR == full ]] && echo 1 || echo 0)}"
+if [[ "$ROOTFS_DESKTOP" == 1 && "$ROOTFS_FLAVOR" != full ]]; then
+    echo "ROOTFS_DESKTOP=1 与 ROOTFS_FLAVOR=$ROOTFS_FLAVOR 冲突（该档位不含桌面）" >&2
+    exit 2
+fi
+
+# ---- 体积裁剪：文档 / man / 非中文 locale ----
+# mmdebstrap 用 --dpkgopt 传 dpkg 的 path-exclude/path-include（不是 debootstrap
+# 那种顶层 --path-exclude，写成后者会 "Unknown option" 直接失败）。
+# 只在精简档位启用；copyright 按 Debian 政策必须保留，所以单独 include 回来。
+PATH_EXCLUDES=()
+if [[ "$ROOTFS_FLAVOR" != full ]]; then
+    PATH_EXCLUDES=(
+        "--dpkgopt=path-exclude=/usr/share/doc/*"
+        "--dpkgopt=path-include=/usr/share/doc/*/copyright"
+        "--dpkgopt=path-exclude=/usr/share/man/*"
+        "--dpkgopt=path-exclude=/usr/share/locale/*"
+        "--dpkgopt=path-include=/usr/share/locale/zh_CN/*"
+        "--dpkgopt=path-include=/usr/share/locale/locale.alias"
+    )
 fi
 
 # Variant hook: comma-separated extra packages (e.g. ffmpeg,v4l-utils) and
@@ -76,8 +125,12 @@ fi
 mkdir -p "$OUT_DIR"
 
 # ---- 准备要 copy-in 的素材 (hook 以映射uid执行, 需放宽读权限) ----
-STAGE="$OUT_DIR/stage"
+# STAGE 必须每次构建唯一：早先固定为 "$OUT_DIR/stage"，两个构建并行（或一个
+# 刚删完 stage 另一个还在读）会互相踩——实测过 minimal 的镜像里混进了 tiny 的
+# modules-load 内容，就是因为共用了这个目录。带上 flavor 与 PID 即可隔离。
+STAGE="$OUT_DIR/stage-$ROOTFS_FLAVOR-$$"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
+trap 'rm -rf "$STAGE"' EXIT
 
 # fstab: only root is listed here. systemd owns /tmp and other virtual mounts.
 # x-systemd.growfs 让 systemd 开机自动把文件系统撑满分区：rootfs 镜像是
@@ -223,40 +276,49 @@ install -D -m 755 "$WORKDIR/tools/venus-transcode.sh" "$STAGE/usr/local/sbin/ven
 # Stable /dev/video-decoder + /dev/video-encoder names: the m2m node numbers are
 # allocated dynamically and swap between boots (see the rule file for details).
 install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d/70-venus-video.rules"
-cat > "$STAGE/etc/modules-load.d/ufi003.conf" <<'EOF'
-# UFI103s mainline hardware
-wcn36xx
-qcom_wcnss_pil
-qcom_q6v5_mss
-rmtfs_mem
-qcom_bam_dmux
-qrtr_smd
-rpmsg_wwan_ctrl
-zram
-EOF
+# 开机加载的模块。4G 那一组（qcom_q6v5_mss / rmtfs_mem / qcom_bam_dmux /
+# qrtr_smd / rpmsg_wwan_ctrl）只在含 4G 的档位列出来；tiny 档位不加载它们，
+# 免得为一个用不上的功能把 modem 固件拉起来、白占内存与功耗。
+{
+    echo "# UFI103s mainline hardware"
+    echo "wcn36xx"
+    echo "qcom_wcnss_pil"
+    if [[ "$ROOTFS_FLAVOR" != tiny ]]; then
+        echo "qcom_q6v5_mss"
+        echo "rmtfs_mem"
+        echo "qcom_bam_dmux"
+        echo "qrtr_smd"
+        echo "rpmsg_wwan_ctrl"
+    fi
+    echo "zram"
+} > "$STAGE/etc/modules-load.d/ufi003.conf"
 
 # --- Adreno 306 GPU（render-only）---
+# 只在 full 档位启用：精简档位不装 mesa（libgl1-mesa-dri 等），带上 drm/msm
+# 只会白白占用内存与启动时间，而没有任何用户态能用它。
 # gpu 节点在 msm8916.dtsi 里是 disabled，板级 DTS 打开后内核会建出 platform
 # device；msm.ko 需要 separate_gpu_kms=1 才会走 render-only 路径（否则它会去
 # 找不存在的显示组件）。详见 tools/msm-gpu-render-only.conf 的说明。
-install -D -m 644 "$WORKDIR/tools/msm-gpu-render-only.conf" \
-    "$STAGE/etc/modprobe.d/msm-gpu-render-only.conf"
-cat > "$STAGE/etc/modules-load.d/openstick-gpu.conf" <<'EOF'
+if [[ "$ROOTFS_FLAVOR" == full ]]; then
+    install -D -m 644 "$WORKDIR/tools/msm-gpu-render-only.conf" \
+        "$STAGE/etc/modprobe.d/msm-gpu-render-only.conf"
+    cat > "$STAGE/etc/modules-load.d/openstick-gpu.conf" <<'EOF'
 # Adreno 306 GPU（render-only）。参数在 /etc/modprobe.d/msm-gpu-render-only.conf。
 # 编解码（venus）与本项无关：venus 是独立的 V4L2 m2m 设备。
 drm
 msm
 EOF
+fi
 
 # 上面写了"开机加载 drm/msm"，但如果主模块树里根本没有这两个模块，开机只会
 # 静默失败（modprobe 报 "Module drm not found"），表现为 /dev/dri 缺失、GL 退回
 # llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 <版本>-ufi003-gpu 树里，
 # 而 <版本>-ufi003-venus 树不含它们——这里必须挡住这个错配。
-if [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
+if [[ "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
     echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
     echo "      MODULE_TREE=$MODULE_TREE" >&2
     echo "      GPU 模块在 $MODULES_DIR_GPU（由 tools/build-gpu-variant.sh 产出）。" >&2
-    echo "      若这块板子确实不要 GPU，请删掉上面的 modules-load 项；" >&2
+    echo "      若这块板子确实不要 GPU，请用 ROOTFS_FLAVOR=minimal 构建；" >&2
     echo "      若要 GPU，请把 MODULE_TREE 指向 GPU 树（并附 baseline 作 EXTRA_MODULE_TREES）。" >&2
 fi
 
@@ -405,7 +467,9 @@ MMDEBSTRAP_ARGS=(
 	--mode=unshare
 	--variant=apt
 	--format="$MMDEBSTRAP_FORMAT"
-	--include="$PKGS_EXTRA"
+	"--include=$PKGS_EXTRA"
+	# 精简档位的体积裁剪（doc/man/非中文 locale）。数组为空时不展开任何参数。
+	"${PATH_EXCLUDES[@]}"
 	'--customize-hook=echo ufi103s > $1/etc/hostname'
 	'--customize-hook=printf '\''127.0.0.1\tlocalhost\n127.0.1.1\tufi103s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n'\'' > $1/etc/hosts'
 	'--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service'
@@ -431,7 +495,9 @@ MMDEBSTRAP_ARGS=(
 	#   （实测教训：只要 wpa_supplicant@wlan0 还在，NM 会反复报
 	#    "wpa_supplicant couldn't grab this interface" 并最终放弃，
 	#    设备开机后 wlan0 一直 unavailable。）
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && ln -sf /lib/systemd/system/NetworkManager.service $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service && ln -sf /lib/systemd/system/NetworkManager-wait-online.service $1/etc/systemd/system/network-online.target.wants/NetworkManager-wait-online.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service && ln -sf /lib/systemd/system/ModemManager.service $1/etc/systemd/system/multi-user.target.wants/ModemManager.service && ln -sf /lib/systemd/system/rmtfs.service $1/etc/systemd/system/multi-user.target.wants/rmtfs.service && ln -sf /lib/systemd/system/qrtr-ns.service $1/etc/systemd/system/multi-user.target.wants/qrtr-ns.service && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/chrony.service $1/etc/systemd/system/multi-user.target.wants/chrony.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
+	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
 	# 清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要清，它会
 	# 从 sockets.target 自动拉起 networkd）、以及早期 networkd 方案遗留的
 	# 每接口 wpa_supplicant 配置。
@@ -463,6 +529,6 @@ MMDEBSTRAP_ARGS=(
 )
 DEBIAN_FRONTEND=noninteractive mmdebstrap "${MMDEBSTRAP_ARGS[@]}"
 
-rm -rf "$STAGE"
+# STAGE 由 EXIT trap 清理（成功与失败都清）。
 echo "==> rootfs ready at $ROOTFS"
 du -sh "$ROOTFS" || true
