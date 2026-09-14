@@ -19,9 +19,12 @@
 
 | 脚本 | 用途 |
 |---|---|
-| `flash.sh` | 经 SSH 刷 `boot`（**仅此一条已跑通的路径**）；`fastboot-rootfs <partition>` 需人工确认分区名 |
+| `flash.sh` | `boot` 经 SSH 刷 boot；`enter-fastboot` 重启进 LK fastboot；`fastboot-flash <boot\|rootfs> <img>` 带 sha256 校验刷写；`fastboot-reboot` 回正常启动 |
 | `tools/ufi-console.sh` | 有界串口控制台（`id` / `read` / `send`） |
 | `edl-tools/` | EDL / Firehose / Miko 工具链（`qdl`、`edl.py` 等） |
+
+见 `FASTBOOT.md`：本设备可以在 Linux 里 `systemctl reboot bootloader` 直接进
+fastboot（内核 qcom-pon 驱动 + OpenStick LK 全链路已打通）。
 
 ### 测试与验证
 
@@ -55,9 +58,11 @@
 目前是手工拼的，没有脚本。
 
 **3. 刷机前的镜像校验**
-`flash.sh` 不校验要刷的镜像（不比对 `build.json` 里的 sha256）。核对了
-`build.json` 才发现 UFI103s 目录里 cmdline 有 PARTUUID/PARTLABEL 两种混用
-（见 `boards/ufi00x/ufi103s-ufi003/README.md`）。刷错变体不会报错。
+`flash.sh fastboot-flash` 现在会比对同目录 `build.json` 里记录的 sha256，不一致
+就拒绝刷入——这正好防住一个真实隐患：核对 `build.json` 才发现 UFI103s 目录里
+cmdline 有 PARTUUID/PARTLABEL 两种混用（见
+`boards/ufi00x/ufi103s-ufi003/README.md`）。刷错变体以前不会报错，现在会。
+注意 `fastboot-rootfs` 那个旧接口仍不校验。
 
 **4. 串口自动探测**
 `tools/ufi-console.sh` 默认写死 `/dev/ttyACM0`（可用环境变量覆盖）。本项目里

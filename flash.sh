@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
-# 103s - UFI103s 刷机辅助脚本
+# UFI103s 刷机辅助脚本
 #
-# boot           通过已验证的 SSH 通道刷写 boot（保留原流程）
-# fastboot-info  只读显示 fastboot 设备和分区变量
-# fastboot-rootfs <partition> 仅刷写明确指定的 rootfs 分区
+# boot                   通过已验证的 SSH 通道刷写 boot（保留原流程）
+# enter-fastboot         从在跑的 Linux 直接重启进 LK fastboot（见 FASTBOOT.md）
+# fastboot-info          只读显示 fastboot 设备和分区变量
+# fastboot-flash <part> <image>
+#                        经 fastboot 刷指定分区（boot / rootfs），刷前校验 sha256
+# fastboot-reboot        从 fastboot 回到正常启动
+# fastboot-rootfs <partition>
+#                        旧接口：不校验地刷一个 rootfs 分区名
+#
+# 刷任何分区前，必须先用 Miko 做整片 eMMC 全量备份。
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
@@ -37,7 +44,91 @@ push_dev() {
 	"
 }
 
+# 刷前对照同目录 build.json 里记录的 sha256，防止把变体刷错。
+# 只有当 build.json 明确指向本镜像（boot_image 字段）或本镜像就是基线时，
+# 才给出判定；否则只打印哈希，不做断言。
+fb_verify() {
+	local img="$1" sum
+	sum="$(sha256sum "$img" | cut -d' ' -f1)"
+	printf '  镜像  : %s\n  sha256: %s\n' "$img" "$sum"
+	python3 - "$img" "$sum" <<'PY'
+import json, glob, os, sys
+img, sum_ = sys.argv[1], sys.argv[2]
+base = os.path.basename(img)
+strict = False
+for j in sorted(glob.glob(os.path.join(os.path.dirname(img), '*build.json'))):
+    try:
+        d = json.load(open(j))
+    except Exception:
+        continue
+    if not isinstance(d, dict):
+        continue
+    recs = [v for k, v in d.items()
+            if k.endswith('sha256') and isinstance(v, str) and len(v) == 64]
+    if d.get('boot_image') == base:
+        strict = True
+    elif base == 'boot-baseline.img' and not d.get('boot_image') and recs:
+        strict = True
+    else:
+        continue
+    if sum_ in recs:
+        print(f"  校验  : 与 {os.path.basename(j)} 记录一致")
+        sys.exit(0)
+if strict:
+    print("  校验  : 与 build.json 记录不一致，拒绝刷入", file=sys.stderr)
+    sys.exit(1)
+print("  校验  : 无随附记录可比对（仅打印哈希）")
+PY
+}
+
 case "${1:-}" in
+enter-fastboot)
+	echo "=== 重启进 LK fastboot ==="
+	cat >&2 <<'WARN'
+警告：LK 的 fastboot 只从 USB 收命令，且没有超时自动回落。
+      执行前请确认本机 USB 口接的是设备的数据口（不是只接了 UART 线或充电头）。
+      接错的话设备会停在 fastboot，需要拔插一次才能回到 Linux。
+WARN
+	read -r -p "数据口已接在本机？输入 yes 继续: " _ack
+	[[ "$_ack" == yes ]] || { echo "已取消。"; exit 1; }
+	run_dev "systemctl reboot bootloader" || true
+	echo "已发出重启命令，等待 fastboot 设备出现…"
+	for _ in $(seq 1 30); do
+		if fastboot devices 2>/dev/null | grep -q .; then
+			echo "fastboot 设备已出现："
+			fastboot devices
+			exit 0
+		fi
+		sleep 1
+	done
+	echo "30 秒内未检测到 fastboot 设备。检查数据线；或按 reset 进 EDL 恢复。" >&2
+	exit 1
+	;;
+fastboot-flash)
+	_part="${2:-}"
+	_img="${3:-}"
+	case "$_part" in
+		boot|rootfs) ;;
+		*) echo "用法: $0 fastboot-flash <boot|rootfs> <image>" >&2; exit 2 ;;
+	esac
+	[[ -f "$_img" ]] || { echo "找不到镜像: $_img" >&2; exit 1; }
+	echo "=== 刷前校验 ==="
+	fb_verify "$_img"
+	echo
+	echo "目标分区: $_part"
+	echo "刷任何分区前，请确认已用 Miko 做过整片 eMMC 全量备份。"
+	fastboot devices
+	if [[ "$_part" == rootfs ]]; then
+		fastboot -S 200M flash "$_part" "$_img"
+	else
+		fastboot flash "$_part" "$_img"
+	fi
+	;;
+fastboot-reboot)
+	echo "=== 从 fastboot 回到正常启动 ==="
+	fastboot devices
+	fastboot reboot
+	;;
 boot)
 	echo "=== 阶段1: 刷入 6.18 boot.img 到 mmcblk0p12 ==="
 	BOOT_IMAGE="${BOOT_IMAGE:-$BOARD_DIR/boot-baseline.img}"
@@ -79,7 +170,9 @@ rootfs)
 	exit 2
 	;;
 *)
-	echo "用法: $0 boot | fastboot-info | fastboot-rootfs <partition>" >&2
+	echo "用法: $0 boot | enter-fastboot | fastboot-info | fastboot-reboot" >&2
+	echo "      $0 fastboot-flash <boot|rootfs> <image>" >&2
+	echo "      $0 fastboot-rootfs <partition>" >&2
 	exit 2
 	;;
 esac
