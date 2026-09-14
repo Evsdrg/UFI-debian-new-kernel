@@ -22,6 +22,14 @@
 #     at the bottom) -- 1280 is already a multiple of 32.
 #   * -fps_mode passthrough: the encoder reports timestamp 0 per frame, so the
 #     default vsync would drop almost every frame.
+#   * -force_key_frames instead of -g: the venus driver registers
+#     V4L2_CID_MPEG_VIDEO_H264_I_PERIOD and _FORCE_KEY_FRAME, but NOT GOP_SIZE,
+#     so ffmpeg's -g is silently ignored -- measured 180 frames produced exactly
+#     one IDR.  -force_key_frames drives FORCE_KEY_FRAME via the frame's
+#     pict_type, giving real periodic IDRs.  Without it, a receiver that joins
+#     the stream late never sees SPS/PPS and reports "non-existing PPS 0
+#     referenced" forever.  dump_extra=keyframe repeats SPS/PPS on each IDR,
+#     which is what makes late join work in ~1s.
 #
 # Throughput (measured, 300-frame 1080p clip):
 #   H.264 source -> 720p : ~32-38 fps  (real-time OK)
@@ -35,6 +43,7 @@ IN=${1:?usage: $0 <input> [output]}
 OUT=${2:-rtmp://127.0.0.1/live/stream}
 ENC_W=${ENC_W:-1280}
 ENC_H=${ENC_H:-736}
+ENC_FPS=${ENC_FPS:-30}
 VF="scale=${ENC_W}:$(( ENC_H - 16 )):flags=fast_bilinear,pad=${ENC_W}:${ENC_H}:0:8,format=nv12"
 
 # Venus firmware requires both dimensions to be multiples of 32; feeding it a
@@ -45,6 +54,22 @@ if (( ENC_W % 32 != 0 || ENC_H % 32 != 0 )); then
 	echo "  (Venus needs both dimensions to be multiples of 32; e.g. 1280x736," >&2
 	echo "   1920x1088. Non-aligned sizes crash the encoder firmware.)" >&2
 	exit 2
+fi
+
+# The SoC's video engine advertises a load ceiling of 352800 macroblocks/second
+# (drivers/media/platform/qcom/venus/pm_helpers.c: load_scale_v1, msm8916_res).
+# Exceeding it makes the driver emit "HW is overloaded" warnings, but it is a
+# soft limit: measured 1080p60 (489600) still encodes, just with hundreds of
+# warnings and no real-time headroom.  So warn rather than refuse -- an earlier
+# version refused to start here, which was wrong (the deadlock once blamed on
+# this was actually a corrupt, zero-frame test clip).
+MBS=$(( (ENC_W / 16) * (ENC_H / 16) * ENC_FPS ))
+MBS_MAX=352800
+if (( MBS > MBS_MAX )); then
+	echo "venus-transcode: warning: ${ENC_W}x${ENC_H}@${ENC_FPS} = ${MBS} macroblocks/s" >&2
+	echo "  exceeds the advertised msm8916 Venus ceiling of ${MBS_MAX}." >&2
+	echo "  It still encodes, but expect 'HW is overloaded' warnings and frame" >&2
+	echo "  drops -- there is no real-time headroom at this load." >&2
 fi
 
 # Pick the muxer from the output: streaming URLs use FLV (RTMP's payload),
@@ -71,9 +96,14 @@ esac
 #   RestartSec=5
 # so a transient network or input error does not leave the service dead.
 
+KEYINT=${KEYINT:-1}    # seconds between forced IDRs (late-join latency)
+
 exec ffmpeg -hide_banner -loglevel warning \
 	-re -i "$IN" \
 	-map 0:v:0 -an \
 	-vf "$VF" -pix_fmt nv12 \
-	-c:v h264_v4l2m2m -b:v 4M -g 60 -fps_mode passthrough \
+	-c:v h264_v4l2m2m -b:v 4M \
+	-force_key_frames "expr:gte(t,n_forced*${KEYINT})" \
+	-fps_mode passthrough \
+	-bsf:v dump_extra=freq=keyframe \
 	"${MUX[@]}" "$OUT"

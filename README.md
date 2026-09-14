@@ -16,7 +16,7 @@ openstick/
 ├── LED.md                 LED 跨型号适配说明
 ├── NETWORK.md             网络（NetworkManager）与中文说明
 ├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
-├── GPU-STREAMING.md       GPU 渲染桌面 + Venus 推流的可行性分析
+├── GPU-STREAMING.md        GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）
 ├── FASTBOOT.md            fastboot 刷机（含实测数据与两个坑）
 ├── TOOLING.md             工具清单与缺口
 ├── boards/                各机型产物，按硬件家族分组
@@ -90,6 +90,10 @@ openstick/
   发现（失败时按颜色兜底），不需要按型号分支。详见 `LED.md`。
 - **桌面与远程桌面**：镜像默认带 i3 + xrdp（`ROOTFS_DESKTOP=1`），主机可用
   `xfreerdp`/`remmina` 连 3389。见 `DESKTOP.md`。
+- **桌面可实时推流**：GPU 合成桌面 → Venus 硬编 → MPEG-TS/UDP → 对端窗口全屏播放，
+  已端到端跑通（1280x736@30，实测 26–28fps，延迟约 1 秒）。设备端
+  `tools/desktop/ufi-stream-push.sh`，接收端 `ufi-stream-play.sh`。见
+  `GPU-STREAMING.md`。
 - **GPU 可用但只出 render 节点**：Adreno 306 在主线是 a3xx 家族，设备无显示
   面板，所以用 `separate_gpu_kms=1` 走 render-only，得到 `/dev/dri/renderD128`
   与 freedreno（`FD307`）。**注意**：需要专门的 GPU 内核变体

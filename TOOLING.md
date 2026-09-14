@@ -35,11 +35,14 @@
 | `tools/desktop/xsession` | xrdp 会话入口（设中文 locale 后 exec i3） |
 | `tools/desktop/i3-config` | i3 预置配置（窗口/工作区/状态栏） |
 | `tools/desktop/gpu-status.sh` / `zh-check.sh` | 桌面里排错用的小窗口 |
+| `tools/desktop/ufi-stream-push.sh` | 设备端：GPU 合成 → Venus 硬编 → MPEG-TS/UDP（`stop` 停链） |
+| `tools/desktop/ufi-stream-clock.sh` | 推流时放在桌面的实时时钟（用于验证实时性） |
+| `tools/desktop/ufi-stream-play.sh` | 接收端：自动探测 Wayland/X11 会话并全屏播放 |
 | `tools/msm-gpu-render-only.conf` | `options msm separate_gpu_kms=1` |
 | `source/configs/ufi103s-gpu.config` | GPU 内核片段（显式关掉显示后端） |
 
 见 `DESKTOP.md`。构建 rootfs 时 `ROOTFS_DESKTOP=0` 可做纯服务端镜像。
-`GPU-STREAMING.md` 分析「GPU 渲染桌面 + Venus 推流」的可行性与现成软件的缺口。
+`GPU-STREAMING.md` 是「GPU 渲染桌面 + Venus 推流」的完整方案与实测（已端到端跑通）。
 
 ### 测试与验证
 
