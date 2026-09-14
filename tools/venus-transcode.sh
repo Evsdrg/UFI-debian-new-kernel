@@ -14,8 +14,12 @@
 #     must stay software.  Software H.264 1080p decode runs ~78fps, plenty.
 #   * fast_bilinear scaling: the default bilinear scaler caps the pipeline at
 #     ~23fps (below real-time); fast_bilinear reaches ~32-38fps.
-#   * The Venus encoder needs 32-aligned height, so scale to 1280x720 and pad
-#     to 1280x736 (small black bar at the bottom).
+#   * The Venus encoder needs BOTH dimensions 32-aligned.  Measured: 640x480,
+#     1280x736, 1280x768 and 1920x1088 encode fine; 1280x720 (H%32=16) and
+#     1920x1080 (H%32=24) make the firmware report
+#     "Err_Fatal - VenusCoreCtrl_AhbVbifErrorIRQ" and the ffmpeg process dies
+#     with SIGSEGV.  So scale to 1280x720 and pad to 1280x736 (small black bar
+#     at the bottom) -- 1280 is already a multiple of 32.
 #   * -fps_mode passthrough: the encoder reports timestamp 0 per frame, so the
 #     default vsync would drop almost every frame.
 #
@@ -29,7 +33,19 @@ set -euo pipefail
 
 IN=${1:?usage: $0 <input> [output]}
 OUT=${2:-rtmp://127.0.0.1/live/stream}
-VF="scale=1280:720:flags=fast_bilinear,pad=1280:736:0:8,format=nv12"
+ENC_W=${ENC_W:-1280}
+ENC_H=${ENC_H:-736}
+VF="scale=${ENC_W}:$(( ENC_H - 16 )):flags=fast_bilinear,pad=${ENC_W}:${ENC_H}:0:8,format=nv12"
+
+# Venus firmware requires both dimensions to be multiples of 32; feeding it a
+# non-aligned size makes it report a VBIF error and kills the process.  Fail
+# loudly here instead of producing a mystery SIGSEGV mid-stream.
+if (( ENC_W % 32 != 0 || ENC_H % 32 != 0 )); then
+	echo "venus-transcode: encoder size ${ENC_W}x${ENC_H} is not 32-aligned" >&2
+	echo "  (Venus needs both dimensions to be multiples of 32; e.g. 1280x736," >&2
+	echo "   1920x1088. Non-aligned sizes crash the encoder firmware.)" >&2
+	exit 2
+fi
 
 # Pick the muxer from the output: streaming URLs use FLV (RTMP's payload),
 # local files use their extension, "-" lets ffmpeg guess from the codec.

@@ -16,6 +16,7 @@ openstick/
 ├── LED.md                 LED 跨型号适配说明
 ├── NETWORK.md             网络（NetworkManager）与中文说明
 ├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
+├── GPU-STREAMING.md       GPU 渲染桌面 + Venus 推流的可行性分析
 ├── FASTBOOT.md            fastboot 刷机（含实测数据与两个坑）
 ├── TOOLING.md             工具清单与缺口
 ├── boards/                各机型产物，按硬件家族分组

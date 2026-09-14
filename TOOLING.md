@@ -39,6 +39,7 @@
 | `source/configs/ufi103s-gpu.config` | GPU 内核片段（显式关掉显示后端） |
 
 见 `DESKTOP.md`。构建 rootfs 时 `ROOTFS_DESKTOP=0` 可做纯服务端镜像。
+`GPU-STREAMING.md` 分析「GPU 渲染桌面 + Venus 推流」的可行性与现成软件的缺口。
 
 ### 测试与验证
 

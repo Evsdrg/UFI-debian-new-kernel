@@ -188,7 +188,25 @@ ffmpeg -c:v h264_v4l2m2m -i out.h264 -fps_mode passthrough \
 实测硬解与软解输出**逐字节相同**（13824000 字节）。`ffmpeg` 暴露的 venus 编码器
 有 h263/h264/hevc/mpeg4/vp8，解码器另有 mpeg1/mpeg2/vc1/vp9。
 
-> 注意：别在 venus 报错后 `rmmod venus` ——只会挂死内核，只能重启。
+### 两个硬约束（实测）
+
+**1. 宽高必须 32 对齐**，否则 Venus 固件报
+`Err_Fatal - VenusCoreCtrl_AhbVbifErrorIRQ` 并让用户进程段错误崩溃：
+
+| 分辨率 | H%32 | 结果 |
+|---|---|---|
+| 640x480 / 1280x736 / 1280x768 / **1920x1088** | 0 | ✅ 可编码 |
+| 1280x720 | 16 | ❌ 崩溃 |
+| 1920x1080 | 24 | ❌ 崩溃 |
+
+所以 1080p 要用 1920x**1088**；`venus-transcode.sh` 里的
+`pad=1280:736` 就是这个原因。
+
+**2. 别在 render-only 模式下 `rmmod msm`**，会解引用空指针崩溃
+（`msm_drm_uninit` 里 `priv->kms` 为 NULL 时保护不全），崩溃后 GPU 消失、
+GL 退回 llvmpipe，**只能重启**。`rmmod venus` 同理（会挂死内核）。
+
+> 详见 `GPU-STREAMING.md`：GPU 渲染桌面 + Venus 推流的可行性分析与分层实测。
 
 ## 内存实况（重要）
 

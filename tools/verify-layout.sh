@@ -232,3 +232,15 @@ if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-venus-oc-100-gpu.img" ]; then
 else
   printf 'gpu_boot=absent (run tools/build-gpu-variant.sh to build it)\n'
 fi
+
+printf '\n== venus 32-alignment guard ==\n'
+# Venus 固件要求宽高都是 32 的倍数；不对齐会让固件报 VBIF 错误并让进程崩溃。
+# 我们的 transcode 脚本必须带这个校验，否则以后有人改分辨率就会踩坑。
+grep -q 'ENC_W % 32' "$BASE/tools/venus-transcode.sh" \
+  || { printf 'ERROR: venus-transcode.sh lacks the 32-alignment guard\n' >&2; exit 1; }
+grep -q 'ENC_H % 32' "$BASE/tools/venus-transcode.sh" \
+  || { printf 'ERROR: venus-transcode.sh lacks the 32-alignment guard\n' >&2; exit 1; }
+# 默认编码尺寸本身必须对齐
+grep -q 'ENC_H=${ENC_H:-736}' "$BASE/tools/venus-transcode.sh" \
+  || { printf 'ERROR: default ENC_H is not 736 (32-aligned)\n' >&2; exit 1; }
+printf 'venus_alignment_guard=ok (default 1280x736)\n'
