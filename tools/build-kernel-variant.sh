@@ -15,12 +15,16 @@
 set -euo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$BASE/source/linux-6.18.49"
+. "$BASE/tools/kver.sh"
+SRC="$KERNEL_SRC"
 NAME="${1:?usage: build-kernel-variant.sh <variant> <fragment>[:<fragment>...] <modules-dest>}"
 FRAGMENT="${2:?missing config fragment}"
 MODDEST="${3:?missing modules destination}"
-BUILD="$BASE/build/variant-$NAME"
-BASE_CFG="$BASE/source/configs/common-6.18.49-os.config"
+# 构建目录带上内核版本：同名变体在不同内核版本下必须落在不同目录，
+# 否则升级时重编会覆盖掉旧版本的 Image.gz（旧版本的 boot 镜像就再也
+# 拼不回来了，因为内核镜像不在 git 里）。BUILD_DIR 可显式覆盖。
+BUILD="${BUILD_DIR:-$BASE/build/variant-$KERNEL_VERSION-$NAME}"
+BASE_CFG="$KERNEL_BASE_CFG"
 
 # make -C chdirs into the source tree, so relative paths (fragments, install
 # dest) must be absolutized before use.

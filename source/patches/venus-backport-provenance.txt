@@ -26,3 +26,28 @@ branch has not picked it up yet. Both upstream commits carry Cc: stable, so a
 Applicability: applies cleanly with no fuzz. The three functions were untouched
 between the 6.15 refactor and the 7.3 fix, so our 6.18.49 context lines are
 byte-identical to upstream's.
+
+--- 补丁系列缺陷与修复（2026-09-14，随 7.1.13 升级一并修掉）---
+
+问题：0005-venus-hfi1xx-encoder-fixes.patch 里原本还含一份 hfi_parser.c 的
+改动，与 0004-venus-hfi_parser-fix-payload-size.patch 逐字节重复（仅差末尾
+换行）。后果是按序号顺序套用必然失败：
+
+    $ patch -p1 < 0004...   # OK
+    $ patch -p1 < 0005...
+    Reversed (or previously applied) patch detected!  Assume -R? [n]
+
+在 6.18.49 树上这个问题被绕过去了（改那个文件的那一段被跳过），所以一直没
+暴露；换到干净的 7.1.13 树上一套就现形。
+
+修复：把 hfi_parser.c 那一段从 0005 里删除，hfi_parser.c 的改动全部归 0004。
+已验证：
+
+  * 只套 0004 就能得到完整的、与 6.18.49 工作树逐字节相同的 hfi_parser.c，
+    说明重复的那份本来就是多余的。
+  * 修正后 0004、0005 在 pristine 6.18.49 与 pristine 7.1.13 上都能按序
+    干净套用（patch 无 fuzz、无 reject）。
+  * 0005 现在只负责 vdec.c / venc.c / venc_ctrls.c。
+
+两份补丁在本仓与分发仓 /opt/helloworld/ufi00x-mainline/patches/ 保持逐字节
+一致（0005 已同步过去）。

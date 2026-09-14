@@ -3,11 +3,15 @@ import hashlib
 import json
 import pathlib
 import subprocess
+import sys
 import tempfile
 
-BASE = pathlib.Path(__file__).resolve().parent.parent
-K = BASE / 'source/linux-6.18.49'
-IMAGE = BASE / 'out/build-ufi003-6.18.49-os/arch/arm64/boot/Image.gz'
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import kver  # noqa: E402  (版本单一事实来源，见 tools/kver.py)
+
+BASE = kver.BASE
+K = kver.KERNEL_SRC
+IMAGE = kver.IMAGE_GZ
 # board -> (family directory, DTS basename).  The family exists because several
 # boards share a pin layout; see boards/README.md.  sp970 and uz801 are single
 # member families, so their own directory is the family.
@@ -53,7 +57,7 @@ for board, (family, name) in BOARDS.items():
         if not archive.exists(): archive.write_bytes(old.read_bytes())
     cmdline = 'earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait'
     run(BASE / 'mkbootimg/mkbootimg', '--kernel', build / 'kernel-dtb', '--ramdisk', build / 'empty-ramdisk', '--base', '0x80000000', '--kernel_offset', '0x00080000', '--ramdisk_offset', '0x02000000', '--second_offset', '0x00f00000', '--tags_offset', '0x01e00000', '--pagesize', '2048', '--header_version', '0', '--cmdline', cmdline, '--output', old)
-    metadata = {'board': board, 'kernel_release': '6.18.49-ufi003-dirty', 'cmdline': cmdline, 'status': 'offline-validated; not flashed', 'firmware': 'board-specific firmware and calibration required', 'sha256': hashlib.sha256(old.read_bytes()).hexdigest()}
+    metadata = {'board': board, 'kernel_release': kver.KERNEL_RELEASE, 'cmdline': cmdline, 'status': 'offline-validated; not flashed', 'firmware': 'board-specific firmware and calibration required', 'sha256': hashlib.sha256(old.read_bytes()).hexdigest()}
     (out / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n')
     placeholder = out / 'boot-baseline-candidate-from-common.img'
     if placeholder.exists():

@@ -6,7 +6,9 @@ MSM8916 机型，WiFi 为 **WCN3660b**，双 SIM（比 UFI001b 多 `sim-sel2` /
 - DTS：`dts/msm8916-handsome-openstick-ufi001c.dts`
 - boot 镜像：`boot/boot-baseline.img`
 - DTB：`boot/board.dtb`
-- 内核：`6.18.49-ufi003-dirty`（与所有机型共用同一份内核）
+- 内核：`7.1.13-ufi003-venus-dirty`（7.1.13 与所有机型共用同一份内核；
+  6.18.49 产物保留作回退）
+- 设备树标识：`model` = `Handsome OpenStick UFI001c`，`compatible` = `handsome,ufi001c`, `qcom,msm8916`
 - cmdline：见 `boot/build.json`
 
 ## 验证状态

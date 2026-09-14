@@ -14,8 +14,11 @@ import struct
 import subprocess
 import sys
 
-BASE = pathlib.Path(__file__).resolve().parent.parent
-SRC = BASE / "source/linux-6.18.49"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import kver  # noqa: E402  (版本单一事实来源，见 tools/kver.py)
+
+BASE = kver.BASE
+SRC = kver.KERNEL_SRC
 MKBOOTIMG = BASE / "mkbootimg/mkbootimg"
 BOARD_DIR = BASE / "build/boards/ufi103s-ufi003"
 # This board's DTS live under its board directory, not inside the kernel tree;

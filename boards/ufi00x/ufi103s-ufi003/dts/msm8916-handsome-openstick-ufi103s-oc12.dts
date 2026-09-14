@@ -17,8 +17,8 @@
 #include <dt-bindings/leds/common.h>
 
 / {
-	model = "Handsome OpenStick UFI103s";
-	compatible = "handsome,openstick", "qcom,msm8916";
+	model = "Handsome OpenStick UFI103s (UFI003)";
+	compatible = "handsome,ufi103s", "qcom,msm8916";
 
 	gpio-keys {
 		compatible = "gpio-keys";

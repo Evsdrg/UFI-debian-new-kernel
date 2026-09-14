@@ -2,15 +2,15 @@
 set -euo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD="$BASE/out/build-ufi003-6.18.49-os"
-OUT="$BASE/out/boot-6.18.49"
+. "$BASE/tools/kver.sh"
+BUILD="$KERNEL_BUILD_DIR"
+OUT="$BASE/out/boot-$KERNEL_VERSION"
 MKBOOTIMG="$BASE/mkbootimg/mkbootimg"
-KERNEL_RELEASE="6.18.49-ufi003-dirty"
 CMDLINE='earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait'
 # Compile the board DTS out of tree, the way the other packagers do: the sources
 # live under boards/, and source/dts/common supplies the shared dtsi.
 BOARD="$BASE/boards/ufi00x/ufi103s-ufi003"
-K="$BASE/source/linux-6.18.49"
+K="$KERNEL_SRC"
 
 build_dtb() {
     local dts="$1" dtb="$2"
@@ -53,14 +53,14 @@ build_dtb "$BOARD/dts/msm8916-handsome-openstick-ufi103s.dts" \
 build_dtb "$BOARD/dts/msm8916-handsome-openstick-ufi103s-oc12.dts" \
     "$BUILD/dts/ufi103s-oc12.dtb"
 
-build_one "boot-ufi103s-6.18.49-baseline" "$BUILD/dts/ufi103s.dtb"
-build_one "boot-ufi103s-6.18.49-oc12" "$BUILD/dts/ufi103s-oc12.dtb"
+build_one "boot-ufi103s-$KERNEL_VERSION-baseline" "$BUILD/dts/ufi103s.dtb"
+build_one "boot-ufi103s-$KERNEL_VERSION-oc12" "$BUILD/dts/ufi103s-oc12.dtb"
 
 MANIFEST="$OUT/MANIFEST.txt"
 {
     printf 'kernel_release=%s\n' "$KERNEL_RELEASE"
     printf 'image_gz='; sha256sum "$IMAGE_GZ"
-    for name in boot-ufi103s-6.18.49-baseline boot-ufi103s-6.18.49-oc12; do
+    for name in boot-ufi103s-$KERNEL_VERSION-baseline boot-ufi103s-$KERNEL_VERSION-oc12; do
         boot="$OUT/${name}.img"
         kernel="$OUT/${name}.kernel-dtb"
         printf 'kernel_dtb='; sha256sum "$kernel"

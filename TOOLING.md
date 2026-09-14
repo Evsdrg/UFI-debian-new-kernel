@@ -9,12 +9,19 @@
 
 | 脚本 | 用途 |
 |---|---|
+| `source/kernel-version.env` | **内核版本单一事实来源**：升级内核只改这里 |
+| `tools/kver.sh` / `tools/kver.py` | 版本派生的 shell / Python 实现（其余脚本 source/import 它们） |
 | `build-rootfs.sh` / `tools/build-rootfs-common.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
 | `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
 | `tools/build-gpu-variant.sh` | 构建 Adreno GPU render-only 内核并打包 boot（封装上一条） |
 | `tools/build-boot-images.sh` | 编译板级 DTS 并组装 boot 镜像 |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
+
+版本相关的一切都从 `source/kernel-version.env` 派生，脚本里不再硬编码版本号；
+重建旧版本用环境变量覆盖即可（如
+`KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh`）。构建目录与产物名
+都带版本号，所以不同版本的内核镜像不会互相覆盖。
 
 ### 刷机与设备访问
 
@@ -94,7 +101,7 @@ cmdline 有 PARTUUID/PARTLABEL 两种混用（见
 **6. ~~LED 镜像新旧不一致~~（已解决）**
 `shared/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
 没 NetworkManager、没中文）。现已重建为两张同源镜像，内容统一：
-`debian13-arm64-ufi103s-6.18.49.ext4`（基线）与 `…-venus.ext4`（Venus 变体），
+`debian13-arm64-ufi103s-7.1.13.ext4`（基线）与 `…-venus.ext4`（Venus 变体），
 都带 NetworkManager + 中文 + 通用 LED 脚本 + fstab 的 x-systemd.growfs。
 旧镜像归档在 `archive/superseded-20260914/rootfs-networkd/`。
 

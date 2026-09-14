@@ -17,7 +17,7 @@
 
 / {
 	model = "Handsome OpenStick SP970";
-	compatible = "handsome,openstick", "qcom,msm8916";
+	compatible = "handsome,sp970", "qcom,msm8916";
 
 	gpio-keys {
 		compatible = "gpio-keys";

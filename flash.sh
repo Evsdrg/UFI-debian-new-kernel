@@ -14,13 +14,14 @@
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
+. "$WORKDIR/tools/kver.sh"
 # 设备地址是 DHCP 分配的，会变（历史上出现过 .102 与 .108）。用前先确认：
 #   ping 一下，或 ip neigh 查 ARP 表。DEV 可用环境变量覆盖。
 DEV="${DEV:-root@192.0.2.10}"
 PW="${PW:-REDACTED}"
 # 默认用本工作区的权威产物；均可用环境变量覆盖。
 BOARD_DIR="${BOARD_DIR:-$WORKDIR/boards/ufi00x/ufi103s-ufi003/boot}"
-ROOTFS_IMAGE="${ROOTFS_IMAGE:-$WORKDIR/shared/rootfs/debian13-arm64-ufi103s-6.18.49.ext4}"
+ROOTFS_IMAGE="${ROOTFS_IMAGE:-$ROOTFS_BASE}"
 
 run_dev() {
 	expect -c "
@@ -144,7 +145,7 @@ fastboot-reboot)
 	fastboot reboot
 	;;
 boot)
-	echo "=== 阶段1: 刷入 6.18 boot.img 到 mmcblk0p12 ==="
+	echo "=== 阶段1: 刷入内核 boot.img 到 mmcblk0p12 ==="
 	BOOT_IMAGE="${BOOT_IMAGE:-$BOARD_DIR/boot-baseline.img}"
 	if [[ ! -f "$BOOT_IMAGE" ]]; then
 		echo "缺少 $BOOT_IMAGE" >&2

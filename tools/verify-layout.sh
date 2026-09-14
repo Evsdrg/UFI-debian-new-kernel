@@ -2,9 +2,10 @@
 set -euo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
-ROOTFS="${ROOTFS_IMAGE:-$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49.ext4}"
-MODULES="$BASE/shared/modules/6.18.49-ufi003-dirty/lib/modules/6.18.49-ufi003-dirty"
-SRC="$BASE/source/linux-6.18.49"
+. "$BASE/tools/kver.sh"
+ROOTFS="${ROOTFS_IMAGE:-$ROOTFS_BASE}"
+MODULES="$MODULES_DIR/lib/modules/$KERNEL_RELEASE"
+SRC="$KERNEL_SRC"
 
 # boards/<family>/<board> for grouped families, boards/<board> for single-member
 # ones.  Kept in one place so every check below resolves the same way.
@@ -64,7 +65,7 @@ for path in \
   /etc/timezone \
   /etc/systemd/system/multi-user.target.wants/chrony.service \
   /etc/systemd/system/rmtfs.service.d/ufi003.conf \
-  /usr/lib/modules/6.18.49-ufi003-dirty/kernel/drivers/soc/qcom/rmtfs_mem.ko; do
+  /usr/lib/modules/${KERNEL_RELEASE}/kernel/drivers/soc/qcom/rmtfs_mem.ko; do
   debugfs -R "stat $path" "$ROOTFS" >/dev/null 2>&1 || true
   debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'rootfs:%s=MISSING\n' "$path" >&2; exit 1; }
   printf 'rootfs:%s=present\n' "$path"
@@ -155,8 +156,9 @@ done
 
 printf '\n== venus codec variant ==\n'
 VENUS_BOOT="$(board_dir ufi103s-ufi003)/boot/boot-venus.img"
-VENUS_ROOTFS="$BASE/shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus.ext4"
-VENUS_MODS="$BASE/shared/modules/6.18.49-ufi003-venus/lib/modules/6.18.49-ufi003-venus-dirty"
+VENUS_ROOTFS="$ROOTFS_VENUS"
+VENUS_REL="${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty"
+VENUS_MODS="$MODULES_DIR_VENUS/lib/modules/$VENUS_REL"
 test -f "$VENUS_BOOT"
 test -f "$VENUS_ROOTFS"
 test -f "$BASE/source/configs/ufi103s-venus.config"
@@ -179,8 +181,8 @@ assert off + size <= len(data) and len(data) - (off + size) < page
 print(f'venus_boot_layout=OK dtb_offset={off}')
 PY
 for path in \
-  /usr/lib/modules/6.18.49-ufi003-venus-dirty/kernel/drivers/media/platform/qcom/venus/venus-core.ko \
-  /usr/lib/modules/6.18.49-ufi003-dirty/kernel/drivers/net/wwan/rpmsg_wwan_ctrl.ko \
+  /usr/lib/modules/${VENUS_REL}/kernel/drivers/media/platform/qcom/venus/venus-core.ko \
+  /usr/lib/modules/${KERNEL_RELEASE}/kernel/drivers/net/wwan/rpmsg_wwan_ctrl.ko \
   /usr/bin/ffmpeg \
   /usr/bin/v4l2-ctl \
   /lib/firmware/qcom/venus-1.8/venus.mbn \

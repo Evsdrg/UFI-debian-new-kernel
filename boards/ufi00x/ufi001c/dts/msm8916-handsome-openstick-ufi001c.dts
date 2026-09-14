@@ -17,7 +17,7 @@
 
 / {
 	model = "Handsome OpenStick UFI001c";
-	compatible = "handsome,openstick", "qcom,msm8916";
+	compatible = "handsome,ufi001c", "qcom,msm8916";
 
 	gpio-keys {
 		compatible = "gpio-keys";

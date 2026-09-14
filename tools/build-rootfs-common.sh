@@ -2,12 +2,14 @@
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")/.." && pwd)"
+. "$WORKDIR/tools/kver.sh"
 OUT_DIR="${OUT_DIR:-$WORKDIR/shared/rootfs}"
-ROOTFS="${ROOTFS_PATH:-$OUT_DIR/debian13-arm64-common-6.18.49.ext4}"
+ROOTFS="${ROOTFS_PATH:-$OUT_DIR/debian13-arm64-common-$KERNEL_VERSION.ext4}"
 MMDEBSTRAP_FORMAT="${MMDEBSTRAP_FORMAT:-ext4}"
 MIRROR="${MIRROR:-https://mirrors.cernet.edu.cn/debian}"
-KERNEL_RELEASE="${KERNEL_RELEASE:-6.18.49-ufi003-dirty}"
-MODULE_TREE="${MODULE_TREE:-$WORKDIR/shared/modules/6.18.49-ufi003-dirty}"
+# KERNEL_RELEASE / MODULE_TREE / MODULES_DIR 由 tools/kver.sh 从
+# source/kernel-version.env 派生；这里只允许调用方用环境变量覆盖。
+MODULE_TREE="${MODULE_TREE:-$MODULES_DIR}"
 FIRMWARE_DIR="${FIRMWARE_DIR:-$WORKDIR/shared/firmware/common}"
 PROFILE="${ROOTFS_PROFILE:-$WORKDIR/tools/rootfs-common.env}"
 [[ -f "$PROFILE" ]] && . "$PROFILE"

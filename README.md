@@ -1,8 +1,15 @@
 # OpenStick 工作区
 
 面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
-Linux 6.18.49 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
+Linux **7.1.13** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
 UFI001b / UFI001c / SP970 / UZ801**。
+
+每个机型有**专属的设备树标识**（`compatible` 各不相同，`model` 写明具体型号），
+不靠共用字符串区分。详见各板 README。
+
+> **内核版本单一事实来源**：`source/kernel-version.env`。所有脚本从它派生
+> 路径与 release 字符串，升级内核只改这一个文件。6.18.49 的树与产物原样
+> 保留作回退（`KERNEL_VERSION=6.18.49` 即可重建）。
 
 > **旧文档已作废**：本工作区早期（9 月 2 日）的 README 把目标设备写成
 > IPQ4019 + ath10k + 内核 5.15，那是拆机前的误判。实机是 MSM8916 +
@@ -26,15 +33,19 @@ openstick/
 │   └── uz801/
 │       └── <机型>/{dts,boot}/    该板的 DTS 与 boot 镜像
 ├── source/                共享源码
-│   ├── linux-6.18.49/     内核树（1.9G，一份，所有机型共用）
+│   ├── kernel-version.env ★ 内核版本单一事实来源（升级只改这里）
+│   ├── linux-7.1.13/      当前内核树（1.9G，一份，所有机型共用）
+│   ├── linux-6.18.49/     上一版内核树（保留作回退）
 │   ├── patches/           内核补丁（权威，与分发仓逐字节一致）
-│   ├── configs/           内核配置与片段
+│   ├── configs/           内核配置与片段（common-<版本>-os.config + 变体片段）
 │   └── dts/common/        共享 dtsi
 ├── shared/                板无关产物
-│   ├── rootfs/            3 个 rootfs 镜像
-│   ├── modules/           2 套内核模块树
+│   ├── rootfs/            rootfs 镜像
+│   ├── modules/           各版本内核模块树（6.18.49-* / 7.1.13-*）
 │   └── firmware/          固件集（common / ufi103s-venus）
 ├── tools/                 构建与验证脚本
+│   ├── kver.sh / kver.py  ★ 版本派生的 shell / Python 实现
+│   └── desktop/           桌面与推流脚本
 ├── upstream/              上游参考树（HandsomeMod 等，只读参考）
 ├── edl-tools/             EDL / Miko 刷机工具链
 ├── recovery/              备份、原始分区读回、刷机证据（不可替代）
@@ -112,7 +123,7 @@ bash tools/verify-layout.sh
 
 # 分发仓自检（补丁可应用性、哈希、文档链接）
 cd /opt/helloworld/ufi00x-mainline && sh tools/check-repo.sh \
-  /opt/helloworld/openstick/source/linux-6.18.49
+  /opt/helloworld/openstick/source/linux-$(. source/kernel-version.env; echo $KERNEL_VERSION)
 ```
 
 `tools/verify-layout.sh` 现在应当全过（exit 0）。它覆盖：内核源码与配置、
