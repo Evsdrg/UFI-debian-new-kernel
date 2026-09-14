@@ -15,6 +15,7 @@ openstick/
 ├── README.md              本文件
 ├── LED.md                 LED 跨型号适配说明
 ├── NETWORK.md             网络（NetworkManager）与中文说明
+├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
 ├── FASTBOOT.md            fastboot 刷机（含实测数据与两个坑）
 ├── TOOLING.md             工具清单与缺口
 ├── boards/                各机型产物，按硬件家族分组
@@ -86,8 +87,14 @@ openstick/
   安装，前者只是 NM 的 Recommends。详见 `NETWORK.md`。
 - **LED 脚本机型通用**：五机型的三颗状态灯语义一致、sysfs 名字一致，脚本按名字
   发现（失败时按颜色兜底），不需要按型号分支。详见 `LED.md`。
+- **桌面与远程桌面**：镜像默认带 i3 + xrdp（`ROOTFS_DESKTOP=1`），主机可用
+  `xfreerdp`/`remmina` 连 3389。见 `DESKTOP.md`。
+- **GPU 可用但只出 render 节点**：Adreno 306 在主线是 a3xx 家族，设备无显示
+  面板，所以用 `separate_gpu_kms=1` 走 render-only，得到 `/dev/dri/renderD128`
+  与 freedreno（`FD307`）。**注意**：需要专门的 GPU 内核变体
+  （`tools/build-gpu-variant.sh`），默认内核里 `CONFIG_DRM` 是关的。
 - **固件**：`shared/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
-  `qcom/venus-1.8/venus.mbn`。
+  `qcom/venus-1.8/venus.mbn`（该固件也提供 Adreno 所需的 `a300_*.fw`）。
 - **补丁只有一套**：`source/patches/` 与分发仓 `/opt/helloworld/ufi00x-mainline/patches/`
   逐字节一致，共 5 个（3 个 wcn36xx + 2 个 venus）。早期那个把几处改动揉在
   一起的合并版 `0003` 已归档到 `archive/superseded-20260914/patches/`。

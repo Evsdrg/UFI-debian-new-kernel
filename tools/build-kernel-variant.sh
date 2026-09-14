@@ -3,21 +3,32 @@
 #
 #   tools/build-kernel-variant.sh <variant-name> <config-fragment> <modules-dest>
 #
+# <config-fragment> may be a colon-separated list when a variant needs more than
+# one fragment (e.g. the GPU variant builds on the venus fragment and adds DRM):
+#
+#   tools/build-kernel-variant.sh gpu source/configs/ufi103s-venus.config:source/configs/ufi103s-gpu.config ...
+#
+# Fragments are merged left to right, so later ones win on conflicts.
+#
 # All heavy output goes to build/variant-<name>/ so the source tree stays clean
 # and the baseline build directory is never touched.
 set -euo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$BASE/source/linux-6.18.49"
-NAME="${1:?usage: build-kernel-variant.sh <variant> <fragment> <modules-dest>}"
+NAME="${1:?usage: build-kernel-variant.sh <variant> <fragment>[:<fragment>...] <modules-dest>}"
 FRAGMENT="${2:?missing config fragment}"
 MODDEST="${3:?missing modules destination}"
 BUILD="$BASE/build/variant-$NAME"
 BASE_CFG="$BASE/source/configs/common-6.18.49-os.config"
 
-# make -C chdirs into the source tree, so relative paths (fragment, install
+# make -C chdirs into the source tree, so relative paths (fragments, install
 # dest) must be absolutized before use.
-FRAGMENT="$(readlink -f "$FRAGMENT")"
+IFS=':' read -r -a FRAGMENTS <<< "$FRAGMENT"
+for i in "${!FRAGMENTS[@]}"; do
+    [[ -f "${FRAGMENTS[$i]}" ]] || { echo "缺少配置片段: ${FRAGMENTS[$i]}" >&2; exit 1; }
+    FRAGMENTS[$i]="$(readlink -f "${FRAGMENTS[$i]}")"
+done
 MODDEST="$(mkdir -p "$MODDEST" && readlink -f "$MODDEST")"
 
 JOBS="$(nproc)"
@@ -29,10 +40,10 @@ CROSS_COMPILE="${CROSS_COMPILE:-aarch64-linux-gnu-}"
 KMAKE=(make -C "$SRC" O="$BUILD" ARCH=arm64 CROSS_COMPILE="$CROSS_COMPILE")
 
 mkdir -p "$BUILD" "$MODDEST"
-printf '==> variant=%s jobs=%s\n' "$NAME" "$JOBS"
+printf '==> variant=%s jobs=%s fragments=%s\n' "$NAME" "$JOBS" "${#FRAGMENTS[@]}"
 
 cp "$BASE_CFG" "$BUILD/.config"
-"$SRC/scripts/kconfig/merge_config.sh" -m -O "$BUILD" "$BUILD/.config" "$FRAGMENT" >/dev/null
+"$SRC/scripts/kconfig/merge_config.sh" -m -O "$BUILD" "$BUILD/.config" "${FRAGMENTS[@]}" >/dev/null
 "${KMAKE[@]}" olddefconfig >/dev/null
 
 RELEASE="$("${KMAKE[@]}" kernelrelease 2>/dev/null | grep -v '目录')"

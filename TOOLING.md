@@ -10,7 +10,8 @@
 | 脚本 | 用途 |
 |---|---|
 | `build-rootfs.sh` / `tools/build-rootfs-common.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
-| `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（如 venus） |
+| `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
+| `tools/build-gpu-variant.sh` | 构建 Adreno GPU render-only 内核并打包 boot（封装上一条） |
 | `tools/build-boot-images.sh` | 编译板级 DTS 并组装 boot 镜像 |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
@@ -26,6 +27,18 @@
 见 `FASTBOOT.md`：本设备可以在 Linux 里
 `systemctl reboot --reboot-argument=bootloader` 直接进 fastboot（内核 qcom-pon
 驱动 + OpenStick LK 全链路，已实机验证）。注意必须用 `--reboot-argument=`。
+
+### 桌面 / 远程桌面
+
+| 资产 | 用途 |
+|---|---|
+| `tools/desktop/xsession` | xrdp 会话入口（设中文 locale 后 exec i3） |
+| `tools/desktop/i3-config` | i3 预置配置（窗口/工作区/状态栏） |
+| `tools/desktop/gpu-status.sh` / `zh-check.sh` | 桌面里排错用的小窗口 |
+| `tools/msm-gpu-render-only.conf` | `options msm separate_gpu_kms=1` |
+| `source/configs/ufi103s-gpu.config` | GPU 内核片段（显式关掉显示后端） |
+
+见 `DESKTOP.md`。构建 rootfs 时 `ROOTFS_DESKTOP=0` 可做纯服务端镜像。
 
 ### 测试与验证
 

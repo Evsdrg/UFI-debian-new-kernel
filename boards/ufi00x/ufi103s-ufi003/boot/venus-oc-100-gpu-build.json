@@ -1,0 +1,15 @@
+{
+  "variant": "venus-oc-100-gpu",
+  "kernel_release": "6.18.49-ufi003-venus-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s-venus-oc-100-gpu.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-venus-oc-100-gpu.img",
+  "boot_size": 7636992,
+  "kernel_size": 7634921,
+  "appended_dtb_offset": 7586878,
+  "appended_dtb_size": 50091,
+  "image_gz_sha256": "196cbafed5f55baa589906a0c10f56ebd811993b7e595f3082681d7106908f4a",
+  "dtb_sha256": "785a0ef6d1311ceac911706ac534831da3c394b9cfc7708f2fd41a9ae6536680",
+  "boot_sha256": "0a47396ccc7517b09fc7afeadea1943a30344bb1d1fadfd956fd6f9572bcdd14",
+  "flash_status": "not flashed"
+}

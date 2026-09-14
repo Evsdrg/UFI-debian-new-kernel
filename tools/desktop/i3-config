@@ -1,0 +1,48 @@
+# OpenStick 最简 i3 配置
+#
+# 面向 376MB 内存的 RDP 会话：不启动合成器、不启动桌面环境守护进程，
+# 只开一个终端加状态栏。字体用文泉驿微米黑（镜像里已装，覆盖中英文）。
+#
+# 使用方法同标准 i3：Mod4(Super) 是修饰键。
+#   Super+Enter  新终端        Super+d  运行命令
+#   Super+Shift+q 关窗         Super+Shift+r 重载配置
+#   Super+1/2/3  切换工作区    Super+f  全屏
+
+set $mod Mod4
+font pango:WenQuanYi Micro Hei 10
+
+# 起一个终端，方便确认会话可用
+exec --no-startup-id xterm -fa "WenQuanYi Micro Hei Mono" -fs 11
+
+# 窗口操作
+bindsym $mod+Return exec xterm
+bindsym $mod+d exec dmenu_run
+bindsym $mod+Shift+q kill
+bindsym $mod+Shift+r reload
+bindsym $mod+Shift+e exec i3-msg exit
+
+# 焦点移动
+bindsym $mod+Left focus left
+bindsym $mod+Right focus right
+bindsym $mod+Up focus up
+bindsym $mod+Down focus down
+
+# 布局
+bindsym $mod+h split h
+bindsym $mod+v split v
+bindsym $mod+f fullscreen toggle
+
+# 工作区
+bindsym $mod+1 workspace number 1
+bindsym $mod+2 workspace number 2
+bindsym $mod+3 workspace number 3
+bindsym $mod+Shift+1 move container to workspace number 1
+bindsym $mod+Shift+2 move container to workspace number 2
+bindsym $mod+Shift+3 move container to workspace number 3
+
+# 状态栏
+bar {
+    status_command i3status
+    position bottom
+    font pango:WenQuanYi Micro Hei 9
+}

@@ -192,3 +192,43 @@ done
 e2fsck -fn "$VENUS_ROOTFS" >/dev/null 2>&1
 printf 'venus_rootfs=%s\n' "$VENUS_ROOTFS"
 printf 'venus_rootfs_e2fsck=OK\n'
+
+printf '\n== desktop / xrdp / GPU ==\n'
+# 桌面是默认组件（ROOTFS_DESKTOP=1）；若镜像是纯服务端构建，这里会提示缺失。
+for path in /usr/sbin/xrdp /usr/sbin/xrdp-sesman \
+            /usr/lib/xorg/modules/drivers/xrdpdev_drv.so \
+            /usr/bin/i3 /usr/bin/xterm /usr/bin/i3status \
+            /etc/X11/Xwrapper.config \
+            /root/.xsession /root/.config/i3/config; do
+  if debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:'; then
+    printf 'rootfs:%s=present\n' "$path"
+  else
+    printf 'rootfs:%s=absent (desktop image not built with ROOTFS_DESKTOP=1?)\n' "$path"
+  fi
+done
+# xrdp 以服务身份启动 Xorg，Xwrapper 必须放行非 console 用户
+_wrap="$(debugfs -R 'cat /etc/X11/Xwrapper.config' "$ROOTFS" 2>/dev/null || true)"
+case "$_wrap" in
+  *allowed_users=anybody*) printf 'xwrapper=anybody\n' ;;
+  *allowed_users=console*) printf 'ERROR: Xwrapper.config still limits Xorg to console users; xrdp sessions will fail\n' >&2; exit 1 ;;
+  *) printf 'xwrapper=missing-or-empty (skipped)\n' ;;
+esac
+# GPU：modprobe 参数与开机加载列表
+grep -q '^options msm separate_gpu_kms=1' "$BASE/tools/msm-gpu-render-only.conf" \
+  || { printf 'ERROR: msm-gpu-render-only.conf lacks separate_gpu_kms=1\n' >&2; exit 1; }
+printf 'gpu_render_only_param=ok\n'
+# GPU 内核片段必须显式关掉显示后端，否则 DRM_MSM_KMS 会被 select 成 y
+for opt in CONFIG_DRM_MSM_MDP4 CONFIG_DRM_MSM_MDP5 CONFIG_DRM_MSM_DPU \
+           CONFIG_DRM_MSM_DSI CONFIG_DRM_MSM_HDMI; do
+  grep -q "^# $opt is not set" "$BASE/source/configs/ufi103s-gpu.config" \
+    || { printf 'ERROR: gpu fragment does not disable %s (DRM_MSM_KMS would be force-enabled)\n' "$opt" >&2; exit 1; }
+done
+grep -q '^CONFIG_DRM_MSM=m' "$BASE/source/configs/ufi103s-gpu.config" \
+  || { printf 'ERROR: gpu fragment lacks CONFIG_DRM_MSM=m\n' >&2; exit 1; }
+printf 'gpu_config_fragment=ok\n'
+# GPU boot 产物（若已构建）
+if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-venus-oc-100-gpu.img" ]; then
+  printf 'gpu_boot=present\n'
+else
+  printf 'gpu_boot=absent (run tools/build-gpu-variant.sh to build it)\n'
+fi

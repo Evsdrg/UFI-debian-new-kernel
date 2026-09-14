@@ -22,10 +22,30 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 # NM 主包只 Recommends 它，不显式安装的话 nmcli/nmtui 输出全是英文。
 # manpages-zh 提供中文 man 手册；man-db 是 man 命令本身（缺它则 manpages-zh
 # 只是躺在那儿的文件、`man` 命令根本不存在）。
+#
+# 桌面 / 远程桌面（可选，用 DESKTOP=1 控制，见下方 ROOTFS_DESKTOP）：
+#   xrdp + xorgxrdp      RDP 服务端（xorgxrdp 提供 xrdpdev_drv，纯软件虚拟显示，
+#                        不依赖 DRM —— 这点很重要，我们的 GPU 是 render-only）
+#   xserver-xorg-core    X 服务器
+#   xserver-xorg-video-dummy  无头虚拟显示（xrdp 用得上）
+#   xserver-xorg-legacy  Xwrapper.config 需要（放行非 console 用户启动 Xorg）
+#   i3-wm/i3status/dmenu 轻量窗口管理器（376MB 内存下比 LXQt 合适）
+#   xterm/x11-utils     基础 X 客户端与调试工具
+#   fonts-wqy-microhei  中文点阵/矢量字体（5MB，比 fonts-noto-cjk 的 91MB 轻）
+DESKTOP_PKGS="xrdp,xorgxrdp,xserver-xorg-core,xserver-xorg-video-dummy,xserver-xorg-legacy,\
+xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,\
+fonts-wqy-microhei,fonts-dejavu-core,libgl1-mesa-dri,libgbm1,libegl1,libgles2,mesa-utils"
+
 PKGS_EXTRA="login,openssh-server,network-manager,network-manager-l10n,wpasupplicant,chrony,tzdata,kmod,udev,wireless-regdb,iproute2,iw,nano,less,\
 e2fsprogs,modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,\
 iperf3,\
 ca-certificates,locales,man-db,manpages-zh"
+
+# 桌面默认装上（DESKTOP=0 可做一个纯服务端镜像）。
+ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-1}"
+if [[ "$ROOTFS_DESKTOP" == 1 ]]; then
+    PKGS_EXTRA="$PKGS_EXTRA,$DESKTOP_PKGS"
+fi
 
 # Variant hook: comma-separated extra packages (e.g. ffmpeg,v4l-utils) and
 # additional module trees to ship alongside the primary one, so a variant
@@ -196,6 +216,41 @@ rpmsg_wwan_ctrl
 zram
 EOF
 
+# --- Adreno 306 GPU（render-only）---
+# gpu 节点在 msm8916.dtsi 里是 disabled，板级 DTS 打开后内核会建出 platform
+# device；msm.ko 需要 separate_gpu_kms=1 才会走 render-only 路径（否则它会去
+# 找不存在的显示组件）。详见 tools/msm-gpu-render-only.conf 的说明。
+install -D -m 644 "$WORKDIR/tools/msm-gpu-render-only.conf" \
+    "$STAGE/etc/modprobe.d/msm-gpu-render-only.conf"
+cat > "$STAGE/etc/modules-load.d/openstick-gpu.conf" <<'EOF'
+# Adreno 306 GPU（render-only）。参数在 /etc/modprobe.d/msm-gpu-render-only.conf。
+# 编解码（venus）与本项无关：venus 是独立的 V4L2 m2m 设备。
+drm
+msm
+EOF
+
+# --- 桌面 / 远程桌面（xrdp + i3）---
+if [[ "$ROOTFS_DESKTOP" == 1 ]]; then
+    # xrdp 以服务身份（非 console 用户）启动 Xorg；Debian 默认
+    # allowed_users=console 会拒绝，必须放行。
+    mkdir -p "$STAGE/etc/X11"
+    cat > "$STAGE/etc/X11/Xwrapper.config" <<'EOF'
+# 由 OpenStick 构建脚本写入：xrdp 会话需要非 console 用户也能启动 Xorg。
+allowed_users=anybody
+needs_root_rights=yes
+EOF
+
+    # root 的 xrdp 会话入口（登录后由 sesman 执行）
+    install -D -m 755 "$WORKDIR/tools/desktop/xsession" "$STAGE/root/.xsession"
+
+    # i3 配置：镜像里给 root 预置一份，避免首次登录弹配置向导
+    install -D -m 644 "$WORKDIR/tools/desktop/i3-config" "$STAGE/root/.config/i3/config"
+
+    # 排错用的辅助脚本（在桌面里点开就能看 GPU/编解码/中文状态）
+    install -D -m 755 "$WORKDIR/tools/desktop/gpu-status.sh" "$STAGE/usr/local/bin/gpu-status.sh"
+    install -D -m 755 "$WORKDIR/tools/desktop/zh-check.sh" "$STAGE/usr/local/bin/zh-check.sh"
+fi
+
 # rmtfs must start after the kernel has created its shared-memory device.
 # The node is created by the rmtfs_mem module, so the matching systemd .device
 # unit is not reliably active at boot and rmtfs would be skipped.  Start it from
@@ -355,6 +410,9 @@ MMDEBSTRAP_ARGS=(
 	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service'
 	'--customize-hook=test ! -e $1/etc/systemd/system/sockets.target.wants/systemd-networkd.socket'
 	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service'
+	# 桌面：启用 xrdp 与其会话管理器（xrdp 依赖 xrdp-sesman 拉起会话）。
+	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then mkdir -p $1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/xrdp.service $1/etc/systemd/system/multi-user.target.wants/xrdp.service && ln -sf /lib/systemd/system/xrdp-sesman.service $1/etc/systemd/system/multi-user.target.wants/xrdp-sesman.service; fi'
+	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then test -L $1/etc/systemd/system/multi-user.target.wants/xrdp.service; fi'
 	'--customize-hook=printf '\''root:REDACTED\n'\'' | chroot $1 /usr/sbin/chpasswd'
 	'--customize-hook=echo "debconf debconf/frontend select Noninteractive" | chroot $1 debconf-set-selections'
 	# cfg80211 verifies regulatory.db against certificates built into the kernel.

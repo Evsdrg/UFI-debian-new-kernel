@@ -1,0 +1,20 @@
+#!/bin/sh
+# xrdp 会话入口：启动 i3 窗口管理器
+#
+# xrdp 的 sesman 启动 Xorg 后会执行用户主目录下的 .xsession（或 startwm.sh
+# 里的会话脚本）。这里显式设定中文环境与 session 类型，再 exec i3。
+#
+# 注意 XDG_SESSION_TYPE=x11 必须设置：i3 与 xterm 的部分行为依赖它，
+# 也让 systemd-logind 能识别会话类型。
+export LANG=zh_CN.UTF-8
+export LANGUAGE=zh_CN:zh
+export LC_ALL=zh_CN.UTF-8
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=i3
+
+# 剪贴板/输入法等需要会话级 dbus
+if command -v dbus-launch >/dev/null 2>&1; then
+    eval "$(dbus-launch --sh-syntax --exit-with-session)"
+fi
+
+exec i3
