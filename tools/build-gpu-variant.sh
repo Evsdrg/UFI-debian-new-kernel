@@ -42,3 +42,12 @@ python3 "$BASE/tools/package-boot-variant.py" \
 echo
 echo "==> 完成"
 ls -l "$BOUT/boot-$VARIANT.img"
+
+echo
+echo "==> 重要：构建 rootfs 时主模块树要用这个 GPU 树"
+echo "    GPU 变体的模块在 $MODDEST（含 msm.ko/drm.ko）"
+echo "    而 shared/modules/6.18.49-ufi003-venus 里没有它们，"
+echo "    若拿后者当 MODULE_TREE 构建 rootfs，开机 modprobe msm 会报"
+echo "    \"Module drm not found\"，表现为 /dev/dri 缺失、渲染退回 llvmpipe。"
+echo "    正确用法："
+echo "      MODULE_TREE=$MODDEST EXTRA_MODULE_TREES=<baseline 树> bash build-rootfs.sh"

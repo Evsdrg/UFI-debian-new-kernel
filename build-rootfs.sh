@@ -229,6 +229,18 @@ drm
 msm
 EOF
 
+# 上面写了"开机加载 drm/msm"，但如果主模块树里根本没有这两个模块，开机只会
+# 静默失败（modprobe 报 "Module drm not found"），表现为 /dev/dri 缺失、GL 退回
+# llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 6.18.49-ufi003-gpu 树里，
+# 而 6.18.49-ufi003-venus 树不含它们——这里必须挡住这个错配。
+if [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
+    echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
+    echo "      MODULE_TREE=$MODULE_TREE" >&2
+    echo "      GPU 模块在 shared/modules/6.18.49-ufi003-gpu（由 tools/build-gpu-variant.sh 产出）。" >&2
+    echo "      若这块板子确实不要 GPU，请删掉上面的 modules-load 项；" >&2
+    echo "      若要 GPU，请把 MODULE_TREE 指向 GPU 树（并附 baseline 作 EXTRA_MODULE_TREES）。" >&2
+fi
+
 # --- 桌面 / 远程桌面（xrdp + i3）---
 if [[ "$ROOTFS_DESKTOP" == 1 ]]; then
     # xrdp 以服务身份（非 console 用户）启动 Xorg；Debian 默认
