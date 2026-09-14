@@ -1,5 +1,23 @@
 103s organized workspace index
 
+>>> 注意（2026-09-14 重组）：本文件记录的是重组**之前**的状态，其中的路径
+>>> 已按下面的映射搬动，描述本身仍然有效。当前结构见 README.md。
+>>>
+>>>   release/rootfs/          -> shared/rootfs/
+>>>   release/modules/         -> shared/modules/
+>>>   release/firmware/        -> shared/firmware/
+>>>   release/kernels/<board>/ -> boards/<family>/<board>/boot/
+>>>   source/dts/<board>/      -> boards/<family>/<board>/dts/
+>>>   configs/*.config         -> source/configs/ 或 archive/superseded-20260914/
+>>>   <根级散落 .md/日志/config> -> archive/reports/ 或 archive/superseded-20260914/
+>>>   handsomemod* / qcom-firmware / openstick / openstick-patches -> upstream/
+>>>   edl-tools（原在 /opt/helloworld 之外）-> edl-tools/
+>>>
+>>> 另：下方 “LED status research” 一节提到 rootfs builder 会安装 LED 脚本与
+>>> unit，这与当前实际一致（build-rootfs.sh:113-114 安装，:256 启用），
+>>> shared/rootfs/…-venus-led.ext4 里确认存在。verify-layout.sh 报 MISSING 是
+>>> 因为它检查的是更旧的 …-chrony.ext4。
+
 source/
 - linux-6.18.49/: single source tree for Linux v6.18.49 and local board/WWAN changes
 - dts/common/: shared MSM8916 OpenStick DTSI

@@ -7,9 +7,13 @@
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
+# 设备地址是 DHCP 分配的，会变（历史上出现过 .102 与 .108）。用前先确认：
+#   ping 一下，或 ip neigh 查 ARP 表。DEV 可用环境变量覆盖。
 DEV="${DEV:-root@192.0.2.10}"
 PW="${PW:-REDACTED}"
-ROOTFS_IMAGE="${ROOTFS_IMAGE:-$WORKDIR/out/trixie-rootfs-functional-rpmsg-6.18.49.ext4}"
+# 默认用本工作区的权威产物；均可用环境变量覆盖。
+BOARD_DIR="${BOARD_DIR:-$WORKDIR/boards/ufi00x/ufi103s-ufi003/boot}"
+ROOTFS_IMAGE="${ROOTFS_IMAGE:-$WORKDIR/shared/rootfs/debian13-arm64-ufi103s-6.18.49-chrony.ext4}"
 
 run_dev() {
 	expect -c "
@@ -36,11 +40,15 @@ push_dev() {
 case "${1:-}" in
 boot)
 	echo "=== 阶段1: 刷入 6.18 boot.img 到 mmcblk0p12 ==="
-	BOOT_IMAGE="$WORKDIR/out/boot/boot-ufi103s-6.18.img"
+	BOOT_IMAGE="${BOOT_IMAGE:-$BOARD_DIR/boot-baseline.img}"
 	if [[ ! -f "$BOOT_IMAGE" ]]; then
-		echo "缺少 $BOOT_IMAGE，先构建稳定 UFI103s boot 镜像" >&2
+		echo "缺少 $BOOT_IMAGE" >&2
+		echo "可用的本板镜像：" >&2
+		ls "$BOARD_DIR"/boot-*.img >&2 2>/dev/null || echo "  (无)" >&2
 		exit 1
 	fi
+	echo "设备: $DEV"
+	echo "镜像: $BOOT_IMAGE"
 	push_dev "$BOOT_IMAGE" /tmp/boot-new.img
 	run_dev "dd if=/dev/mmcblk0p12 of=/root/boot-backup-5.15.img bs=1M 2>/dev/null; dd if=/tmp/boot-new.img of=/dev/mmcblk0p12 bs=1M conv=fsync; sync; echo FLASH_DONE"
 	;;
