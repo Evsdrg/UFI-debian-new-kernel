@@ -206,17 +206,26 @@ once() {
     render_rgb "$_crit" "$_failed" "$_low" "$_wifi_ok" "${wwan:-idle}"
 
     # --- 电量条 ---
+    # QUIET（夜间静音）下稳态条全灭；电源键 peek（mf32-powerkey.sh 写入
+    # peek_until）临时点亮 PEEK_SECS 秒。
+    _peek=0
+    _pu=$(cat "$STATE/peek_until" 2>/dev/null || echo 0)
+    [ "$_now" -lt "$_pu" ] && _peek=1
     if [ -n "${_pct:-}" ]; then
-        _prev=$(cat "$STATE/level" 2>/dev/null || echo "")
-        _lvl=$(render_bar "$_pct" "$_chg" "$_prev")
-        echo "$_lvl" > "$STATE/level"
+        if [ "$QUIET" = 1 ] && [ "$_peek" != 1 ]; then
+            for _l in $BAT_LEDS; do led_off "$_l"; done
+        else
+            _prev=$(cat "$STATE/level" 2>/dev/null || echo "")
+            _lvl=$(render_bar "$_pct" "$_chg" "$_prev")
+            echo "$_lvl" > "$STATE/level"
+        fi
     else
         for _l in $BAT_LEDS; do led_off "$_l"; done
     fi
 
     # 状态快照（调试/外巡检用）
     {
-        echo "pct=${_pct:-NA} chg=$_chg crit=$_crit low=$_low wifi_ok=$_wifi_ok wwan=${wwan:-idle} failed=$_failed"
+        echo "pct=${_pct:-NA} chg=$_chg crit=$_crit low=$_low wifi_ok=$_wifi_ok wwan=${wwan:-idle} failed=$_failed peek=$_peek"
     } > "$STATE/status"
 }
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=MF32 power key semantics (double-click poweroff, click battery peek)
+Documentation=file:/usr/local/share/doc/mf32-powerkey.md
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/mf32-powerkey.sh monitor
+Restart=always
+RestartSec=3
+# 读 /dev/input 需要权限；服务以 root 跑最简单（与 ufi-led-state 一致）
+
+[Install]
+WantedBy=multi-user.target

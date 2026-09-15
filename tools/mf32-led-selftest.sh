@@ -121,6 +121,20 @@ OFF_RED_SECS=0 "$SCRIPT" off >/dev/null 2>&1
 chk OFF red:status brightness=0 trigger=none
 chk OFF bat:3 brightness=0 trigger=none
 
+
+# 场景 11：QUIET=1 稳态条全灭（蓝灯也不亮）
+setbatt 80 Discharging; touch "$T/nmcli-wifi"; rm -f "$T/nmcli-wwan"
+QUIET=1 run
+chk S11 bat:2 brightness=0
+chk S11 blue:status brightness=0
+
+# 场景 12：QUIET 下 peek（peek_until 在未来）→ 条恢复显示
+echo $(( $(date +%s) + 3 )) > "$T/state/peek_until"
+QUIET=1 run
+chk S12 bat:4 brightness=1
+chk S12 blue:status brightness=0
+rm -f "$T/state/peek_until"
+
 echo "----------------------------------------"
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" = 0 ]

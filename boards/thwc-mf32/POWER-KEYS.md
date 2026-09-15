@@ -21,23 +21,31 @@
 | `poweroff` 落盘路径 | pm8941-pwrkey 的 reboot notifier 写 PON_PS_HOLD_TYPE_SHUTDOWN；`qcom,pshold` 驱动同路径 | 驱动保证 |
 | `reboot bootloader` | `pon@800` 的 mode-bootloader/mode-recovery 由 `drivers/power/reset/qcom-pon.c` 注册成 reboot_mode，把意图写进 PON 寄存器，**stock aboot 读取后进 fastboot** | 与 UFI103s 同一套机制，现成 |
 
-## 按键语义设计建议（防误触优先，待实机落地）
+## 按键语义设计（已实现：tools/mf32-powerkey.sh + 自测）
 
 MiFi 是口袋设备，两颗键都有误触风险：logind 默认会把意外短按变成关机；
-PON 长按会把意外长按变成硬复位（丢数据）。建议把短/中按语义接管到用户态，
-只把超长按留给硬件兜底：
+PON 长按会把意外长按变成硬复位（丢数据）。**关机走双击**——双击比长按
+更快，又比单击多一道防误触门槛；单/双击的歧义用 500ms 窗口消解，单击的
+peek 立即触发，若 500ms 内来了第二次按下就由关机路径覆盖（LED 条闪一下
+即灭，视觉可接受）：
 
-| 操作 | 建议语义 |
-|---|---|
-| 电源键短按（<1s） | **电量 peek**：LED 电量条亮 3 秒显示当前档位（MiFi 惯例），需要 `mf32-led-state.sh` 加 override 机制 |
-| 电源键长按 3-5s | 干净 `poweroff`（LED 红快闪过渡，走 ExecStop 现有路径） |
-| 电源键超长按 | 不处理 → PON 硬复位兜底（实测确认秒数后写进文档） |
-| Restart 短按 | 未定义（预留：重启 4G 模组） |
-| Restart 长按 5s | `reboot bootloader`（进 fastboot，救援键） |
+| 操作 | 语义 | 实现 |
+|---|---|---|
+| 电源键单击（<800ms） | **电量 peek**：电量条亮 3 秒（QUIET 夜间模式也亮） | `do_peek` 写 `/run/mf32-powerkey/peek_until`，`mf32-led-state.sh` 读取 |
+| **电源键双击**（两次按下间隔 ≤500ms） | **干净关机**（`systemctl poweroff`） | `do_poweroff`，先清 peek |
+| 电源键长按（>1.5s） | 软件不动作 → PON 硬复位兜底 | 实测确认 PON 秒数后更新文档 |
+| Restart 短按 | 未定义（预留：重启 4G 模组） | — |
+| Restart 长按 5s | `reboot bootloader`（进 fastboot，救援键） | 未实现，保留设计 |
 
-落地件：logind drop-in（`HandlePowerKey=ignore`）+ 一个 evdev 监听小
-daemon（读 /dev/input/eventN，区分短/长按）+ `mf32-led-state.sh` 的
-peek override。配置里 `INPUT_PM8941_PWRKEY=y` 已开，无需动。
+落地件（全部在 tools/，实机时装入 rootfs）：
+- `mf32-powerkey.sh`：evdev 监听（按 `/sys/class/input/input*/name` 匹配
+  `pm8941_pwrkey`），状态机无定时器（pending 靠第二次按下推进，永不空转）；
+  `simulate` 模式可脱离硬件喂数据。
+- `mf32-powerkey-selftest.sh`：11 项断言（双击关机/单击 peek/双击间隔超限/
+  长按吞状态/三连击/慢按压边界）。
+- `mf32-powerkey.service` + `mf32-logind-powerkey.conf`（**必须装到
+  `/etc/systemd/logind.conf.d/`**，否则短按被 logind 抢先关机）。
+- `mf32-led-state.sh` 的 peek/QUIET 支持（自测 30 项含两个新场景）。
 
 ## 其他外围能力速览
 
