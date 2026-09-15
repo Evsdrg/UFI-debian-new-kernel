@@ -16,10 +16,16 @@ BASE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE"
 . tools/kver.sh
 
+# 配对（板型级命名，见 tools/build-board-set.sh）：
+#   max   → venus-oc-100-gpu 板型（GPU 内核）
+#   basic → 基线板型
+#   slim/micro → no4g-novenus 板型（无 4G/venus，内存最大化）
 REL_BASE="$KERNEL_VERSION$KERNEL_LOCALVERSION-dirty"
-REL_VENUS="$KERNEL_VERSION$KERNEL_LOCALVERSION-venus-dirty"
+REL_GPU="$KERNEL_VERSION$KERNEL_LOCALVERSION-venus-oc-100-gpu-dirty"
+REL_NO4GNN="$KERNEL_VERSION$KERNEL_LOCALVERSION-no4g-novenus-dirty"
 TREE_BASE="$BASE/shared/modules/$REL_BASE"
-TREE_GPU="$BASE/shared/modules/$KERNEL_VERSION$KERNEL_LOCALVERSION-gpu"
+TREE_GPU="$BASE/shared/modules/${REL_GPU%-dirty}"
+TREE_NO4GNN="$BASE/shared/modules/${REL_NO4GNN%-dirty}"
 FIRMWARE_VENUS="$BASE/shared/firmware/ufi103s-venus"
 OUTROOT="$BASE/shared/rootfs"
 
@@ -39,12 +45,16 @@ for t in "${TARGETS[@]}"; do
     DESKTOP=0
     case "$flavor" in
         max)
-            KERNEL_RELEASE="$REL_VENUS"
+            KERNEL_RELEASE="$REL_GPU"
             MODULE_TREE="$TREE_GPU"
             EXTRA_TREES="$TREE_BASE"
             EXTRA_FW="$FIRMWARE_VENUS"
             EXTRA_PKGS="ffmpeg,v4l-utils"
             DESKTOP=1
+            ;;
+        slim|micro)
+            KERNEL_RELEASE="$REL_NO4GNN"
+            MODULE_TREE="$TREE_NO4GNN"
             ;;
     esac
 

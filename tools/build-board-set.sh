@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# 板型（DTS）级内核构建器：每个使用不同设备树的板型一个独立的内核
+# release 名与模块树。release = <ver>-ufi103s<板型后缀>-dirty。
+#
+# 命名规则（AGENTS.md §5.1）：设备名 + 板型（DTS 后缀）。
+# 同一内核配置但不同 LOCALVERSION 的构建必须真分家——vermagic 里含
+# release 字符串，模块树不能跨 release 复用。
+#
+# 用法：tools/build-board-set.sh [板型名 ...]   缺省构建全部未完成的。
+#   可用板型（键 = DTS 后缀，空 = 基线）：
+#     "" oc12 no4g-novenus
+#     venus venus-oc12 venus-oc-100 venus-oc-burst
+#     venus-oc-100-gpu venus-no4g
+set -uo pipefail
+
+BASE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$BASE"
+. tools/kver.sh
+
+BOARD_DIR="$BASE/boards/ufi00x/ufi103s-ufi003"
+DTS_PREFIX="msm8916-handsome-openstick-ufi103s"
+VENUS_FRAG="$BASE/source/configs/ufi103s-venus.config"
+GPU_FRAG="$BASE/source/configs/ufi103s-gpu.config"
+BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
+
+# 板型表：后缀 | 内核片段 | DTB
+# 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
+# 两条板型链：基线链（plain/oc12/no4g-novenus，无 venus 模块）与
+# venus 链（硬件编解码系）。slim/micro 配基线链 no4g-novenus（最省内存）。
+TYPES=(
+  "|$BASE_FRAG|$DTS_PREFIX.dts"
+  "oc12|$BASE_FRAG|$DTS_PREFIX-oc12.dts"
+  "no4g-novenus|$BASE_FRAG|$DTS_PREFIX-no4g-novenus.dts"
+  "venus|$VENUS_FRAG|$DTS_PREFIX-venus.dts"
+  "venus-oc12|$VENUS_FRAG|$DTS_PREFIX-venus-oc12.dts"
+  "venus-oc-100|$VENUS_FRAG|$DTS_PREFIX-venus-oc-100.dts"
+  "venus-oc-burst|$VENUS_FRAG|$DTS_PREFIX-venus-oc-burst.dts"
+  "venus-oc-100-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-oc-100-gpu.dts"
+  "venus-no4g|$VENUS_FRAG|$DTS_PREFIX-venus-no4g.dts"
+)
+
+WANT=("$@")
+rc_total=0
+
+for entry in "${TYPES[@]}"; do
+    IFS='|' read -r suffix frags dtsname <<< "$entry"
+    if [ ${#WANT[@]} -gt 0 ]; then
+        keep=0
+        for w in "${WANT[@]}"; do [ "$w" = "$suffix" ] && keep=1; done
+        [ "$keep" = 1 ] || continue
+    fi
+
+    if [ -z "$suffix" ]; then
+        RELEASE="$KERNEL_VERSION-ufi103s-dirty"
+        VARIANT="baseline"
+    else
+        RELEASE="$KERNEL_VERSION-ufi103s-$suffix-dirty"
+        VARIANT="$suffix"
+    fi
+    TREE="$BASE/shared/modules/${RELEASE%-dirty}"
+    DTB_SRC="$BOARD_DIR/dts/$dtsname"
+
+    echo "=============================================="
+    echo "==> 板型 [$VARIANT] release=$RELEASE"
+
+    # 逐板型 LOCALVERSION 片段（临时文件，构建时最后合并、优先生效）
+    LVFRAG=$(mktemp /tmp/lv-$VARIANT-XXXXXX.config)
+    printf 'CONFIG_LOCALVERSION="%s"\n' "-ufi103s${suffix:+-$suffix}" > "$LVFRAG"
+
+    BUILD_DIR="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT" \
+    bash tools/build-kernel-variant.sh "board-$VARIANT" \
+        "$frags:$LVFRAG" "$TREE" || { rc_total=1; rm -f "$LVFRAG"; continue; }
+    rm -f "$LVFRAG"
+
+    # GPU 板型：render-only 校验（与 build-gpu-variant.sh 同一套断言）
+    case "$VARIANT" in
+    *gpu)
+        CFG="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/.config"
+        if grep -q '^CONFIG_DRM_MSM_KMS=y' "$CFG"; then
+            echo "错误：DRM_MSM_KMS=y —— 显示组件没关干净" >&2; rc_total=1; continue
+        fi
+        grep -q '^CONFIG_DRM_MSM=m' "$CFG" || { echo "错误：DRM_MSM 未启用" >&2; rc_total=1; continue; }
+        echo "    ok: DRM_MSM=m 且 DRM_MSM_KMS 未启用"
+        ;;
+    esac
+
+    # 打包 boot 镜像（Image.gz + 板型 DTB）
+    python3 tools/package-boot-variant.py \
+        "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
+        "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \
+        "$RELEASE" \
+        "$BOARD_DIR/boot" || { rc_total=1; continue; }
+done
+
+echo "=============================================="
+[ $rc_total -eq 0 ] && echo "板型构建全部完成" || echo "存在失败板型"
+exit $rc_total

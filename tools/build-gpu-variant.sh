@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# 【已废弃】请改用 tools/build-board-set.sh（板型级命名与构建，2026-09-16 起）。
 # 构建带 Adreno 306 GPU（render-only）的内核变体，并打包 boot 镜像。
 #
 # 这是对 tools/build-kernel-variant.sh 的薄封装：GPU 变体需要**两份**配置
