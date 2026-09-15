@@ -9,7 +9,24 @@
 |---|---|---|---|---|---|
 | `full`（默认） | **760 MB** | ✅ | ✅ | ✅ | 桌面(xrdp+i3)、GPU/mesa、man |
 | `minimal` | **294 MB** | ✅ | ✅ | ✅ | **nmtui**、SSH、zram、LED |
-| `tiny` | **211 MB** | ❌ | ❌ | ❌ | **nmtui**、SSH、zram、LED |
+| `tiny` | **213 MB** | ❌ | ❌ | ❌ | **nmtui**、SSH、zram、LED |
+
+**两个体积口径别混用**：
+
+- **内容体积**（把镜像 loop 挂载后 `du -sm`）：上表用的就是这个，代表实际装了
+  多少东西。
+- **文件体积**（`ls -l`）：mmdebstrap 按内部估算给 ext4 留了大量空闲块与 inode
+  表，实测 tiny 文件 299MB 而内容只有 213MB。刷到设备后 fstab 的
+  `x-systemd.growfs` 会把文件系统撑满 3.3GB 分区，所以这些预留**不占实机空间**，
+  但对**分发文件**（下载/传输）是实打实的体积。
+
+用 `ROOTFS_SHRINK=1` 可把文件收掉这部分：先 `resize2fs -M` 压到最小，再加
+**固定 32MB 余量**（不是按比例——growfs 才是实际扩容手段，镜像内余量只需够
+growfs 之前那几秒的写入）。实测 tiny：**299MB → 267MB**（最小 235MB）。
+
+> 陷阱：不要用 `du -sm` 在 `-M` **之前**去量基准——它对**文件**返回的是文件
+> 大小而非内容占用，拿这个数再加 25% 反而会得到比原文件更大的镜像（踩过）。
+> 余量也别用 `-M` 后的最小值按百分比放大（25% 就是 58MB，过肥）。
 
 三个维度（中文化 / 蓝牙 / 4G）是**正交开关**，不是绑死在档位上：
 
@@ -37,6 +54,10 @@ EXTRA_MODULE_TREES=$PWD/shared/modules/7.1.13-ufi003-dirty \
 ROOTFS_PATH=$PWD/out/debian13-arm64-ufi103s-7.1.13-minimal.ext4 \
 ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
 bash build-rootfs.sh
+
+# 想进一步收掉文件的 padding（分发用），加 ROOTFS_SHRINK=1
+# 另可显式控制三个维度：
+#   ROOTFS_ZH=1 ROOTFS_BT=1 ROOTFS_4G=0
 ```
 
 ## 精简从哪儿省出来的

@@ -81,6 +81,14 @@ PKGS_ZH="locales,network-manager-l10n"
 # 所以关蓝牙省的是 bluez 那 5MB，不是全部蓝牙相关。
 PKGS_BT="bluez,rfkill"
 
+# ---- 桌面 / 远程桌面（仅 full 档位）----
+# xrdp + xorgxrdp 提供 RDP 服务端（xrdpdev_drv 是纯软件虚拟显示，不依赖 DRM
+# —— 我们的 GPU 是 render-only，这点很重要）；i3 在 376MB 内存下比 LXQt 合适；
+# fonts-wqy-microhei 是中文点阵/矢量字体（5MB，比 fonts-noto-cjk 的 91MB 轻）。
+DESKTOP_PKGS="xrdp,xorgxrdp,xserver-xorg-core,xserver-xorg-video-dummy,xserver-xorg-legacy,\
+xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,\
+fonts-wqy-microhei,fonts-dejavu-core,libgl1-mesa-dri,libgbm1,libegl1,libgles2,mesa-utils"
+
 # ---- 文档（man 命令 + 中文手册）----
 PKGS_DOC="man-db,manpages-zh"
 
@@ -621,6 +629,38 @@ MMDEBSTRAP_ARGS=(
 	"$MIRROR"
 )
 DEBIAN_FRONTEND=noninteractive mmdebstrap "${MMDEBSTRAP_ARGS[@]}"
+
+# ---- 可选：收缩镜像文件体积 ----
+# mmdebstrap 按内部估算给 ext4 留了很多空闲块与 inode 表，导致文件比实际内容大
+# 几十 MB（实测 tiny：299MB 文件 vs 213MB 内容）。刷到设备后 fstab 的
+# x-systemd.growfs 会把文件系统撑满分区，所以那些预留本来不占实机空间——但对
+# **分发文件**来说是要下载/传输的体积。
+#
+# ROOTFS_SHRINK=1 时：先 resize2fs -M 压到最小，再放大到「内容 + 余量」。
+# 必须留余量：-M 之后空闲块只剩几百个，作为可写根会立刻 "No space left on
+# device"（实测 QEMU 里 13 个单元 FAILED）。余量默认 25%，不足则至少 32MB。
+if [[ "${ROOTFS_SHRINK:-0}" == 1 && "$MMDEBSTRAP_FORMAT" == ext4 ]]; then
+    echo "==> 收缩镜像文件体积..."
+    _before=$(( $(stat -c%s "$ROOTFS") / 1048576 ))
+    e2fsck -fy "$ROOTFS" >/dev/null 2>&1 || true
+    if resize2fs -M "$ROOTFS" >/dev/null 2>&1; then
+        # -M 之后文件大小就是「最小文件系统」大小，以此为基础加余量。
+        # （注意别用 du -sm 去量：它对**文件**返回的是文件大小而非内容占用，
+        #   在 -M 之前拿到的是 padding 后的大小，再加 25% 反而会变大。）
+        # 余量给 32MB 固定值而不是百分比：设备上 fstab 的 x-systemd.growfs
+        # 开机会把文件系统撑满 3.3GB 分区，所以镜像内的余量只用于「growfs 之前」
+        # 那几秒的写入，不需要按比例留大。
+        _min=$(( $(stat -c%s "$ROOTFS") / 1048576 ))
+        _target=$(( _min + 32 ))
+        (( _target > _before )) && _target=$_before   # 绝不比原文件更大
+        resize2fs "$ROOTFS" "${_target}M" >/dev/null 2>&1 || true
+        printf '    文件 %sMB → %sMB（最小 %sMB + %sMB 余量）\n' \
+            "$_before" "$(( $(stat -c%s "$ROOTFS") / 1048576 ))" \
+            "$_min" "$(( _target - _min ))"
+    else
+        echo "    resize2fs -M 不可用，跳过（仅影响文件体积，不影响内容）" >&2
+    fi
+fi
 
 # STAGE 由 EXIT trap 清理（成功与失败都清）。
 echo "==> rootfs ready at $ROOTFS"
