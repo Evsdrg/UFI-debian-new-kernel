@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick UFI103s - Venus + no-4G (memory reclamation) variant
+ *
+ * Same board as ...-venus.dts with the whole modem/PIL chain disabled.
+ * The point of this variant is RAM, not flash: the kernel honors
+ * status = "disabled" on reserved-memory nodes since
+ * fdt_scan_reserved_mem() filters each child through
+ * of_fdt_device_is_available(), so a disabled region simply stays in the
+ * buddy allocator instead of being carved out as no-map.
+ *
+ * Reclaimed (memblock no-map -> System RAM), measured with 7.1.13:
+ *   mpss@86800000   85.0 MiB   modem firmware + relocatable segments
+ *   mba@8dc00000     1.0 MiB   modem boot authenticator image
+ *   rmtfs@86700000   0.9 MiB   modem NV/EFS backing store (qcom,rmtfs-mem)
+ *   total           86.9 MiB   MemTotal 376 -> 463 MiB
+ *
+ * Kept on purpose: wcnss_mem (Wi-Fi/BT), venus_mem, and the
+ * firmware-mandatory TZ/SMEM/HYP block at 0x86000000-0x86800000 minus
+ * rmtfs.  reserved@86680000 and rfsa@867e0000 are unlabeled modem-adjacent
+ * crumbs (0.6 MiB combined) - not worth path references.
+ */
+
+#include "msm8916-handsome-openstick-ufi103s-venus.dts"
+
+/* Modem remoteproc: never loaded, never booted. */
+&mpss {
+	status = "disabled";
+};
+
+&mpss_mem {
+	status = "disabled";
+};
+
+&mba_mem {
+	status = "disabled";
+};
+
+/* Modem packet channel (rmnet over BAM-DMUX) has no peer without mpss. */
+&bam_dmux {
+	status = "disabled";
+};
+
+&bam_dmux_dma {
+	status = "disabled";
+};
+
+/* No label upstream in 7.1: disable by path.  Driver is qcom,rmtfs-mem. */
+&{/reserved-memory/rmtfs@86700000} {
+	status = "disabled";
+};
