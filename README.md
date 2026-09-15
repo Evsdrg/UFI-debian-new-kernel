@@ -26,6 +26,9 @@ openstick/
 ├── README.md              本文件（结构与整体状态）
 ├── AGENTS.md              ★ 给 agent 的作业须知：硬约束、平台限制、我们做过的改动
 ├── LED.md                 LED 跨型号适配说明
+├── BLUETOOTH.md           蓝牙（内核侧就绪、装 bluez 即用，含实测）
+├── TRIMMING.md            系统精简：full/minimal/tiny 三档位与体积、QEMU 冒烟测试
+├── AOSC-RESEARCH.md       AOSC OS / Afterglow 适配调研（含实测 bootstrap 与启动）
 ├── NETWORK.md             网络（NetworkManager）与中文说明
 ├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
 ├── GPU-STREAMING.md        GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）

@@ -428,5 +428,8 @@ sh tools/check-repo.sh "$K"
 | `GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
 | `VIDEO-CODEC.md` | 编解码实测数据 |
 | `LED.md` | LED 跨型号适配 |
+| `BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |
+| `TRIMMING.md` | 精简档位与体积；**QEMU 冒烟测试流程**（改档位/砍包后必做） |
+| `AOSC-RESEARCH.md` | AOSC OS / Afterglow 调研结论（Afterglow 不支持 arm64） |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |
 | `archive/reports/` | 历史专题研究（CPU 频率/电压、EDL、刷机证据等） |
