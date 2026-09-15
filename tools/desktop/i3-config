@@ -1,13 +1,18 @@
-# OpenStick i3 预配置（F1 功能拉满档：i3 + xrdp）
+# OpenStick i3 预配置（F1 功能拉满档：i3 + xrdp + 配件栈）
 #
 # 面向 376MB 内存的 RDP 会话：不启动合成器、不启动桌面环境守护进程，
 # 字体用文泉驿微米黑（镜像已装 fonts-wqy-microhei，覆盖中英文）。
 # 修饰键 Mod4 = Super（xrdp 全屏会话下 Super 正常送达；若客户端吞键，
 # 可把 set $mod 改成 Mod1(Alt)）。
 #
+# 配件栈（选择与取舍见 DESKTOP.md）：rofi 启动/切窗、autotiling 自动分屏
+# （常驻 ~15MB，嫌重可注释）、dunst 通知、nm-applet 网络托盘（F1 NM）、
+# cbatticon 电量托盘（UFI 无电池不显示，MF32 用）、maim 区域截图。
+# 刻意不装：picom（RDP 带宽无收益）、feh/壁纸（压缩成本）、polybar/flameshot（重）。
+#
 # 快速参考（完整键位见下方 bindsym）：
 #   Super+Enter 新终端   Super+d 运行程序   Super+n 网络管理
-#   Super+s 截图(~/ Pictures)               Super+u 进程表
+#   Super+s 全屏截图  Super+a 区域截图  Super+Tab 切窗  Super+u 进程表
 #   Super+Shift+q 关窗   Super+Shift+r 重载  Super+Shift+e 退出 i3
 
 set $mod Mod4
@@ -24,9 +29,17 @@ for_window [class="^.*"] border pixel 2
 # ---- 开机即有终端可确认会话 ----
 exec --no-startup-id xterm -fa "WenQuanYi Micro Hei Mono" -fs 11
 
+# ---- 常驻配件（command -v 守卫：包不在就跳过，配置通用）----
+exec --no-startup-id sh -c 'command -v autotiling >/dev/null 2>&1 && exec autotiling'
+exec --no-startup-id sh -c 'command -v dunst >/dev/null 2>&1 && exec dunst'
+exec --no-startup-id sh -c 'command -v nm-applet >/dev/null 2>&1 && exec nm-applet'
+exec --no-startup-id sh -c 'command -v cbatticon >/dev/null 2>&1 && exec cbatticon' 
+
 # ---- 窗口操作 ----
 bindsym $mod+Return exec xterm
-bindsym $mod+d exec dmenu_run
+bindsym $mod+d exec rofi -show drun
+bindsym $mod+Tab exec rofi -show window
+bindsym $mod+Shift+d exec dmenu_run
 bindsym $mod+Shift+q kill
 bindsym $mod+Shift+r reload
 bindsym $mod+Shift+e exec i3-msg exit
@@ -34,6 +47,7 @@ bindsym $mod+Shift+e exec i3-msg exit
 # ---- 易用快捷键 ----
 bindsym $mod+n exec xterm -T network -e sh -c 'nmtui 2>/dev/null || wpa_cli; exec sh'
 bindsym $mod+s exec --no-startup-id sh -c 'mkdir -p ~/Pictures && scrot ~/Pictures/shot-%Y%m%d-%H%M%S.png'
+bindsym $mod+a exec --no-startup-id sh -c 'mkdir -p ~/Pictures && maim -s ~/Pictures/area-%Y%m%d-%H%M%S.png'
 bindsym $mod+u exec xterm -T processes -e top
 bindsym Print exec --no-startup-id sh -c 'mkdir -p ~/Pictures && scrot ~/Pictures/shot-%Y%m%d-%H%M%S.png'
 

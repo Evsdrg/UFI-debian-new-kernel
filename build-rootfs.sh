@@ -86,7 +86,7 @@ PKGS_BT="bluez,rfkill"
 # —— 我们的 GPU 是 render-only，这点很重要）；i3 在 376MB 内存下比 LXQt 合适；
 # fonts-wqy-microhei 是中文点阵/矢量字体（5MB，比 fonts-noto-cjk 的 91MB 轻）。
 DESKTOP_PKGS="xrdp,xorgxrdp,xserver-xorg-core,xserver-xorg-video-dummy,xserver-xorg-legacy,\
-xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,scrot,\
+xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,scrot,rofi,autotiling,dunst,maim,slop,cbatticon,network-manager-gnome,\
 fonts-wqy-microhei,fonts-dejavu-core,libgl1-mesa-dri,libgbm1,libegl1,libgles2,mesa-utils"
 
 # ---- 文档（man 命令 + 中文手册）----

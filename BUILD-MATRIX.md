@@ -79,6 +79,10 @@ build-rootfs.sh 自动装入镜像）：
   （scrot 已加入 F1 包集）/ Super+u 进程表 / Print 截图
 - i3status 底栏：WiFi/以太 IP、负载、时间（MF32 实机后加 battery 模块）
 - xrdp 栈沿用已验证配置（Xwrapper allowed_users=anybody、xsession 入口）
+- **配件栈**（2026-09-15 研究定稿，详表见 DESKTOP.md）：rofi（启动/切窗）、
+  autotiling（自动分屏）、dunst（通知）、maim+slop（区域截图）、
+  nm-applet+cbatticon（托盘）；刻意不装 picom/壁纸/polybar/flameshot
+  （RDP 带宽或体积原因）。全部 `command -v` 守卫，常驻内存增量 ~35MB。
 
 ## 六、MF32 专项更新（拆解/实测结论入库）
 
