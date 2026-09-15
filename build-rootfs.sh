@@ -61,7 +61,7 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 # /bin/sh，**系统起不来**（这种镜像刷上去就是砖，只能按复位键走 EDL 恢复）。
 PKGS_BASE="login,openssh-server,systemd-sysv,nano,less,bash,coreutils,util-linux,procps,\
 network-manager,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
-chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates"
+chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,dnsmasq"
 
 # ---- 4G / 蜂窝（可用 ROOTFS_4G=0 关掉）----
 # modemmanager 管 ModemManager 服务；qmi/qrtr/rmtfs 是 QMI 通道与 NV 存取；
@@ -418,6 +418,16 @@ EOF
     install -D -m 755 "$WORKDIR/tools/desktop/zh-check.sh" "$STAGE/usr/local/bin/zh-check.sh"
 fi
 
+# --- USB 网络共享（棒子本职：插 PC 即 RNDIS 网卡，网关 10.42.0.1/24）---
+# 内核侧需要 CONFIGFS/RNDIS/extcon/HS-PHY 全内建（common-*-os.config 已设）。
+# NM 档：usb-share 连接 ipv4.method=shared，NM 自动 DHCP/DNS/NAT（dnsmasq 按需
+# 拉起，系统 dnsmasq 服务必须压制，否则抢 53 端口）；native 档资产在
+# tools/net-native/，矩阵接入时替换本段。
+install -D -m 755 "$WORKDIR/tools/usb-gadget.sh" "$STAGE/usr/local/sbin/usb-gadget.sh"
+install -D -m 644 "$WORKDIR/tools/usb-gadget.service" "$STAGE/etc/systemd/system/usb-gadget.service"
+install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
+    "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
+
 # rmtfs must start after the kernel has created its shared-memory device.
 # The node is created by the rmtfs_mem module, so the matching systemd .device
 # unit is not reliably active at boot and rmtfs would be skipped.  Start it from
@@ -590,6 +600,7 @@ MMDEBSTRAP_ARGS=(
 	# STAGE 上必须 chmod -R a+rX 才能让 hook 读到文件，那个会把这里的 600
 	# 变成 644，所以拷进镜像后要重新收权。
 	'--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true'
+	'--customize-hook=if test -f $1/lib/systemd/system/dnsmasq.service; then rm -f $1/etc/systemd/system/multi-user.target.wants/dnsmasq.service $1/lib/systemd/system/multi-user.target.wants/dnsmasq.service; fi' \
 	'--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep'
 	'--customize-hook=rm -f $1/etc/systemd/system/systemd-resolved.service.d/override.conf'
 	# NetworkManager 接管网络：不再启用 networkd / 独立的 wpa_supplicant 实例。
@@ -601,7 +612,7 @@ MMDEBSTRAP_ARGS=(
 	#    设备开机后 wlan0 一直 unavailable。）
 	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
 	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
 	# 清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要清，它会
 	# 从 sockets.target 自动拉起 networkd）、以及早期 networkd 方案遗留的
 	# 每接口 wpa_supplicant 配置。

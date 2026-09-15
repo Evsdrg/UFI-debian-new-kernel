@@ -1,0 +1,9 @@
+#!/usr/sbin/nft -f
+# USB 共享 NAT：把 usb0 侧 PC 的流量伪装到上行口（wlan0 优先，wwan0 兜底）
+table inet nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        oifname "wlan0" masquerade
+        oifname "wwan0" masquerade
+    }
+}

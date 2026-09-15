@@ -1,0 +1,16 @@
+[Unit]
+Description=USB RNDIS network gadget (share network over USB, gw 10.42.0.1)
+# 设备插上 PC 就是 USB 网卡；网络侧由 NM shared 连接（NM 档）或
+# networkd+dnsmasq+nftables（native 档）接管 usb0。
+After=systemd-modules-load.service
+Before=NetworkManager.service networkd.service
+Wants=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/usb-gadget.sh start
+ExecStop=/usr/local/sbin/usb-gadget.sh stop
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

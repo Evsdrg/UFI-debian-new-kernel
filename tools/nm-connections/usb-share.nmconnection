@@ -1,0 +1,15 @@
+# 装到 /etc/NetworkManager/system-connections/usb-share.nmconnection（600）
+# NM shared 模式：设备端自动 10.42.0.1/24，向 PC 发 DHCP，DNS 转发 + NAT 全自动。
+[connection]
+id=usb-share
+type=ethernet
+interface-name=usb0
+autoconnect=true
+
+[ethernet]
+
+[ipv4]
+method=shared
+
+[ipv6]
+method=ignore

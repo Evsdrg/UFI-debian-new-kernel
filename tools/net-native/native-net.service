@@ -1,0 +1,15 @@
+[Unit]
+Description=Native (non-NM) USB sharing: dnsmasq + NAT
+After=systemd-networkd.service wpa_supplicant.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/nat.nft
+ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
+ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.d/usb-share.conf --pid-file=/run/dnsmasq-usb.pid
+ExecStop=/usr/bin/pkill -F /run/dnsmasq-usb.pid
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
