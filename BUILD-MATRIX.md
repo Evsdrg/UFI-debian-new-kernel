@@ -7,7 +7,7 @@
 
 | 档位 | 网络栈 | GPU | 编解码 | 4G | GPS | BT | 中文 | 桌面 | USB 共享 |
 |---|---|---|---|---|---|---|---|---|---|
-| **F1 功能拉满** | NM | ✓ | ✓ | ✓ | n/a* | ✓ | ✓ | sway+xrdp | ✓ |
+| **F1 功能拉满** | NM | ✓ | ✓ | ✓ | n/a* | ✓ | ✓ | i3+xrdp | ✓ |
 | **F2 基础** | NM | ✗ | ✗ | ✓ | n/a* | ✓ | ✓ | ✗ | ✓ |
 | F2-native | 非 NM | ✗ | ✗ | ✓ | n/a* | ✓ | ✓ | ✗ | ✓ |
 | **F3 精简** | NM | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ | ✗ | ✓ |
@@ -63,23 +63,22 @@
   （NM 档的 4G 是 NM 直接管，这条是 native 档唯一新增件）
 - 预置 Wi-Fi 凭据机制沿用（STAGE 拷入 + 600 权限的坑已修）
 
-## 五、F1 的 sway 桌面（预配置要点）
+## 五、F1 的 i3 桌面（已定稿：i3 + xrdp，避开 VNC）
 
-**现实约束先说清**：GPU 是 render-only（无 KMS 显示输出，本机也无屏），sway
-进不了 xrdp 的 Xorg 后端。因此：
+2026-09-15 定稿：F1 桌面从 sway 改回 **i3wm**——i3+ xrdp 是本工作区
+**已实测跑通**的栈（X11/RDP，376MB 内存实测可用，GPU 推流时 sway 仅作为
+GPU-STREAMING 推流链的合成器使用，与桌面档无关），完全避开 VNC 通道。
 
-- **sway 以 headless 后端跑**（`WLR_BACKENDS=headless`，固定 1280x720 虚拟输出）
-  + **wayvnc** 做远程桌面（这是 sway 的主远程路径）
-- **xrdp 照装**，服务 X11 会话（沿用已跑通的 i3/xterm 栈）作为 X11 兼容层；
-  RDP 里跑不了 sway，这是 Wayland/X11 边界，不是配置问题
-- 预配置内容（写入 `/etc/xdg/sway/config` 或 skeleton）：
-  - `$mod` = Super；`foot` 终端绑定；应用菜单绑定
-  - headless 输出分辨率锁定 1280x720；禁用锁屏/息屏（headless 无意义）
-  - swaybar 状态：网络、电量（MF32）、时间
-  - wayvnc 监听 0.0.0.0:5900，密码可配
-  - 中文环境：noto-cjk + 可选 fcitx5（376MB 内存上偏重，标可选）
-- 内存预算：F1 在 376MB MemTotal（4G 全开）上跑——此前 i3+xrdp+GPU 推流
-  26-28fps 实测可行，sway+wayvnc 同量级；**QEMU 512MB 冒烟必须过**（惯例）
+预配置已落地（`tools/desktop/i3-config` + `tools/desktop/i3status.conf`，
+build-rootfs.sh 自动装入镜像）：
+
+- Mod4(Super) 修饰键；文泉驿微米黑中文字体；纯深色背景 + 细边框 + 4px 间隙
+  （RDP 压缩友好）
+- 易用快捷键：Super+Enter 终端 / Super+d dmenu / **Super+n 网络管理
+  （nmtui，非 NM 档自动回退 wpa_cli）** / **Super+s 截图到 ~/Pictures**
+  （scrot 已加入 F1 包集）/ Super+u 进程表 / Print 截图
+- i3status 底栏：WiFi/以太 IP、负载、时间（MF32 实机后加 battery 模块）
+- xrdp 栈沿用已验证配置（Xwrapper allowed_users=anybody、xsession 入口）
 
 ## 六、MF32 专项更新（拆解/实测结论入库）
 
@@ -103,6 +102,6 @@
 | 2 | USB 共享内核 config + gadget 脚本 + NM shared 连接 | fastboot boot 干跑，PC 侧看网卡与网关 |
 | 3 | 非 NM 网络栈资产（networkd/wpa/dnsmasq/nft 模板 + ROOTFS_NET 开关） | QEMU 冒烟 |
 | 4 | 档位矩阵化：F1..F4 × NET 写进 build-rootfs.sh（STAGE/产物名带档位+栈） | 7 个镜像构建 |
-| 5 | F1 sway/wayvnc/xrdp 预配置资产 | QEMU 到 sway 会话 + vnc 截图 |
+| 5 ✓ | F1 i3 预配置资产（i3-config/i3status.conf/scrot） | QEMU 到 i3 会话 + RDP 截图 |
 | 6 | 7 个 ufi103s rootfs 全量构建 + 冒烟 | 每个镜像 QEMU 到 login、0 FAILED |
 | 7 | mf32 bring-up 后套用（起步 F4-native） | 实机 |

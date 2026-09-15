@@ -86,7 +86,7 @@ PKGS_BT="bluez,rfkill"
 # —— 我们的 GPU 是 render-only，这点很重要）；i3 在 376MB 内存下比 LXQt 合适；
 # fonts-wqy-microhei 是中文点阵/矢量字体（5MB，比 fonts-noto-cjk 的 91MB 轻）。
 DESKTOP_PKGS="xrdp,xorgxrdp,xserver-xorg-core,xserver-xorg-video-dummy,xserver-xorg-legacy,\
-xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,\
+xinit,x11-xserver-utils,x11-utils,dbus-x11,i3-wm,i3status,dmenu,xterm,scrot,\
 fonts-wqy-microhei,fonts-dejavu-core,libgl1-mesa-dri,libgbm1,libegl1,libgles2,mesa-utils"
 
 # ---- 文档（man 命令 + 中文手册）----
@@ -409,6 +409,9 @@ EOF
 
     # i3 配置：镜像里给 root 预置一份，避免首次登录弹配置向导
     install -D -m 644 "$WORKDIR/tools/desktop/i3-config" "$STAGE/root/.config/i3/config"
+
+    # i3status 数据源（网络/负载/时间；MF32 电量模块实机校准后加）
+    install -D -m 644 "$WORKDIR/tools/desktop/i3status.conf" "$STAGE/etc/i3status.conf"
 
     # 排错用的辅助脚本（在桌面里点开就能看 GPU/编解码/中文状态）
     install -D -m 755 "$WORKDIR/tools/desktop/gpu-status.sh" "$STAGE/usr/local/bin/gpu-status.sh"

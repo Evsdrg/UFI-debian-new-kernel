@@ -1,48 +1,75 @@
-# OpenStick 最简 i3 配置
+# OpenStick i3 预配置（F1 功能拉满档：i3 + xrdp）
 #
 # 面向 376MB 内存的 RDP 会话：不启动合成器、不启动桌面环境守护进程，
-# 只开一个终端加状态栏。字体用文泉驿微米黑（镜像里已装，覆盖中英文）。
+# 字体用文泉驿微米黑（镜像已装 fonts-wqy-microhei，覆盖中英文）。
+# 修饰键 Mod4 = Super（xrdp 全屏会话下 Super 正常送达；若客户端吞键，
+# 可把 set $mod 改成 Mod1(Alt)）。
 #
-# 使用方法同标准 i3：Mod4(Super) 是修饰键。
-#   Super+Enter  新终端        Super+d  运行命令
-#   Super+Shift+q 关窗         Super+Shift+r 重载配置
-#   Super+1/2/3  切换工作区    Super+f  全屏
+# 快速参考（完整键位见下方 bindsym）：
+#   Super+Enter 新终端   Super+d 运行程序   Super+n 网络管理
+#   Super+s 截图(~/ Pictures)               Super+u 进程表
+#   Super+Shift+q 关窗   Super+Shift+r 重载  Super+Shift+e 退出 i3
 
 set $mod Mod4
 font pango:WenQuanYi Micro Hei 10
 
-# 起一个终端，方便确认会话可用
+# ---- RDP 友好的外观：纯深色背景（客户端压缩友好）、细边框、少量间隙 ----
+exec --no-startup-id xsetroot -solid "#202028"
+default_border pixel 2
+hide_edge_borders smart
+gaps inner 4
+gaps top 2
+for_window [class="^.*"] border pixel 2
+
+# ---- 开机即有终端可确认会话 ----
 exec --no-startup-id xterm -fa "WenQuanYi Micro Hei Mono" -fs 11
 
-# 窗口操作
+# ---- 窗口操作 ----
 bindsym $mod+Return exec xterm
 bindsym $mod+d exec dmenu_run
 bindsym $mod+Shift+q kill
 bindsym $mod+Shift+r reload
 bindsym $mod+Shift+e exec i3-msg exit
 
-# 焦点移动
+# ---- 易用快捷键 ----
+bindsym $mod+n exec xterm -T network -e sh -c 'nmtui 2>/dev/null || wpa_cli; exec sh'
+bindsym $mod+s exec --no-startup-id sh -c 'mkdir -p ~/Pictures && scrot ~/Pictures/shot-%Y%m%d-%H%M%S.png'
+bindsym $mod+u exec xterm -T processes -e top
+bindsym Print exec --no-startup-id sh -c 'mkdir -p ~/Pictures && scrot ~/Pictures/shot-%Y%m%d-%H%M%S.png'
+
+# ---- 焦点移动（也支持 vi 键）----
 bindsym $mod+Left focus left
 bindsym $mod+Right focus right
 bindsym $mod+Up focus up
 bindsym $mod+Down focus down
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
 
-# 布局
-bindsym $mod+h split h
-bindsym $mod+v split v
+# ---- 布局 ----
+bindsym $mod+v split h
+bindsym $mod+x split v
 bindsym $mod+f fullscreen toggle
+bindsym $mod+Shift+space floating toggle
 
-# 工作区
+# ---- 工作区 ----
 bindsym $mod+1 workspace number 1
 bindsym $mod+2 workspace number 2
 bindsym $mod+3 workspace number 3
+bindsym $mod+4 workspace number 4
 bindsym $mod+Shift+1 move container to workspace number 1
 bindsym $mod+Shift+2 move container to workspace number 2
 bindsym $mod+Shift+3 move container to workspace number 3
+bindsym $mod+Shift+4 move container to workspace number 4
 
-# 状态栏
+# ---- 状态栏（/etc/i3status.conf：网络/负载/时间；MF32 加 battery 模块）----
 bar {
     status_command i3status
     position bottom
     font pango:WenQuanYi Micro Hei 9
+    colors {
+        background #101018
+        statusline #c8c8d0
+    }
 }
