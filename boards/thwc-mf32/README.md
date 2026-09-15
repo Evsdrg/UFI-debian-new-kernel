@@ -57,6 +57,7 @@ dtsi 代次与我们的 7.1.13 同期（pm8916-lbc / bms-vm / pwm / psci domain-
 | 3 | venus_mem 二选一：提到 ≥5MB（要转码）或照 no4g-novenus 禁用（省内存） | 原厂 1MB 不够任何实际转码 |
 | 4 | `pon@800` / pwrkey / 看门狗(60s) 沿用原厂 | 见 POWER-KEYS.md |
 | 5 | 充电/电量计（lbc + bms-vm）节点沿用原厂，配 `mf32.config.fragment` 开驱动 | 电池管理前提 |
+| 6 | SD 卡 CD 引脚：原厂定义了 `pmx-sdc2-cd-pin-state` 但 pinctrl-0 **未引用**，板级 DTS 补上引用（GPIO38 上拉） | 插卡检测可靠性；驱动侧其余零缺口 |
 
 其中 #1 的 DTS 写法（板级 dts 顶层）：
 

@@ -42,7 +42,7 @@ def _load_env() -> dict:
 _V = _load_env()
 
 KERNEL_VERSION = _V["KERNEL_VERSION"]
-KERNEL_LOCALVERSION = _V.get("KERNEL_LOCALVERSION", "-ufi003")
+KERNEL_LOCALVERSION = _V.get("KERNEL_LOCALVERSION", "-ufi103s")
 
 KERNEL_SRC = BASE / f"source/linux-{KERNEL_VERSION}"
 KERNEL_BASE_CFG = BASE / f"source/configs/common-{KERNEL_VERSION}-os.config"
@@ -51,7 +51,7 @@ KERNEL_BASE_CFG = BASE / f"source/configs/common-{KERNEL_VERSION}-os.config"
 KERNEL_RELEASE = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-dirty"
 KERNEL_RELEASE_VENUS = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
 
-KERNEL_BUILD_DIR = BASE / f"out/build-ufi003-{KERNEL_VERSION}-os"
+KERNEL_BUILD_DIR = BASE / f"out/build-ufi103s-{KERNEL_VERSION}-os"
 IMAGE_GZ = KERNEL_BUILD_DIR / "arch/arm64/boot/Image.gz"
 
 MODULES_DIR = BASE / f"shared/modules/{KERNEL_RELEASE}"

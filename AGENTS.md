@@ -315,6 +315,12 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 `tools/kver.sh`（shell）与 `tools/kver.py`（Python）。所有脚本从它派生路径与
 release 字符串。**升级内核只改这个文件**，脚本不要硬编码版本号。
 
+**内核命名 = 设备名，不用 PCB 板号**（2026-09-15 起）：基线 `-ufi103s`、
+Venus/GPU 变体 `-ufi103s-venus`、MF32 用 `-mf32`。`-ufi003`（PCB 号）已弃用；
+已刷入设备的旧内核/模块树仍是 `-ufi003` 名——**重刷时内核与模块树必须成对
+更新到新名字**，只刷 boot.img 会让模块全部静默失配。重建 6.18.49 遗留产物时
+用 `KERNEL_LOCALVERSION=-ufi003` 覆盖（其配置片段未改名）。
+
 重建旧版本（回退验证）用环境变量覆盖：
 
 ```sh

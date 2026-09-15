@@ -30,7 +30,7 @@ fi
 . "$KVER_ENV"
 
 : "${KERNEL_VERSION:?kernel-version.env 里缺 KERNEL_VERSION}"
-: "${KERNEL_LOCALVERSION:=-ufi003}"
+: "${KERNEL_LOCALVERSION:=-ufi103s}"
 
 KERNEL_SRC="${KERNEL_SRC:-$BASE/source/linux-$KERNEL_VERSION}"
 KERNEL_BASE_CFG="${KERNEL_BASE_CFG:-$BASE/source/configs/common-$KERNEL_VERSION-os.config}"
@@ -54,4 +54,4 @@ ROOTFS_BASE="${ROOTFS_BASE:-$BASE/shared/rootfs/debian13-arm64-ufi103s-${KERNEL_
 ROOTFS_VENUS="${ROOTFS_VENUS:-$BASE/shared/rootfs/debian13-arm64-ufi103s-${KERNEL_VERSION}-venus.ext4}"
 
 # 基线构建目录（Image.gz 所在）。
-KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BASE/out/build-ufi003-${KERNEL_VERSION}-os}"
+KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BASE/out/build-ufi103s-${KERNEL_VERSION}-os}"

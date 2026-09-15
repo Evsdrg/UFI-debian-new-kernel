@@ -81,10 +81,11 @@ run
 chk S4 bat:1 trigger=timer delay_on=250 delay_off=250
 chk S4 red:status trigger=timer delay_on=250 delay_off=250
 
-# 场景 5：危急但充电中 → 不进红快闪，条按充电渲染
+# 场景 5：危急但充电中 → 不进红快闪，改显品红（红+蓝），条按充电渲染
 setbatt 5 Charging
 run
-chk S5 red:status brightness=0
+chk S5 red:status brightness=1 trigger=none
+chk S5 blue:status brightness=1 trigger=none
 chk S5 bat:2 trigger=timer delay_on=500 delay_off=500
 
 # 场景 6：4G 会话 → 绿常亮
@@ -134,6 +135,20 @@ QUIET=1 run
 chk S12 bat:4 brightness=1
 chk S12 blue:status brightness=0
 rm -f "$T/state/peek_until"
+
+# 场景 13：充电中 → 品红（红+蓝同亮），绿灭
+setbatt 90 Charging; touch "$T/nmcli-wifi"; rm -f "$T/nmcli-wwan"
+run
+chk S13 red:status brightness=1
+chk S13 blue:status brightness=1
+chk S13 green:status brightness=0
+
+# 场景 14：充电 + 4G 会话 → 品红优先于绿
+echo "wwan0:connected" > "$T/nmcli-wwan"
+run
+chk S14 red:status brightness=1
+chk S14 blue:status brightness=1
+chk S14 green:status brightness=0
 
 echo "----------------------------------------"
 echo "PASS=$pass FAIL=$fail"

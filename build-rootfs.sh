@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Debian 13 (trixie) arm64 rootfs builder for OpenStick (UFI103s/ufi003 为默认板)
+# Debian 13 (trixie) arm64 rootfs builder for OpenStick (默认板 UFI103s)
 # Rootless: mmdebstrap unshare mode + qemu-user binfmt, 后处理经 --customize-hook
 #
 # 网络方案: NetworkManager（为了方便用户上手；替代早期的 networkd + wpa_supplicant）。
@@ -362,7 +362,7 @@ install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d
         echo "rpmsg_wwan_ctrl"
     fi
     echo "zram"
-} > "$STAGE/etc/modules-load.d/ufi003.conf"
+} > "$STAGE/etc/modules-load.d/ufi103s.conf"
 
 # --- Adreno 306 GPU（render-only）---
 # 只在 full 档位启用：精简档位不装 mesa（libgl1-mesa-dri 等），带上 drm/msm
@@ -383,8 +383,8 @@ fi
 
 # 上面写了"开机加载 drm/msm"，但如果主模块树里根本没有这两个模块，开机只会
 # 静默失败（modprobe 报 "Module drm not found"），表现为 /dev/dri 缺失、GL 退回
-# llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 <版本>-ufi003-gpu 树里，
-# 而 <版本>-ufi003-venus 树不含它们——这里必须挡住这个错配。
+# llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 <版本>-ufi103s-gpu 树里，
+# 而 <版本>-ufi103s-venus 树不含它们——这里必须挡住这个错配。
 if [[ "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
     echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
     echo "      MODULE_TREE=$MODULE_TREE" >&2
@@ -423,7 +423,7 @@ cat > "$STAGE/etc/udev/rules.d/60-rmtfs-autostart.rules" <<'EOF'
 ACTION=="add", KERNEL=="qcom_rmtfs_mem1", SUBSYSTEM=="rmtfs", TAG+="systemd", ENV{SYSTEMD_WANTS}+="rmtfs.service"
 EOF
 mkdir -p "$STAGE/etc/systemd/system/rmtfs.service.d"
-cat > "$STAGE/etc/systemd/system/rmtfs.service.d/ufi003.conf" <<'EOF'
+cat > "$STAGE/etc/systemd/system/rmtfs.service.d/ufi103s.conf" <<'EOF'
 [Unit]
 Wants=systemd-modules-load.service
 After=systemd-modules-load.service

@@ -1,5 +1,6 @@
 #!/bin/sh
 # MF32 LED 状态机（RGB 系统状态 + 4 颗 LED 电量条）
+# RGB 允许的混色只有品红（红+蓝相邻）；绿单独放置，禁止参与混色。
 #
 # 设计文档：boards/thwc-mf32/LED-SCHEME.md。要点：
 #   * RGB 一次只亮一个通道，优先级仲裁（红系 > 蓝慢闪 > 绿系 > 蓝常亮）
@@ -81,20 +82,25 @@ led_set() {  # led none|solid|fast|slow|fill
     esac
 }
 
-# RGB 一次只亮一个通道：先全灭，再点亮目标色
-rgb_set() {  # red|green|blue:none|solid|fast|slow
+# RGB：单色通道一次一个；品红=红+蓝（灯珠相邻混色可靠，拆解确认）。
+# 含绿的混色禁止（绿单独放置）。
+rgb_set() {  # red|green|blue|magenta:none|solid|fast|slow
     _c=${1%%:*}; _m=${1#*:}
     case "$_c" in
-        red)   _target=$LED_RED   ;;
-        green) _target=$LED_GREEN ;;
-        blue)  _target=$LED_BLUE  ;;
+        red)     _target=$LED_RED                 ;;
+        green)   _target=$LED_GREEN               ;;
+        blue)    _target=$LED_BLUE                ;;
+        magenta) _target="$LED_RED $LED_BLUE"     ;;
         *) return 0 ;;
     esac
     for _ch in "$LED_RED" "$LED_GREEN" "$LED_BLUE"; do
-        [ "$_ch" = "$_target" ] || led_off "$_ch"
+        case " $_target " in
+            *" $_ch "*) ;;
+            *) led_off "$_ch" ;;
+        esac
     done
     [ "$_m" = none ] && return 0
-    led_set "$_target" "$_m"
+    for _ch in $_target; do led_set "$_ch" "$_m"; done
 }
 
 all_off() {
@@ -129,11 +135,12 @@ net_state() {
 
 # ---------------------------------------------------------------- 渲染
 
-render_rgb() {  # $1=crit $2=failed $3=low $4=wifi_ok $5=wwan_state
-    if [ "$1" = 1 ]; then rgb_set red:fast;   return 0; fi
-    if [ "$2" = 1 ]; then rgb_set red:slow;   return 0; fi
-    if [ "$3" = 1 ]; then rgb_set red:solid;  return 0; fi
-    if [ "$4" = 0 ]; then rgb_set blue:slow;  return 0; fi
+render_rgb() {  # $1=crit $2=failed $3=low $4=wifi_ok $5=wwan_state $6=charging
+    if [ "$1" = 1 ]; then rgb_set red:fast;     return 0; fi
+    if [ "$2" = 1 ]; then rgb_set red:slow;     return 0; fi
+    if [ "$3" = 1 ]; then rgb_set red:solid;    return 0; fi
+    if [ "$4" = 0 ]; then rgb_set blue:slow;    return 0; fi
+    if [ "$6" = 1 ]; then rgb_set magenta:solid; return 0; fi
     case "$5" in
         session)    rgb_set green:solid ;;
         connecting) rgb_set green:fast ;;
@@ -203,7 +210,7 @@ once() {
         [ "$_pct" -le "$LOW_PCT"  ] && [ "$_chg" != 1 ] && _low=1
     fi
     _wifi_ok=${wifi:-1}
-    render_rgb "$_crit" "$_failed" "$_low" "$_wifi_ok" "${wwan:-idle}"
+    render_rgb "$_crit" "$_failed" "$_low" "$_wifi_ok" "${wwan:-idle}" "$_chg"
 
     # --- 电量条 ---
     # QUIET（夜间静音）下稳态条全灭；电源键 peek（mf32-powerkey.sh 写入

@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 电源键 | PMIC PON 块（KPDPWR_N 专用引脚，非 GPIO） | `pwrkey` okay | KEY_POWER(116)，防抖 15.6ms |
 | Restart 通孔键 | TLMM GPIO34，低有效，上拉 | `gpio-keys/button-restart` okay | KEY_RESTART(408) |
-| 第二 PMIC 键 (resin) | KPDPWR_N 旁边的 RESIN_N | **disabled** | 无（板上大概率没这颗键） |
+| 第二 PMIC 键 (resin) | KPDPWR_N 旁边的 RESIN_N | **disabled** | 无——**拆解确认（2026-09-15）：第三键只有焊盘未上件**，全机仅 pwrkey 与 reset 两键可用，resin 永久保持 disabled |
 
 ## 电源键的完整生命周期（全部有驱动证据）
 
