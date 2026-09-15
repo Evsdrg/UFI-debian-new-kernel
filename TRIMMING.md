@@ -5,11 +5,21 @@
 
 ## 三档对比（7.1.13，实测内容体积）
 
-| 档位 | 内容体积 | 含什么 | 不含什么 |
-|---|---|---|---|
-| `full`（默认） | **760 MB** | 桌面(xrdp+i3)、GPU/mesa、4G、man、中文、蓝牙 | — |
-| `minimal` | **294 MB** | **nmtui** + 完整 4G、SSH、蓝牙、中文、zram、LED | 桌面、mesa、man |
-| `tiny` | **239 MB** | **nmtui**、SSH、蓝牙、中文、zram、LED | 桌面、mesa、man、**4G** |
+| 档位 | 内容体积 | 中文化 | 蓝牙 | 4G | 另含 |
+|---|---|---|---|---|---|
+| `full`（默认） | **760 MB** | ✅ | ✅ | ✅ | 桌面(xrdp+i3)、GPU/mesa、man |
+| `minimal` | **294 MB** | ✅ | ✅ | ✅ | **nmtui**、SSH、zram、LED |
+| `tiny` | **211 MB** | ❌ | ❌ | ❌ | **nmtui**、SSH、zram、LED |
+
+三个维度（中文化 / 蓝牙 / 4G）是**正交开关**，不是绑死在档位上：
+
+| 开关 | 默认 | 作用 |
+|---|---|---|
+| `ROOTFS_ZH` | full/minimal=`1`，tiny=`0` | 中文 locale + NM 翻译（关掉则用 `C.UTF-8`） |
+| `ROOTFS_BT` | full/minimal=`1`，tiny=`0` | bluez（蓝牙用户态） |
+| `ROOTFS_4G` | full/minimal=`1`，tiny=`0` | ModemManager/qmi/qrtr/rmtfs + modem 固件 |
+
+所以「无 4G 但保留中文与蓝牙」= `ROOTFS_FLAVOR=tiny ROOTFS_ZH=1 ROOTFS_BT=1`。
 
 内容体积 = 把镜像 loop 挂载后 `du -sm`；**不要用 ext4 文件大小比较**
 （mmdebstrap 会按内部估算 padding，同一内容可能有 ±40MB 差异）。
@@ -37,7 +47,9 @@ bash build-rootfs.sh
 |---|---|---|
 | `libLLVM.so.19.1` + `mesa-libgallium` | **151 MB** | 精简档位不装 mesa（GPU 是 render-only，无显示面板，本来也用不上） |
 | `usr/share/doc` + `man` + `usr/share/locale` | 114 MB | `path-exclude`（保留各包 `copyright`，Debian 政策要求） |
-| `modem.*` 固件（4G） | **39 MB** | tiny 档位删除（不装 ModemManager、不加载 modem 模块，固件永不被读取） |
+| `modem.*` 固件（4G） | **39 MB** | 关掉 4G 时删除（不装 ModemManager、不加载 modem 模块，固件永不被读取） |
+| `usr/share/i18n` + `locales`（中文） | **~23 MB** | 关掉中文时删除（`i18n` 17MB 是大头），改用 libc-bin 内建的 `C.UTF-8` |
+| `bluez`（蓝牙） | **~5.2 MB** | 关掉蓝牙时删除。注意 `network-manager` 依赖 `libbluetooth3`(336KB)，那个小库去不掉 |
 
 体积大头来自 **mesa → libLLVM**：连一个只做 3D 渲染的 render 节点都要拖进
 117MB 的 LLVM。若将来要做 GPU 分区镜像，这是首先要解决的依赖。
@@ -45,7 +57,28 @@ bash build-rootfs.sh
 内核侧本已精简：模块树 26MB（678 个），最大子系统（`drivers/net`）仅 2.4MB，
 可压缩空间远小于固件与 mesa。
 
-## 两个必须显式声明的东西（否则镜像不可启动）
+## 两个构建陷阱（都实测踩过）
+
+1. **`/etc/default/locale` 是符号链接**，指向 `../locale.conf`。往它里面 `cp`
+   会两难：链接悬空时 `cp` 直接拒绝（`not writing through dangling symlink`），
+   而它是否有效取决于 `locales` 包是否安装 —— 所以"关掉中文"会连带把这条路径
+   搞坏。**解法：写规范目标 `/etc/locale.conf`**（systemd 与 PAM 都直接读它），
+   并且用 `grep LANG= /etc/locale.conf` 断言，不用 `update-locale`。
+2. **语言 hook 必须放在 STAGE 拷贝之后**。它们要断言镜像里的
+   `/etc/locale.conf`，放在拷贝之前会因文件还不存在而失败
+   （`command failed: grep -q ... /etc/default/locale`）。数组里 hook 的顺序
+   就是执行顺序，别只看逻辑顺序。
+
+## 模块树必须与内核配对（不是精简缺陷，是使用前提）
+
+`MODULE_TREE` 的 release 必须与要刷的那个 boot 镜像的内核 release **一致**，
+否则开机 `modprobe` 找不到模块。实测踩到：给 tiny 传了 baseline 树
+（`7.1.13-ufi003-dirty`）而设备/测试内核是 venus+gpu 变体
+（`7.1.13-ufi003-venus-dirty`），结果 QEMU 里 `zram-setup.service` FAILED；
+换成配对的 gpu 树后 0 FAILED。**QEMU 冒烟的通过标准应包含"无 FAILED 单元"**，
+不要只看有没有到 login。
+
+## 必须显式声明的包（否则镜像不可启动）
 
 ### `systemd-sysv` —— 提供 `/usr/sbin/init`
 

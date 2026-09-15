@@ -60,12 +60,26 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 # 档位移除 4G 包后那条链断了，镜像里没有 /sbin/init，内核找不到 init 直接落到
 # /bin/sh，**系统起不来**（这种镜像刷上去就是砖，只能按复位键走 EDL 恢复）。
 PKGS_BASE="login,openssh-server,systemd-sysv,nano,less,bash,coreutils,util-linux,procps,\
-network-manager,network-manager-l10n,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
-chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,locales,bluez,rfkill"
+network-manager,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
+chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates"
 
-# ---- 4G / 蜂窝（modemmanager 管 ModemManager 服务；qmi/qrtr/rmtfs 是 QMI 通道与
-#      NV 存取；usb-modeswitch 处理模组从存储模式切到 modem 模式）----
+# ---- 4G / 蜂窝（可用 ROOTFS_4G=0 关掉）----
+# modemmanager 管 ModemManager 服务；qmi/qrtr/rmtfs 是 QMI 通道与 NV 存取；
+# usb-modeswitch 处理模组从存储模式切到 modem 模式。
 PKGS_4G="modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch"
+
+# ---- 中文化（可用 ROOTFS_ZH=0 关掉）----
+# locales        ：提供 locale-gen/update-locale 与 /usr/share/i18n（**17MB 的大头**）
+# network-manager-l10n：nmcli/nmtui 的中文翻译（NM 主包只 Recommends 它）
+#   关掉中文时这两项都不装，LANG 改设 C.UTF-8 —— 它由 libc-bin 内建提供，
+#   不依赖 locales 包，所以不装也能有 UTF-8 环境。
+PKGS_ZH="locales,network-manager-l10n"
+
+# ---- 蓝牙（可用 ROOTFS_BT=0 关掉）----
+# bluez 是 daemon + bluetoothctl/hciconfig 等工具（约 5.2MB）。
+# 注意：`network-manager` 本身依赖 `libbluetooth3`（336KB），那个小库去不掉，
+# 所以关蓝牙省的是 bluez 那 5MB，不是全部蓝牙相关。
+PKGS_BT="bluez,rfkill"
 
 # ---- 文档（man 命令 + 中文手册）----
 PKGS_DOC="man-db,manpages-zh"
@@ -73,29 +87,49 @@ PKGS_DOC="man-db,manpages-zh"
 # ---- 基准测试工具 ----
 PKGS_BENCH="iperf3"
 
-# 镜像档位：
-#   full    （默认）现状：桌面/xrdp/GPU + 4G + 中文 + man
-#   minimal （任务2）无桌面、无 GPU/mesa、无 man；**保留 nmtui + 4G** + 中文 + SSH
-#   tiny    （任务3）在 minimal 基础上**移除 4G**
-# 说明：nmtui 就在 network-manager 包里（只需 libnewt/libslang），所以精简掉
-# 桌面后 nmtui 依然可用；实测它不依赖 perl/python。
+# 镜像档位与默认开关：
+#   full    桌面/xrdp/GPU + 4G + 中文 + 蓝牙 + man
+#   minimal 无桌面/mesa/man；**保留 nmtui + 4G** + 中文 + 蓝牙
+#   tiny    在 minimal 基础上**移除 4G**，且默认**再关掉中文与蓝牙**
+#
+# 中文化/蓝牙/4G 是三个**正交**维度，所以做成独立开关而不是继续加档位
+# （档位只决定桌面与 man 这类"打包级"差异）：
+#   ROOTFS_ZH=0|1   中文（locales + NM 翻译）  默认 full/minimal=1，tiny=0
+#   ROOTFS_BT=0|1   蓝牙（bluez）              默认 full/minimal=1，tiny=0
+#   ROOTFS_4G=0|1   4G（ModemManager 那一套）  默认 full/minimal=1，tiny=0
+# 例：想要"无 4G 但保留中文与蓝牙"，用
+#   ROOTFS_FLAVOR=tiny ROOTFS_ZH=1 ROOTFS_BT=1
 ROOTFS_FLAVOR="${ROOTFS_FLAVOR:-full}"
 
 case "$ROOTFS_FLAVOR" in
 full)
-    PKGS_EXTRA="$PKGS_BASE,$PKGS_4G,$PKGS_DOC,$PKGS_BENCH,$DESKTOP_PKGS"
-    ;; 
+    PKGS_EXTRA="$PKGS_BASE,$PKGS_DOC,$PKGS_BENCH,$DESKTOP_PKGS"
+    _def_zh=1; _def_bt=1; _def_4g=1
+    ;;
 minimal)
-    PKGS_EXTRA="$PKGS_BASE,$PKGS_4G"
-    ;; 
+    PKGS_EXTRA="$PKGS_BASE"
+    _def_zh=1; _def_bt=1; _def_4g=1
+    ;;
 tiny)
     PKGS_EXTRA="$PKGS_BASE"
-    ;; 
+    _def_zh=0; _def_bt=0; _def_4g=0
+    ;;
 *)
     echo "未知 ROOTFS_FLAVOR: $ROOTFS_FLAVOR（可选 full|minimal|tiny）" >&2
     exit 2
-    ;; 
+    ;;
 esac
+
+ROOTFS_ZH="${ROOTFS_ZH:-$_def_zh}"
+ROOTFS_BT="${ROOTFS_BT:-$_def_bt}"
+ROOTFS_4G="${ROOTFS_4G:-$_def_4g}"
+for _v in ZH BT 4G; do
+    eval "_cur=\$ROOTFS_$_v"
+    case "$_cur" in 0|1) ;; *) echo "ROOTFS_$_v 只能是 0 或 1（得到 '$_cur'）" >&2; exit 2 ;; esac
+done
+[[ "$ROOTFS_ZH" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_ZH"
+[[ "$ROOTFS_BT" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_BT"
+[[ "$ROOTFS_4G" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_4G"
 
 # 桌面默认在 full 档位下装上；其它档位强制关闭（ROOTFS_DESKTOP=0 亦可显式关闭）。
 ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-$([[ $ROOTFS_FLAVOR == full ]] && echo 1 || echo 0)}"
@@ -103,8 +137,13 @@ if [[ "$ROOTFS_DESKTOP" == 1 && "$ROOTFS_FLAVOR" != full ]]; then
     echo "ROOTFS_DESKTOP=1 与 ROOTFS_FLAVOR=$ROOTFS_FLAVOR 冲突（该档位不含桌面）" >&2
     exit 2
 fi
+# 桌面需要中文字体/中文环境，和关中文是矛盾的。
+if [[ "$ROOTFS_DESKTOP" == 1 && "$ROOTFS_ZH" == 0 ]]; then
+    echo "ROOTFS_DESKTOP=1 需要 ROOTFS_ZH=1（桌面含中文字体）" >&2
+    exit 2
+fi
 
-# ---- 体积裁剪：文档 / man / 非中文 locale ----
+# ---- 体积裁剪：文档 / man / locale ----
 # mmdebstrap 用 --dpkgopt 传 dpkg 的 path-exclude/path-include（不是 debootstrap
 # 那种顶层 --path-exclude，写成后者会 "Unknown option" 直接失败）。
 # 只在精简档位启用；copyright 按 Debian 政策必须保留，所以单独 include 回来。
@@ -115,9 +154,12 @@ if [[ "$ROOTFS_FLAVOR" != full ]]; then
         "--dpkgopt=path-include=/usr/share/doc/*/copyright"
         "--dpkgopt=path-exclude=/usr/share/man/*"
         "--dpkgopt=path-exclude=/usr/share/locale/*"
-        "--dpkgopt=path-include=/usr/share/locale/zh_CN/*"
         "--dpkgopt=path-include=/usr/share/locale/locale.alias"
     )
+    # 保留中文翻译仅当需要中文时；关掉中文则连 /usr/share/locale 下的中文一并裁掉。
+    if [[ "$ROOTFS_ZH" == 1 ]]; then
+        PATH_EXCLUDES+=("--dpkgopt=path-include=/usr/share/locale/zh_CN/*")
+    fi
 fi
 
 # Variant hook: comma-separated extra packages (e.g. ffmpeg,v4l-utils) and
@@ -154,12 +196,22 @@ EOF
 # database is seeded to Noninteractive by a hook further below.
 printf 'DEBIAN_FRONTEND=noninteractive\n' > "$STAGE/etc/environment"
 
-# ---------------------------------------------------------------- 语言（中文）
-# 系统默认中文。仅写 locale.gen 是不够的：mmdebstrap 的 apt variant 不会跑
-# locale-gen，不生成的话 `locale -a` 里没有 zh_CN，中文全是乱码/回退到 C。
-# 真正的 locale-gen 与 LANG 在下面的 customize-hook 里做（需要 chroot）。
-mkdir -p "$STAGE/etc/default"
-cat > "$STAGE/etc/default/locale" <<'EOF'
+# ---------------------------------------------------------------- 语言
+# 中文档位（ROOTFS_ZH=1）：系统默认中文。仅写 locale.gen 是不够的：
+# mmdebstrap 的 apt variant 不会跑 locale-gen，不生成的话 `locale -a` 里没有
+# zh_CN，中文全是乱码/回退到 C。真正的 locale-gen 在下面的 customize-hook 里做。
+#
+# 关中文档位（ROOTFS_ZH=0）：不装 locales 包，改用 **C.UTF-8** —— 它由 libc-bin
+# 内建提供（/usr/lib/locale/C.utf8），不装 locales 也有 UTF-8 环境，只是没有
+# 中文翻译与中文 locale 定义。
+#
+# 写的是 **/etc/locale.conf**，不是 /etc/default/locale：Debian 13 里后者是指向
+# ../locale.conf 的符号链接，往它里面 cp 会两难——链接悬空时 cp 直接拒绝
+# （"not writing through dangling symlink"），而它是否有效取决于 locales 包是否
+# 安装。写规范目标 locale.conf 即可绕开（systemd 与 PAM 都直接读它）。
+mkdir -p "$STAGE/etc"
+if [[ "$ROOTFS_ZH" == 1 ]]; then
+    cat > "$STAGE/etc/locale.conf" <<'EOF'
 # 由镜像构建脚本写入：系统默认中文（简体，UTF-8）
 LANG=zh_CN.UTF-8
 LANGUAGE=zh_CN:zh
@@ -171,6 +223,12 @@ LC_ADDRESS=zh_CN.UTF-8
 LC_TELEPHONE=zh_CN.UTF-8
 LC_MEASUREMENT=zh_CN.UTF-8
 EOF
+else
+    cat > "$STAGE/etc/locale.conf" <<'EOF'
+# 由镜像构建脚本写入：关掉中文的档位，用 C.UTF-8（libc-bin 内建提供）。
+LANG=C.UTF-8
+EOF
+fi
 
 # ---------------------------------------------------------------- 网络（NetworkManager）
 # 用 NetworkManager 而不是 networkd + wpa_supplicant：更方便用户上手
@@ -282,13 +340,13 @@ install -D -m 755 "$WORKDIR/tools/venus-transcode.sh" "$STAGE/usr/local/sbin/ven
 # allocated dynamically and swap between boots (see the rule file for details).
 install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d/70-venus-video.rules"
 # 开机加载的模块。4G 那一组（qcom_q6v5_mss / rmtfs_mem / qcom_bam_dmux /
-# qrtr_smd / rpmsg_wwan_ctrl）只在含 4G 的档位列出来；tiny 档位不加载它们，
+# qrtr_smd / rpmsg_wwan_ctrl）只在 ROOTFS_4G=1 时列出；关掉 4G 就不加载它们，
 # 免得为一个用不上的功能把 modem 固件拉起来、白占内存与功耗。
 {
     echo "# UFI103s mainline hardware"
     echo "wcn36xx"
     echo "qcom_wcnss_pil"
-    if [[ "$ROOTFS_FLAVOR" != tiny ]]; then
+    if [[ "$ROOTFS_4G" == 1 ]]; then
         echo "qcom_q6v5_mss"
         echo "rmtfs_mem"
         echo "qcom_bam_dmux"
@@ -455,9 +513,9 @@ cp -a "$WORKDIR/shared/firmware/common/." "$STAGE/lib/firmware/"
 # its /usr/lib/firmware/regulatory.db alternatives symlink.
 
 # 固件是体积大头：common/ 里 modem.* 有 39MB，而 WiFi/BT 只占 3MB。
-# tiny 档位不含 4G，modem 固件永远不会被加载（模块不装、ModemManager 不在），
-# 留着纯属浪费 —— 去掉后 tiny 能少 39MB（约 12% 的镜像）。
-if [[ "$ROOTFS_FLAVOR" == tiny ]]; then
+# 关掉 4G 的档位不装 ModemManager、modules-load 也不拉 modem 模块，
+# 这些固件永远不会被加载 —— 留着纯属浪费（能少 39MB，约 12% 的镜像）。
+if [[ "$ROOTFS_4G" != 1 ]]; then
     rm -f "$STAGE/lib/firmware/"modem.* "$STAGE/lib/firmware/mba.mbn"
 fi
 
@@ -474,6 +532,32 @@ chmod -R a+rX "$STAGE"
 
 # ---- 构建 ----
 echo "==> Building trixie arm64 rootfs (rootless, unshare + hooks) ..."
+# ---- 语言相关 hook（按 ROOTFS_ZH 生成）----
+# 必须在数组字面量**之外**构建：bash 的数组字面量里只能放词或展开项，
+# 不能写 if/赋值语句（写进去会 "未预期的记号 ("）。
+LOCALE_HOOKS=()
+if [[ "$ROOTFS_ZH" == 1 ]]; then
+	# 中文 locale：既要写 locale.gen，也要真正生成（apt variant 不会自动跑
+	# locale-gen）。不生成的话 LANG=zh_CN.UTF-8 无效，中文会回退成 C。
+	# LANG 本身已由 $STAGE/etc/locale.conf 给到，这里不再用 update-locale
+	# （它写的是 /etc/default/locale，而那是指向 locale.conf 的符号链接）。
+	LOCALE_HOOKS=(
+		'--customize-hook=sed -i '\''s/^# *\(zh_CN.UTF-8 UTF-8\)/\1/'\'' $1/etc/locale.gen'
+		'--customize-hook=grep -q "^zh_CN.UTF-8 UTF-8" $1/etc/locale.gen || echo "zh_CN.UTF-8 UTF-8" >> $1/etc/locale.gen'
+		'--customize-hook=chroot $1 locale-gen'
+		'--customize-hook=chroot $1 locale -a | grep -qi "^zh_CN.utf8"'
+		'--customize-hook=grep -q "^LANG=zh_CN.UTF-8" $1/etc/locale.conf'
+	)
+else
+	# 无中文档位没有 locales 包（没有 locale-gen/update-locale），所以既不生成
+	# 也不断言 zh_CN。改成断言 **C.UTF-8 可用** —— 它由 libc-bin 内建提供，
+	# 是关掉中文后系统的 UTF-8 基础；这条断言能挡住"连 UTF-8 都没有"的镜像。
+	LOCALE_HOOKS=(
+		'--customize-hook=test -d $1/usr/lib/locale/C.utf8'
+		'--customize-hook=grep -q "^LANG=C.UTF-8" $1/etc/locale.conf'
+	)
+fi
+
 MMDEBSTRAP_ARGS=(
 	--arch=arm64
 	--mode=unshare
@@ -486,14 +570,11 @@ MMDEBSTRAP_ARGS=(
 	'--customize-hook=printf '\''127.0.0.1\tlocalhost\n127.0.1.1\tufi103s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n'\'' > $1/etc/hosts'
 	'--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service'
 	'--customize-hook=echo Asia/Shanghai > $1/etc/timezone && ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime'
-	# 中文 locale：既要写 locale.gen，也要真正生成（apt variant 不会自动跑
-	# locale-gen）。不生成的话 LANG=zh_CN.UTF-8 无效，中文会回退成 C。
-	'--customize-hook=sed -i '\''s/^# *\(zh_CN.UTF-8 UTF-8\)/\1/'\'' $1/etc/locale.gen'
-	'--customize-hook=grep -q "^zh_CN.UTF-8 UTF-8" $1/etc/locale.gen || echo "zh_CN.UTF-8 UTF-8" >> $1/etc/locale.gen'
-	'--customize-hook=chroot $1 locale-gen'
-	'--customize-hook=chroot $1 locale -a | grep -qi "^zh_CN.utf8"'
-	'--customize-hook=chroot $1 update-locale LANG=zh_CN.UTF-8 LANGUAGE=zh_CN:zh'
+
 	"--customize-hook=mkdir -p \$1/root \$1/usr && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/ && cp -a --no-preserve=ownership $STAGE/usr/. \$1/usr/ && cp -a --no-preserve=ownership $STAGE/root/. \$1/root/"
+	# 语言 hooks 放在 STAGE 拷贝**之后**：它们要断言/依赖 $STAGE 里的文件
+	# （如 /etc/default/locale）。放在拷贝之前会因文件还不存在而失败。
+	"${LOCALE_HOOKS[@]}"
 	# NetworkManager 会忽略组/其它用户可读的连接文件，预置 Wi-Fi 就失效了。
 	# STAGE 上必须 chmod -R a+rX 才能让 hook 读到文件，那个会把这里的 600
 	# 变成 644，所以拷进镜像后要重新收权。
