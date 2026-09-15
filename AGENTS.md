@@ -354,8 +354,13 @@ KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh
 . source/kernel-version.env && echo "$KERNEL_VERSION"
 
 # 构建内核变体（venus / gpu / 基线）
+# 追加 source/configs/kernel-size.config 可得体积极限版（-8.4% Image.gz，
+# 2026-09-15 实测；代价：oops 无符号名 + 必须用同配置重编的模块树，
+# KALLSYMS=n 会改 struct module 布局，旧模块全部拒载）。
 bash tools/build-kernel-variant.sh venus source/configs/ufi103s-venus.config \
      "$PWD/shared/modules/<ver>-ufi003-venus"
+bash tools/build-kernel-variant.sh venus source/configs/ufi103s-venus.config:source/configs/kernel-size.config \
+     "$PWD/shared/modules/<ver>-ufi003-venus-size"
 bash tools/build-gpu-variant.sh          # 含 boot 打包
 bash tools/build-boot-images.sh          # 基线 boot 镜像
 
