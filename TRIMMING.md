@@ -163,7 +163,11 @@ QEMU 里没有高通硬件，所以下列失败是**正常的**，不要当成�
 
 ## 精简档位的实机状态
 
-`minimal` / `tiny` 的镜像均已构建并通过 QEMU 启动验证，但**尚未刷入真机**：
-设备只能从运行中的系统进 fastboot，刷 rootfs 失败需物理复位，这一步应在
-操作者在场时进行。刷机命令与回退方式见
-`boards/ufi00x/ufi103s-ufi003/README.md`。
+**2026-09-16 矩阵化**：档位改 max/basic/slim/micro × nm/native 共 7 镜像
+（`tools/build-matrix.sh` 一键构建，`tools/qemu-smoke.sh` + `smoke-all.sh`
+冒烟），**7/7 QEMU 冒烟通过**，但**尚未刷入真机**：设备只能从运行中的系统
+进 fastboot，刷 rootfs 失败需物理复位，这一步应在操作者在场时进行。刷机
+命令与回退方式见 `boards/ufi00x/ufi103s-ufi003/README.md`。
+
+注意：max 档配 GPU 内核（模块树 `7.1.13-ufi103s-gpu`），其余档配基线内核
+（`7.1.13-ufi103s`）——刷机时 boot.img 与 rootfs 必须按档位成对。
