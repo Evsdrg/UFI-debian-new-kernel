@@ -104,3 +104,27 @@ leds {
   稳态灯全灭，只保留异常/充电/低电指示）。
 - 不并入现有 build-rootfs 流程：那是 UFI 棒的 rootfs；MF32 将来有自己的
   flavor 时再挂 `mf32-led-state.service`。
+
+## 附：硬件 PWM 可用性研究（为什么不能靠它做呼吸灯/混色）
+
+查证于本仓 7.1.13 源码树：
+
+- **唯一的硬件 PWM 是 PMIC 的 LPG**：`qcom,pm8916-pwm`（dtsi 节点 pm8916_pwm，
+  默认 disabled），驱动在 `drivers/leds/rgb/leds-qcom-lpg.c`，单通道
+  （`pm8916_pwm_data`：num_channels=1，base 0xbc00）。该驱动注册标准
+  pwm_chip，LED 硬件图案（LUT 呼吸序列）与通用 PWM 两种用法都支持。
+- **LPG 的输出只能到达 PMIC 的 MPP 引脚**：通道输出经 `qcom,dtest` 发布到
+  DTEST1-4 总线（PWM_DTEST_REG 0xe2..），MPP 侧以 pinconf `qcom,dtest=N`
+  选择 DTEST 为源（spmi-mpp 驱动 SELECTOR_DTEST_FIRST=4，source 4..7 对应
+  DTEST1..4）。PM8916 上共 4×GPIO + 4×MPP，GPIO 收不到 LPG。
+- **SoC 侧（TLMM，MF32 所有灯所在的线）没有任何 PWM 功能**。msm8916 TLMM
+  功能全集中最接近的只有 gcc_gp1/2/3_clk（gpio49/50/51 的 _a 变体、
+  gpio12/13 与 97 的 _b 变体）——那是固定 50% 占空比的时钟输出，能出方波
+  不能控亮度；且 49/50/51 在 MF32 上被 SIM 切换器占用。RGB 的 27/29/30
+  除 GPIO 外只有 cam_mclk1/cci_i2c 之类功能，全与 PWM 无关。
+- **MF32 实物接线**：RGB 在 TLMM 27/29/30，条灯在 TLMM 19/20/21/22，原厂
+  `mpps@a000` 节点无任何子设备 → LPG 对本机现有灯一根都用不上。
+
+结论：呼吸/渐变类效果在 MF32 上只能软件 PWM（代价：kHz 级 CPU 唤醒，
+与本方案稳态零唤醒原则冲突）或维持低频 timer 闪烁（现方案）。LPG 唯一
+潜在的用武之地是 PCB 上引到 MPP 的其它外设——需要电路图/实机确认。
