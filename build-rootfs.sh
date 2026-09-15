@@ -2,7 +2,9 @@
 # Debian 13 (trixie) arm64 rootfs builder for OpenStick (默认板 UFI103s)
 # Rootless: mmdebstrap unshare mode + qemu-user binfmt, 后处理经 --customize-hook
 #
-# 网络方案: NetworkManager（为了方便用户上手；替代早期的 networkd + wpa_supplicant）。
+# 网络方案（ROOTFS_NET 二选一，见 BUILD-MATRIX.md）:
+#   nm     NetworkManager（nmtui/nmcli，方便上手；默认）
+#   native systemd-networkd + wpa_supplicant + dnsmasq + nftables（精简/省内存）
 #   wlan0   -> NM 管理 Wi-Fi（/etc/NetworkManager/system-connections/*.nmconnection）
 #   4G/短信 -> ModemManager (mmcli/qmicli) + NM 管 wwan0，qrtr-ns/rmtfs 基础服务
 #   交互    -> nmcli / nmtui（带中文，见 network-manager-l10n）
@@ -29,7 +31,9 @@ set -euo pipefail
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
 . "$WORKDIR/tools/kver.sh"
 OUT_DIR="$WORKDIR/out"
-ROOTFS="${ROOTFS_PATH:-$OUT_DIR/trixie-arm64}"
+# 默认产物名带档位与网络栈（ROOTFS_NET 在下方档位段解析后重建该默认值；
+# 显式传 ROOTFS_PATH 时以显式值为准）。
+ROOTFS="${ROOTFS_PATH:-}"
 MMDEBSTRAP_FORMAT="${MMDEBSTRAP_FORMAT:-directory}"
 MIRROR="https://mirrors.cernet.edu.cn/debian"
 # KERNEL_RELEASE 由 tools/kver.sh 从 source/kernel-version.env 派生；
@@ -59,8 +63,10 @@ RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
 # 它只是 systemd 的 Recommends，不显式要就会靠依赖链"碰巧"带进来——实测 tiny
 # 档位移除 4G 包后那条链断了，镜像里没有 /sbin/init，内核找不到 init 直接落到
 # /bin/sh，**系统起不来**（这种镜像刷上去就是砖，只能按复位键走 EDL 恢复）。
+# 注意：网络管理器不在这里——NM 档加 network-manager，native 档用
+# systemd-networkd + wpa_supplicant（wpasupplicant 两种栈都要，留在基线）。
 PKGS_BASE="login,openssh-server,systemd-sysv,nano,less,bash,coreutils,util-linux,procps,\
-network-manager,wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
+wpasupplicant,wireless-regdb,iproute2,iw,iputils-ping,\
 chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,dnsmasq"
 
 # ---- 4G / 蜂窝（可用 ROOTFS_4G=0 关掉）----
@@ -73,7 +79,8 @@ PKGS_4G="modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch"
 # network-manager-l10n：nmcli/nmtui 的中文翻译（NM 主包只 Recommends 它）
 #   关掉中文时这两项都不装，LANG 改设 C.UTF-8 —— 它由 libc-bin 内建提供，
 #   不依赖 locales 包，所以不装也能有 UTF-8 环境。
-PKGS_ZH="locales,network-manager-l10n"
+# network-manager-l10n 只在 NM 档追加（见下方 ROOTFS_NET 分支）
+PKGS_ZH="locales"
 
 # ---- 蓝牙（可用 ROOTFS_BT=0 关掉）----
 # bluez 是 daemon + bluetoothctl/hciconfig 等工具（约 5.2MB）。
@@ -95,36 +102,56 @@ PKGS_DOC="man-db,manpages-zh"
 # ---- 基准测试工具 ----
 PKGS_BENCH="iperf3"
 
-# 镜像档位与默认开关：
-#   full    桌面/xrdp/GPU + 4G + 中文 + 蓝牙 + man
-#   minimal 无桌面/mesa/man；**保留 nmtui + 4G** + 中文 + 蓝牙
-#   tiny    在 minimal 基础上**移除 4G**，且默认**再关掉中文与蓝牙**
+# 镜像档位与默认开关（2026-09-15 矩阵定稿，见 BUILD-MATRIX.md）：
+#   max（F1 功能拉满）   桌面 i3+xrdp/GPU + 4G + 中文 + 蓝牙 + man + bench
+#   basic（F2 基础套件） 4G + 中文 + 蓝牙，无 GPU/桌面
+#   slim（F3 精简）      只保留 WiFi + 中文
+#   micro（F4 深度精简） 只保留 WiFi，无中文
+# 旧名兼容：full→max、minimal→basic、tiny→micro。
 #
-# 中文化/蓝牙/4G 是三个**正交**维度，所以做成独立开关而不是继续加档位
-# （档位只决定桌面与 man 这类"打包级"差异）：
-#   ROOTFS_ZH=0|1   中文（locales + NM 翻译）  默认 full/minimal=1，tiny=0
-#   ROOTFS_BT=0|1   蓝牙（bluez）              默认 full/minimal=1，tiny=0
-#   ROOTFS_4G=0|1   4G（ModemManager 那一套）  默认 full/minimal=1，tiny=0
-# 例：想要"无 4G 但保留中文与蓝牙"，用
-#   ROOTFS_FLAVOR=tiny ROOTFS_ZH=1 ROOTFS_BT=1
-ROOTFS_FLAVOR="${ROOTFS_FLAVOR:-full}"
+# 中文/蓝牙/4G 是三个**正交**维度，可用独立开关覆盖档位默认：
+#   ROOTFS_ZH=0|1 / ROOTFS_BT=0|1 / ROOTFS_4G=0|1
+# 网络栈由 ROOTFS_NET 选择：
+#   ROOTFS_NET=nm|native（NM=NetworkManager；native=networkd+wpa_supplicant+
+#   dnsmasq+nftables，USB 共享双档都是网关 10.42.0.1/24）
+ROOTFS_FLAVOR="${ROOTFS_FLAVOR:-max}"
+ROOTFS_NET="${ROOTFS_NET:-nm}"
+
+case "$ROOTFS_NET" in
+nm|native) ;;
+*) echo "未知 ROOTFS_NET: $ROOTFS_NET（可选 nm|native）" >&2; exit 2 ;;
+esac
 
 case "$ROOTFS_FLAVOR" in
-full)
+max|full)
     PKGS_EXTRA="$PKGS_BASE,$PKGS_DOC,$PKGS_BENCH,$DESKTOP_PKGS"
     _def_zh=1; _def_bt=1; _def_4g=1
     ;;
-minimal)
+basic|minimal)
     PKGS_EXTRA="$PKGS_BASE"
     _def_zh=1; _def_bt=1; _def_4g=1
     ;;
-tiny)
+slim)
+    PKGS_EXTRA="$PKGS_BASE"
+    _def_zh=1; _def_bt=0; _def_4g=0
+    ;;
+micro|tiny)
     PKGS_EXTRA="$PKGS_BASE"
     _def_zh=0; _def_bt=0; _def_4g=0
     ;;
 *)
-    echo "未知 ROOTFS_FLAVOR: $ROOTFS_FLAVOR（可选 full|minimal|tiny）" >&2
+    echo "未知 ROOTFS_FLAVOR: $ROOTFS_FLAVOR（可选 max|basic|slim|micro，兼容 full|minimal|tiny）" >&2
     exit 2
+    ;;
+esac
+
+case "$ROOTFS_NET" in
+nm)
+    PKGS_EXTRA="network-manager,$PKGS_EXTRA"
+    ;;
+native)
+    # nft 提供 nft 二进制（NAT）；networkd/dnsmasq 随 systemd/dnsmasq 已在
+    PKGS_EXTRA="nftables,$PKGS_EXTRA"
     ;;
 esac
 
@@ -135,13 +162,19 @@ for _v in ZH BT 4G; do
     eval "_cur=\$ROOTFS_$_v"
     case "$_cur" in 0|1) ;; *) echo "ROOTFS_$_v 只能是 0 或 1（得到 '$_cur'）" >&2; exit 2 ;; esac
 done
+# 产物默认路径（带档位与网络栈；显式 ROOTFS_PATH 优先）
+NETSFX=""; [[ "$ROOTFS_NET" == native ]] && NETSFX="-native"
+ROOTFS="${ROOTFS_PATH:-$OUT_DIR/rootfs-$KERNEL_VERSION-$ROOTFS_FLAVOR$NETSFX}"
+
 [[ "$ROOTFS_ZH" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_ZH"
+# NM 中文翻译只属于 nm 档
+[[ "$ROOTFS_NET" == nm && "$ROOTFS_ZH" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,network-manager-l10n"
 [[ "$ROOTFS_BT" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_BT"
 [[ "$ROOTFS_4G" == 1 ]] && PKGS_EXTRA="$PKGS_EXTRA,$PKGS_4G"
 
 # 桌面默认在 full 档位下装上；其它档位强制关闭（ROOTFS_DESKTOP=0 亦可显式关闭）。
-ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-$([[ $ROOTFS_FLAVOR == full ]] && echo 1 || echo 0)}"
-if [[ "$ROOTFS_DESKTOP" == 1 && "$ROOTFS_FLAVOR" != full ]]; then
+ROOTFS_DESKTOP="${ROOTFS_DESKTOP:-$([[ $ROOTFS_FLAVOR == max || $ROOTFS_FLAVOR == full ]] && echo 1 || echo 0)}"
+if [[ "$ROOTFS_DESKTOP" == 1 && "$ROOTFS_FLAVOR" != max && "$ROOTFS_FLAVOR" != full ]]; then
     echo "ROOTFS_DESKTOP=1 与 ROOTFS_FLAVOR=$ROOTFS_FLAVOR 冲突（该档位不含桌面）" >&2
     exit 2
 fi
@@ -156,7 +189,7 @@ fi
 # 那种顶层 --path-exclude，写成后者会 "Unknown option" 直接失败）。
 # 只在精简档位启用；copyright 按 Debian 政策必须保留，所以单独 include 回来。
 PATH_EXCLUDES=()
-if [[ "$ROOTFS_FLAVOR" != full ]]; then
+if [[ "$ROOTFS_FLAVOR" != max && "$ROOTFS_FLAVOR" != full ]]; then
     PATH_EXCLUDES=(
         "--dpkgopt=path-exclude=/usr/share/doc/*"
         "--dpkgopt=path-include=/usr/share/doc/*/copyright"
@@ -238,9 +271,11 @@ LANG=C.UTF-8
 EOF
 fi
 
-# ---------------------------------------------------------------- 网络（NetworkManager）
-# 用 NetworkManager 而不是 networkd + wpa_supplicant：更方便用户上手
-# （nmcli / nmtui 可交互配置，中文界面）。
+# ---------------------------------------------------------------- 网络
+# nm 档：NetworkManager（nmtui/nmcli，中文界面，方便上手）。
+# native 档：systemd-networkd + wpa_supplicant@wlan0 + dnsmasq + nftables
+# （USB 共享两档都是网关 10.42.0.1/24；当年的坑清单见 NETWORK.md）。
+if [[ "$ROOTFS_NET" == nm ]]; then
 mkdir -p "$STAGE/etc/NetworkManager/system-connections" \
          "$STAGE/etc/NetworkManager/conf.d"
 
@@ -295,6 +330,58 @@ EOF
     # NM 要求连接文件对其它用户不可读
     chmod 600 "$_nm_wifi"
 fi
+
+else
+# ---------------- native（非 NM）网络栈 ----------------
+NETDIR="$WORKDIR/tools/net-native"
+mkdir -p "$STAGE/etc/systemd/network" "$STAGE/etc/dnsmasq.d" \
+         "$STAGE/etc/nftables.d" "$STAGE/etc/wpa_supplicant" \
+         "$STAGE/etc/systemd/system/multi-user.target.wants" \
+         "$STAGE/etc/systemd/system/sockets.target.wants"
+
+# networkd：usb0 固定网关 10.42.0.1，wlan0/wwan0 DHCP
+install -D -m 644 "$NETDIR/10-usb0.network"  "$STAGE/etc/systemd/network/10-usb0.network"
+install -D -m 644 "$NETDIR/20-wlan0.network" "$STAGE/etc/systemd/network/20-wlan0.network"
+if [[ "$ROOTFS_4G" == 1 ]]; then
+    install -D -m 644 "$NETDIR/25-wwan0.network" "$STAGE/etc/systemd/network/25-wwan0.network"
+fi
+
+# Wi-Fi 凭据（构建时预置；未提供则配置在位但不含网络，用户手改 conf）
+WPA_CONF="$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
+{
+    echo "# 由镜像构建脚本写入：native 档 wpa_supplicant 配置"
+    echo "country=CN"
+    echo "ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev"
+    echo "update_config=1"
+    if [[ -n "${ROOTFS_WIFI_SSID:-}" && -n "${ROOTFS_WIFI_PSK:-}" ]]; then
+        echo "network={"
+        echo "    ssid=\"${ROOTFS_WIFI_SSID}\""
+        echo "    psk=\"${ROOTFS_WIFI_PSK}\""
+        echo "    key_mgmt=WPA-PSK"
+        echo "}"
+    fi
+} > "$WPA_CONF"
+chmod 600 "$WPA_CONF"
+
+# USB 共享：dnsmasq（DHCP+DNS）+ NAT 表 + 汇总服务
+install -D -m 644 "$NETDIR/dnsmasq.conf" "$STAGE/etc/dnsmasq.d/usb-share.conf"
+install -D -m 644 "$NETDIR/nat.nft"      "$STAGE/etc/nftables.d/nat.nft"
+install -D -m 644 "$NETDIR/native-net.service" "$STAGE/etc/systemd/system/native-net.service"
+if [[ "$ROOTFS_4G" == 1 ]]; then
+    install -D -m 755 "$NETDIR/mm-connect.sh" "$STAGE/usr/local/sbin/mm-connect.sh"
+fi
+
+# 使能：networkd（服务+socket）、wpa_supplicant@wlan0、native-net
+ln -sf /lib/systemd/system/systemd-networkd.service \
+       "$STAGE/etc/systemd/system/multi-user.target.wants/systemd-networkd.service"
+ln -sf /lib/systemd/system/systemd-networkd.socket \
+       "$STAGE/etc/systemd/system/sockets.target.wants/systemd-networkd.socket"
+ln -sf /lib/systemd/system/wpa_supplicant@.service \
+       "$STAGE/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service"
+ln -sf /etc/systemd/system/native-net.service \
+       "$STAGE/etc/systemd/system/multi-user.target.wants/native-net.service"
+fi
+# ---------------------------------------------------------------- /网络
 
 # 无线监管域（country），NM 自己有 wifi.country？NM 不自管监管域：由 wireless-regdb
 # 与内核 cfg80211 决定，镜像里已把 regulatory.db 固定为 upstream 变体（见下方 hook）。
@@ -370,7 +457,7 @@ install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d
 # gpu 节点在 msm8916.dtsi 里是 disabled，板级 DTS 打开后内核会建出 platform
 # device；msm.ko 需要 separate_gpu_kms=1 才会走 render-only 路径（否则它会去
 # 找不存在的显示组件）。详见 tools/msm-gpu-render-only.conf 的说明。
-if [[ "$ROOTFS_FLAVOR" == full ]]; then
+if [[ "$ROOTFS_FLAVOR" == max || "$ROOTFS_FLAVOR" == full ]]; then
     install -D -m 644 "$WORKDIR/tools/msm-gpu-render-only.conf" \
         "$STAGE/etc/modprobe.d/msm-gpu-render-only.conf"
     cat > "$STAGE/etc/modules-load.d/openstick-gpu.conf" <<'EOF'
@@ -385,7 +472,7 @@ fi
 # 静默失败（modprobe 报 "Module drm not found"），表现为 /dev/dri 缺失、GL 退回
 # llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 <版本>-ufi103s-gpu 树里，
 # 而 <版本>-ufi103s-venus 树不含它们——这里必须挡住这个错配。
-if [[ "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
+if [[ "$ROOTFS_FLAVOR" == max || "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
     echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
     echo "      MODULE_TREE=$MODULE_TREE" >&2
     echo "      GPU 模块在 $MODULES_DIR_GPU（由 tools/build-gpu-variant.sh 产出）。" >&2
@@ -425,8 +512,10 @@ fi
 # tools/net-native/，矩阵接入时替换本段。
 install -D -m 755 "$WORKDIR/tools/usb-gadget.sh" "$STAGE/usr/local/sbin/usb-gadget.sh"
 install -D -m 644 "$WORKDIR/tools/usb-gadget.service" "$STAGE/etc/systemd/system/usb-gadget.service"
-install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
-    "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
+if [[ "$ROOTFS_NET" == nm ]]; then
+    install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
+        "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
+fi
 
 # rmtfs must start after the kernel has created its shared-memory device.
 # The node is created by the rmtfs_mem module, so the matching systemd .device
@@ -599,7 +688,7 @@ MMDEBSTRAP_ARGS=(
 	# NetworkManager 会忽略组/其它用户可读的连接文件，预置 Wi-Fi 就失效了。
 	# STAGE 上必须 chmod -R a+rX 才能让 hook 读到文件，那个会把这里的 600
 	# 变成 644，所以拷进镜像后要重新收权。
-	'--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null || true'
+	'--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf 2>/dev/null || true'
 	'--customize-hook=if test -f $1/lib/systemd/system/dnsmasq.service; then rm -f $1/etc/systemd/system/multi-user.target.wants/dnsmasq.service $1/lib/systemd/system/multi-user.target.wants/dnsmasq.service; fi' \
 	'--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep'
 	'--customize-hook=rm -f $1/etc/systemd/system/systemd-resolved.service.d/override.conf'
@@ -613,15 +702,15 @@ MMDEBSTRAP_ARGS=(
 	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
 	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
 	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /etc/systemd/system/ufi-led-state.service $1/etc/systemd/system/multi-user.target.wants/ufi-led-state.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
-	# 清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要清，它会
-	# 从 sockets.target 自动拉起 networkd）、以及早期 networkd 方案遗留的
-	# 每接口 wpa_supplicant 配置。
-	'--customize-hook=for u in systemd-networkd.service systemd-networkd.socket wpa_supplicant@wlan0.service wpa_supplicant.service; do rm -f $1/etc/systemd/system/multi-user.target.wants/$u $1/etc/systemd/system/sockets.target.wants/$u; done; rm -f $1/etc/systemd/system/dbus-org.freedesktop.network1.service $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
+	# （仅 nm 档）清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要
+	# 清，它会从 sockets.target 自动拉起 networkd）。native 档没有 NM，不存在
+	# 抢占，反而依赖这些单元——上面的钩子按"镜像里有无 NM 二进制"自动跳过。
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then for u in systemd-networkd.service systemd-networkd.socket wpa_supplicant@wlan0.service wpa_supplicant.service; do rm -f $1/etc/systemd/system/multi-user.target.wants/$u $1/etc/systemd/system/sockets.target.wants/$u; done; rm -f $1/etc/systemd/system/dbus-org.freedesktop.network1.service $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf; fi'
 	# 断言：NM 已启用、networkd/每接口 wpa 未被启用（缺失符号链接即视为未启用）。
-	'--customize-hook=test -L $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service'
-	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service'
-	'--customize-hook=test ! -e $1/etc/systemd/system/sockets.target.wants/systemd-networkd.socket'
-	'--customize-hook=test ! -e $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service'
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test -L $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service; fi'
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service; fi'
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test ! -e $1/etc/systemd/system/sockets.target.wants/systemd-networkd.socket; fi'
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test ! -e $1/etc/systemd/system/multi-user.target.wants/wpa_supplicant@wlan0.service; fi'
 	# 桌面：启用 xrdp 与其会话管理器（xrdp 依赖 xrdp-sesman 拉起会话）。
 	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then mkdir -p $1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/xrdp.service $1/etc/systemd/system/multi-user.target.wants/xrdp.service && ln -sf /lib/systemd/system/xrdp-sesman.service $1/etc/systemd/system/multi-user.target.wants/xrdp-sesman.service; fi'
 	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then test -L $1/etc/systemd/system/multi-user.target.wants/xrdp.service; fi'

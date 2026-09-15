@@ -60,3 +60,4 @@ __pycache__/
 modules.order
 modules.builtin
 modules.builtin.modinfo
+.wifi-creds

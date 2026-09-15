@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# 对矩阵全部镜像跑 QEMU 冒烟（配对各档内核）。
+# max 用 GPU 内核（模块配对），其余用基线内核。
+set -u
+BASE="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$BASE"
+
+declare -A K=(
+  [max]="$BASE/build/variant-7.1.13-gpu/arch/arm64/boot/Image.gz"
+  [basic]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
+  [slim]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
+  [micro]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
+)
+
+rc=0
+for t in max basic slim micro basic-native slim-native micro-native; do
+  img="shared/rootfs/ufi103s-7.1.13-$t.ext4"
+  if [ ! -f "$img" ]; then
+    echo "SMOKE[$t] SKIP（镜像不存在）"
+    continue
+  fi
+  gz="${K[${t%-native}]}"
+  if [ ! -f "$gz" ]; then
+    echo "SMOKE[$t] SKIP（内核 $gz 不存在）"
+    continue
+  fi
+  tools/qemu-smoke.sh "$img" "$gz" || rc=1
+done
+exit $rc
