@@ -42,10 +42,32 @@ dtsi 代次与我们的 7.1.13 同期（pm8916-lbc / bms-vm / pwm / psci domain-
 ## 内存优化经验直接迁移
 
 - `status="disabled"` 回收 reserved-memory 的机制同样适用：
-  mpss+mba+rmtfs ≈ 87MB；**gps@0x8bd00000 的 1MB 是纯浪费**
-  （memshare 节点本身 disabled，预留却还在）；venus_mem 只有 **1MB**
+  mpss+mba+rmtfs ≈ 87MB（MF32 是 4G 设备，保留 modem）；venus_mem 只有 **1MB**
   （不够转码用：要么提到 5MB+，要么照我们的 no4g-novenus 方案整个砍掉）。
 - CMA 照旧中性；TZ/SMEM/HYP 块照旧不可动。
+
+## 板级 DTS 相对原厂 DTB 的定制清单（已定案）
+
+写板级 DTS 时按此清单偏离反编译版，逐项都是本工作区已确认的决定：
+
+| # | 偏离 | 理由/收益 |
+|---|---|---|
+| 1 | **删除 GPS 能力**：`/delete-node/` 掉 `reserved-memory/gps@8bd00000`（1MB no-map）与 `memshare` 节点（本就 disabled，且引用 gps） | 回收 +1MB MemTotal；两个节点一起删避免悬空 phandle |
+| 2 | LED 节点重写为 LED-SCHEME 方案（RGB `color+function`=status 三通道、`bat:1..4` 电量条；bat 物理顺序实机校准） | 系统状态+电量指示，见 LED-SCHEME.md |
+| 3 | venus_mem 二选一：提到 ≥5MB（要转码）或照 no4g-novenus 禁用（省内存） | 原厂 1MB 不够任何实际转码 |
+| 4 | `pon@800` / pwrkey / 看门狗(60s) 沿用原厂 | 见 POWER-KEYS.md |
+| 5 | 充电/电量计（lbc + bms-vm）节点沿用原厂，配 `mf32.config.fragment` 开驱动 | 电池管理前提 |
+
+其中 #1 的 DTS 写法（板级 dts 顶层）：
+
+```dts
+/ {
+	reserved-memory {
+		/delete-node/ gps@8bd00000;
+	};
+	/delete-node/ memshare;
+};
+```
 
 ## Bring-up 前置硬约束（沿用本工程规则）
 
