@@ -96,24 +96,6 @@
 };
 
 
-/*
- * Research variant: OPPs aligned with the MSM8916 A53 PLL table.
- * This image is separate from the conservative baseline and is not a voltage experiment.
- */
-&cpu_opp_table {
-	opp-1094400000 {
-		opp-hz = /bits/ 64 <1094400000>;
-	};
-
-	opp-1152000000 {
-		opp-hz = /bits/ 64 <1152000000>;
-	};
-
-	opp-1209600000 {
-		opp-hz = /bits/ 64 <1209600000>;
-	};
-};
-
 &tlmm {
 	gpio_leds_default: gpio-leds-default-state {
 		pins = "gpio0", "gpio1", "gpio2", "gpio3",

@@ -1,0 +1,15 @@
+{
+  "variant": "board-4g-7.1.13",
+  "kernel_release": "7.1.13-ufi103s-4g-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s-4g.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-board-4g-7.1.13.img",
+  "boot_size": 7813120,
+  "kernel_size": 7810016,
+  "appended_dtb_offset": 7761953,
+  "appended_dtb_size": 50111,
+  "image_gz_sha256": "87cde4f582c369815b750d6389da69d3f85e1ef82f85fb6b3adeab27ab0b75c3",
+  "dtb_sha256": "37929bb985c44f3f44c71f382747982e9d84cfb18d304deb31c12d364a3a4023",
+  "boot_sha256": "09d619c8f27a1288188475ce89b89c767cb6bbdd73a4f209993cbdff0819b7b8",
+  "flash_status": "not flashed"
+}

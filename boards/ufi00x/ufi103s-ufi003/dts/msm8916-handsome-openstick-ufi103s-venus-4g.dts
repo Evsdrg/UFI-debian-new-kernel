@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Handsome OpenStick UFI103s - Venus hardware video codec variant
+ *
+ * Same board as msm8916-handsome-openstick-ufi103s.dts, plus the on-SoC
+ * Qualcomm Venus video accelerator (V4L2 mem2mem encoder/decoder).
+ *
+ * This is a headless board: Venus needs no display/DRM/GPU path, only its
+ * own clocks, VENUS_GDSC power domain, apps_iommu context 5 and the
+ * qcom/venus-1.8 firmware. Base board content is included verbatim so the
+ * validated baseline definition stays the single source of truth.
+ */
+
+#include "msm8916-handsome-openstick-ufi103s-4g.dts"
+
+&venus {
+	status = "okay";
+};
+
+&venus_mem {
+	status = "okay";
+};

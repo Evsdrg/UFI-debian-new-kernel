@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Handsome OpenStick UFI103s - Venus codec + ~100 MHz CPU steps + Adreno GPU
+ * Handsome OpenStick UFI103s - Venus + 4G + Adreno GPU 板型
  *
- * 与 msm8916-handsome-openstick-ufi103s-venus-oc-100.dts 相同，额外启用
+ * CPU OC 已全员化（common dtsi）。本板型额外启用
  * Adreno 306 GPU。这台设备没有显示面板，所以 GPU 只用来出 render 节点：
  *
  *   &gpu 在 msm8916.dtsi 里是 status="disabled"，这里置为 okay 后内核会为该
@@ -13,7 +13,7 @@
  * 才会生成 /dev/dri/renderD128（render-only，无 KMS）。
  */
 
-#include "msm8916-handsome-openstick-ufi103s-venus-oc-100.dts"
+#include "msm8916-handsome-openstick-ufi103s-venus-4g.dts"
 
 /*
  * Adreno 306。设备树里 gpu 节点带 clocks / power-domain(OXILI_GDSC) /

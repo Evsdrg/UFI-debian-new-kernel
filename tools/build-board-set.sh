@@ -25,18 +25,19 @@ BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
 
 # 板型表：后缀 | 内核片段 | DTB
 # 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
-# 两条板型链：基线链（plain/oc12/no4g-novenus，无 venus 模块）与
-# venus 链（硬件编解码系）。slim/micro 配基线链 no4g-novenus（最省内存）。
+# 板型 = 正交功能组合，后缀只写"有的功能"（无 4G 不写 -no4g，就什么都不写）：
+#   （空）        WiFi/BT only（4G 链与 venus 全关，内存最大化——slim/micro 配）
+#   4g            +4G（basic 配）
+#   venus         +硬件编解码，无 4G
+#   venus-4g      +硬件编解码 +4G
+#   venus-4g-gpu  +硬件编解码 +4G +GPU（max 配）
+# CPU OC（三档 OPP + 85C 被动冷却）已全员化进 common dtsi，不再占名字。
 TYPES=(
   "|$BASE_FRAG|$DTS_PREFIX.dts"
-  "oc12|$BASE_FRAG|$DTS_PREFIX-oc12.dts"
-  "no4g-novenus|$BASE_FRAG|$DTS_PREFIX-no4g-novenus.dts"
+  "4g|$BASE_FRAG|$DTS_PREFIX-4g.dts"
   "venus|$VENUS_FRAG|$DTS_PREFIX-venus.dts"
-  "venus-oc12|$VENUS_FRAG|$DTS_PREFIX-venus-oc12.dts"
-  "venus-oc-100|$VENUS_FRAG|$DTS_PREFIX-venus-oc-100.dts"
-  "venus-oc-burst|$VENUS_FRAG|$DTS_PREFIX-venus-oc-burst.dts"
-  "venus-oc-100-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-oc-100-gpu.dts"
-  "venus-no4g|$VENUS_FRAG|$DTS_PREFIX-venus-no4g.dts"
+  "venus-4g|$VENUS_FRAG|$DTS_PREFIX-venus-4g.dts"
+  "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
 )
 
 WANT=("$@")
@@ -57,7 +58,8 @@ for entry in "${TYPES[@]}"; do
         RELEASE="$KERNEL_VERSION-ufi103s-$suffix-dirty"
         VARIANT="$suffix"
     fi
-    TREE="$BASE/shared/modules/${RELEASE%-dirty}"
+    # 父目录带 -dirty（与 kver MODULES_DIR 惯例一致）
+    TREE="$BASE/shared/modules/$RELEASE"
     DTB_SRC="$BOARD_DIR/dts/$dtsname"
 
     echo "=============================================="

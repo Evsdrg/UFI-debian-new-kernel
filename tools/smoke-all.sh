@@ -6,10 +6,10 @@ BASE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE"
 
 declare -A K=(
-  [max]="$BASE/build/variant-7.1.13-gpu/arch/arm64/boot/Image.gz"
-  [basic]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
-  [slim]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
-  [micro]="$BASE/build/variant-7.1.13-baseline/arch/arm64/boot/Image.gz"
+  [max]="$BASE/build/variant-7.1.13-board-venus-4g-gpu/arch/arm64/boot/Image.gz"
+  [basic]="$BASE/build/variant-7.1.13-board-4g/arch/arm64/boot/Image.gz"
+  [slim]="$BASE/build/variant-7.1.13-board-baseline/arch/arm64/boot/Image.gz"
+  [micro]="$BASE/build/variant-7.1.13-board-baseline/arch/arm64/boot/Image.gz"
 )
 
 rc=0

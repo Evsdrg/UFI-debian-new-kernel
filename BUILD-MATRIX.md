@@ -18,20 +18,25 @@
 \* GPS 只有 MF32 有，且已定案删除（README 定制清单 #1）。
 共 **7 个 rootfs**。F1 只有 NM（用户指定）；USB 网络共享是所有档的默认能力。
 
-## 二、内核与 DTB 变体映射（ufi103s）
+## 二、内核与 DTB 板型映射（ufi103s）
 
-| 档位 | 内核 | release | DTB |
-|---|---|---|---|
-| F1 | gpu+venus（build-gpu-variant 链） | `7.1.13-ufi103s-venus-dirty` | venus 系 |
-| F2（两变体） | 基线（无 GPU/venus，BT+4G 模块在） | `7.1.13-ufi103s-dirty` | venus 系 |
-| F3/F4（两变体） | 基线 | `7.1.13-ufi103s-dirty` | **no4g 系**（venus-no4g 已有） |
+**板型级命名 + 正向功能后缀**（2026-09-16 定稿）：内核 release = 
+`<ver>-ufi103s<板型后缀>-dirty`，后缀只写"有的功能"（无 4G 不写 -no4g，
+就什么都不写）；CPU OC（三档 OPP + 85C 被动冷却）已全员化进 common dtsi，
+不占名字。9 个实验板型收敛为 5 个功能组合
+（`tools/build-board-set.sh` 表驱动构建）：
 
-模块树从 3 个减到 2 个：基线树（F2/F3/F4 共用）+ gpu-venus 树（F1）。
-内核命名统一后基线与 no4g 共用一棵树（4G 是模块，DTB 层开关即可）。
+| 板型（DTS 后缀） | 功能集 | 对应档位 |
+|---|---|---|
+| （空） | WiFi/BT only，4G 链与 venus 全关 | **slim / micro**（MemTotal ≈469MB） |
+| 4g | +4G | **basic** |
+| venus | +硬件编解码，无 4G | （备用） |
+| venus-4g | +硬件编解码 +4G | （备用） |
+| venus-4g-gpu | +硬件编解码 +4G +GPU | **max** |
 
-**MF32**：bring-up 后套用同一矩阵。内核走 `mf32.config.fragment`
-（LBC/BMS_VM/EXTCON_QCOM_SPMI_MISC + LOCALVERSION=-mf32），DTB 为 MF32 板级
-（含充电节点、GPS 已删）。起步做 F4-native（电池续航优先），其余按需补。
+每板型独立内核 release 与模块树（vermagic 含 release，不可复用），
+boot 镜像 `boot-board-<板型>-7.1.13.img`。刷机配对：max↔venus-4g-gpu、
+basic↔4g、slim/micro↔空，boot 与 rootfs 必须成对。
 
 ## 三、USB 网络共享（所有档默认）
 

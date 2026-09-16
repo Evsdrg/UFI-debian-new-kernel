@@ -5,11 +5,11 @@
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
   "boot_image": "boot-board-baseline-7.1.13.img",
   "boot_size": 7813120,
-  "kernel_size": 7809864,
+  "kernel_size": 7810040,
   "appended_dtb_offset": 7761933,
-  "appended_dtb_size": 49979,
+  "appended_dtb_size": 50155,
   "image_gz_sha256": "c77f87d09c5614a7b407e60785656f47c533bcdf9602f23e44a3e96a997a79b7",
-  "dtb_sha256": "40099843228e520bc8512420bf6c612e102b7bbea1bb6814b5a681707a128b1c",
-  "boot_sha256": "ec77fe3b83378f8406030ee74dc789edd3422570b7830a7cbfb176325d29843b",
+  "dtb_sha256": "2a2b8501680fe38c10838bc8b959cb65d050efb3bb61ceb6d3e0155805a5bf98",
+  "boot_sha256": "28fd6323c77d7a6cee9e6a10d4a90e07036e6e1c5d24af830ec121d9e8c205f9",
   "flash_status": "not flashed"
 }
