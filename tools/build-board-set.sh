@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 板型（DTS）级内核构建器：每个使用不同设备树的板型一个独立的内核
-# release 名与模块树。release = <ver>-ufi103s<板型后缀>-dirty。
+# release 名与模块树。release = <ver>-ufix0x<板型后缀>-dirty。
+# 设备令牌取 source/kernel-version.env 的 KERNEL_LOCALVERSION，不在这里写死。
 #
 # 命名规则（AGENTS.md §5.1）：设备名 + 板型（DTS 后缀）。
 # 同一内核配置但不同 LOCALVERSION 的构建必须真分家——vermagic 里含
@@ -52,10 +53,10 @@ for entry in "${TYPES[@]}"; do
     fi
 
     if [ -z "$suffix" ]; then
-        RELEASE="$KERNEL_VERSION-ufi103s-dirty"
+        RELEASE="$KERNEL_VERSION${KERNEL_LOCALVERSION}-dirty"
         VARIANT="baseline"
     else
-        RELEASE="$KERNEL_VERSION-ufi103s-$suffix-dirty"
+        RELEASE="$KERNEL_VERSION${KERNEL_LOCALVERSION}-$suffix-dirty"
         VARIANT="$suffix"
     fi
     # 父目录带 -dirty（与 kver MODULES_DIR 惯例一致）
@@ -67,7 +68,7 @@ for entry in "${TYPES[@]}"; do
 
     # 逐板型 LOCALVERSION 片段（临时文件，构建时最后合并、优先生效）
     LVFRAG=$(mktemp /tmp/lv-$VARIANT-XXXXXX.config)
-    printf 'CONFIG_LOCALVERSION="%s"\n' "-ufi103s${suffix:+-$suffix}" > "$LVFRAG"
+    printf 'CONFIG_LOCALVERSION="%s"\n' "${KERNEL_LOCALVERSION}${suffix:+-$suffix}" > "$LVFRAG"
 
     BUILD_DIR="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT" \
     bash tools/build-kernel-variant.sh "board-$VARIANT" \

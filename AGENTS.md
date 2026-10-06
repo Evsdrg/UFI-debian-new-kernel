@@ -5,7 +5,7 @@
 或者把一个能用的设备变成砖。所以先读第 1、2 节再动手。
 
 范围：`/opt/helloworld/openstick`（含 `source/`、`boards/`、`tools/`、`shared/`）。
-分发仓 `/opt/helloworld/ufi00x-mainline/` 有它自己的 `AGENTS.md`。
+分发仓 `ufi00x-mainline/`（本目录下，自带 git）有它自己的 `AGENTS.md`。
 
 工程一句话：为 **MSM8916（高通 410）USB 4G 棒** 构建 Debian 13 arm64 + 自编译
 Linux **7.1.13**，机型为 Handsome OpenStick 家族五块板（UFI103s/UFI003、UFI001b、
@@ -254,7 +254,7 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 `Reversed (or previously applied) patch detected`）。已把该段从 0005 删除、
 `hfi_parser.c` 全部归 0004。修改补丁序列时注意保持"每个文件只有一个归属"。
 
-补丁必须与分发仓 `/opt/helloworld/ufi00x-mainline/patches/` **逐字节一致**
+补丁必须与分发仓 `ufi00x-mainline/patches/` **逐字节一致**
 （两边都有校验脚本会比对）。
 
 ### 4.2 自写设备树（`boards/*/*/dts/`，共 12 个文件）
@@ -315,13 +315,13 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 `tools/kver.sh`（shell）与 `tools/kver.py`（Python）。所有脚本从它派生路径与
 release 字符串。**升级内核只改这个文件**，脚本不要硬编码版本号。
 
-**内核命名 = 设备名 + 板型（DTS 后缀）**（2026-09-16 起为板型级）：每个使用
-不同设备树的板型有独立的 release 与模块树，如 `7.1.13-ufi103s-venus-oc-100-gpu`、
-`7.1.13-ufi103s-no4g-novenus`。板型级构建用 `tools/build-board-set.sh`（表驱动，
-9 板型：基线链 plain/oc12/no4g-novenus + venus 链 6 个）。旧名沿革：`-ufi003`
-（PCB 号，2026-09-15 弃用）→ `-ufi103s`/`-ufi103s-venus`（设备级）→ 现板型级；
-旧树仍在 `shared/modules/` 下可作回退。**重刷时内核与模块树必须成对**，只刷
-boot.img 会让模块全部静默失配（vermagic 含 release）。MF32 用 `-mf32`。
+**内核命名 = 设备令牌 + 板型（DTS 后缀）**。设备令牌写在
+`KERNEL_LOCALVERSION`（当前 `-ufix0x`）。每个板型独立 release 与模块树，如
+`7.1.13-ufix0x-dirty`、`7.1.13-ufix0x-4g-dirty`、`7.1.13-ufix0x-venus-4g-gpu-dirty`。
+板型级构建用 `tools/build-board-set.sh`（5 个功能组合）。旧名沿革：`-ufi003`
+（PCB 号）→ `-ufi103s`（单板名，2026-09-30 弃用）→ `-ufix0x`。已编出的
+`-ufi103s` / `-ufi003` 模块树仍在 `shared/modules/`，vermagic 不通用。
+**重刷时内核与模块树必须成对**，只刷 boot.img 会让模块全部静默失配。MF32 用 `-mf32`。
 重建 6.18.49 遗留产物时用 `KERNEL_LOCALVERSION=-ufi003` 覆盖。
 
 重建旧版本（回退验证）用环境变量覆盖：
@@ -389,7 +389,7 @@ bash tools/verify-layout.sh
 ROOTFS_IMAGE=shared/rootfs/<venus 镜像> bash tools/verify-layout.sh
 
 # 分发仓自检（传当前内核树）
-cd /opt/helloworld/ufi00x-mainline
+cd ufi00x-mainline
 K=$(cd /opt/helloworld/openstick && . source/kernel-version.env && echo "$PWD/source/linux-$KERNEL_VERSION")
 sh tools/check-repo.sh "$K"
 ```

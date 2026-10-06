@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # 全矩阵 rootfs 构建：F1-F4 × nm|native 共 7 个镜像（ufi103s）。
 #
-# 前置（一次性）：三棵模块树就位（build-kernel-variant / build-gpu-variant 产出）
-#   shared/modules/7.1.13-ufi103s          基线（basic/slim/micro 及其 native）
-#   shared/modules/7.1.13-ufi103s-venus    venus
-#   shared/modules/7.1.13-ufi103s-gpu      GPU（max；.EXTRA_MODULE_TREES 带基线）
+# 前置：build-board-set.sh 产出的模块树（令牌来自 KERNEL_LOCALVERSION）
+#   shared/modules/<ver>-ufix0x-dirty                 基线（slim/micro）
+#   shared/modules/<ver>-ufix0x-4g-dirty              basic
+#   shared/modules/<ver>-ufix0x-venus-4g-gpu-dirty    max
 #
 # Wi-Fi 预置：从环境读 ROOTFS_WIFI_SSID/ROOTFS_WIFI_PSK（不传则镜像不带
 # 凭据，刷到无屏棒子上要靠 USB 网络共享进系统配网）。

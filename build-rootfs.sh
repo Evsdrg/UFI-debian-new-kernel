@@ -470,8 +470,9 @@ fi
 
 # 上面写了"开机加载 drm/msm"，但如果主模块树里根本没有这两个模块，开机只会
 # 静默失败（modprobe 报 "Module drm not found"），表现为 /dev/dri 缺失、GL 退回
-# llvmpipe。GPU 模块在 build-gpu-variant.sh 产出的 <版本>-ufi103s-gpu 树里，
-# 而 <版本>-ufi103s-venus 树不含它们——这里必须挡住这个错配。
+# llvmpipe。GPU 模块只在 venus-4g-gpu 板型的模块树里
+# （<版本>-ufix0x-venus-4g-gpu-dirty），纯 venus 板型（<版本>-ufix0x-venus-dirty）
+# 不含它们——这里必须挡住这个错配。
 if [[ "$ROOTFS_FLAVOR" == max || "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
     echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
     echo "      MODULE_TREE=$MODULE_TREE" >&2

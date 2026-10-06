@@ -63,7 +63,7 @@
 
 ### 在分发仓（不在本工作区，属正常分工）
 
-`/opt/helloworld/ufi00x-mainline/tools/`：`check-repo.sh`（自检）、
+`ufi00x-mainline/tools/`：`check-repo.sh`（自检）、
 `gen-manifest.sh`（哈希清单）、`install-module.sh`（模块安装/回滚）、
 `wifi-tx-test.sh`（吞吐测试）、`dump-nv.sh`（NV 导出）。
 

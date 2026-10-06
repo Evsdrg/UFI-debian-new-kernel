@@ -61,3 +61,6 @@ modules.order
 modules.builtin
 modules.builtin.modinfo
 .wifi-creds
+
+# 嵌套的分发仓，自带 git，不进本仓
+/ufi00x-mainline/

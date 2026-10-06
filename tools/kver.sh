@@ -30,7 +30,7 @@ fi
 . "$KVER_ENV"
 
 : "${KERNEL_VERSION:?kernel-version.env 里缺 KERNEL_VERSION}"
-: "${KERNEL_LOCALVERSION:=-ufi103s}"
+: "${KERNEL_LOCALVERSION:=-ufix0x}"
 
 KERNEL_SRC="${KERNEL_SRC:-$BASE/source/linux-$KERNEL_VERSION}"
 KERNEL_BASE_CFG="${KERNEL_BASE_CFG:-$BASE/source/configs/common-$KERNEL_VERSION-os.config}"

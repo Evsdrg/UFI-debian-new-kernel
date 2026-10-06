@@ -4,7 +4,7 @@
 #
 # 这是对 tools/build-kernel-variant.sh 的薄封装：GPU 变体需要**两份**配置
 # 片段（venus + gpu），因为它的 DTS 继承自 venus 变体、模块 release 也要
-# 保持一致（-ufi103s-venus），这样才能只换 boot 镜像而不用重刷 rootfs。
+# 保持一致（-ufix0x-venus），这样才能只换 boot 镜像而不用重刷 rootfs。
 #
 # 用法: tools/build-gpu-variant.sh [board] [dts-basename-without-.dts]
 set -euo pipefail

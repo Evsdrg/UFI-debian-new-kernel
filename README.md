@@ -119,7 +119,7 @@ openstick/
   （`tools/build-gpu-variant.sh`），默认内核里 `CONFIG_DRM` 是关的。
 - **固件**：`shared/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
   `qcom/venus-1.8/venus.mbn`（该固件也提供 Adreno 所需的 `a300_*.fw`）。
-- **补丁只有一套**：`source/patches/` 与分发仓 `/opt/helloworld/ufi00x-mainline/patches/`
+- **补丁只有一套**：`source/patches/` 与分发仓 `ufi00x-mainline/patches/`
   逐字节一致，共 5 个（3 个 wcn36xx + 2 个 venus）。早期那个把几处改动揉在
   一起的合并版 `0003` 已归档到 `archive/superseded-20260914/patches/`。
 
@@ -130,7 +130,7 @@ openstick/
 bash tools/verify-layout.sh
 
 # 分发仓自检（补丁可应用性、哈希、文档链接）
-cd /opt/helloworld/ufi00x-mainline && sh tools/check-repo.sh \
+cd ufi00x-mainline && sh tools/check-repo.sh \
   /opt/helloworld/openstick/source/linux-$(. source/kernel-version.env; echo $KERNEL_VERSION)
 ```
 

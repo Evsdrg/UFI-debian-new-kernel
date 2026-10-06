@@ -42,7 +42,7 @@ def _load_env() -> dict:
 _V = _load_env()
 
 KERNEL_VERSION = _V["KERNEL_VERSION"]
-KERNEL_LOCALVERSION = _V.get("KERNEL_LOCALVERSION", "-ufi103s")
+KERNEL_LOCALVERSION = _V.get("KERNEL_LOCALVERSION", "-ufix0x")
 
 KERNEL_SRC = BASE / f"source/linux-{KERNEL_VERSION}"
 KERNEL_BASE_CFG = BASE / f"source/configs/common-{KERNEL_VERSION}-os.config"
