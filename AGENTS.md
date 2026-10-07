@@ -228,6 +228,33 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 通过再正式刷。这是本工程验证过的最安全的升级路径（见
 `boards/ufi00x/ufi103s-ufi003/README.md` 的升级流程）。
 
+### 3.11 宿主 `arch-test` 缺 arm64 探针 → mmdebstrap 直接拒构 rootfs
+
+本机是 AOSC OS，它的 `arch-test`（作为 mmdebstrap 的依赖自动装上）只带 x86 家族
+的探针（`/usr/libexec/arch-test/` 里只有 amd64/i386/x32/kfreebsd-*/illumos-amd64），
+**不认识 arm64**。后果是 mmdebstrap 的模拟能力检测失败，构建根本不会开始：
+
+```
+E: arm64 can neither be executed natively nor via qemu user emulation with binfmt_misc
+```
+
+这个报错**具误导性**：binfmt_misc、`qemu-aarch64-static` 其实都是好的（`arch-test`
+一旦能识别 arm64，它自己就会打印 `arm64: ok`）。真正的缺失只是探针文件。
+
+修法（2026-10-07 已在本机做过）：从 Debian 的 `arch-test` 包（`Architecture: all`，
+带全架构探针）里取出 arm64 那一个，放到宿主对应位置：
+
+```sh
+curl -fsSL -o /tmp/arch-test.deb \
+  https://mirrors.cernet.edu.cn/debian/pool/main/a/arch-test/arch-test_0.22-1.1_all.deb
+dpkg-deb -x /tmp/arch-test.deb /tmp/arch-test-ext
+echo REDACTED | sudo -S cp /tmp/arch-test-ext/usr/libexec/arch-test/arm64 /usr/libexec/arch-test/arm64
+arch-test arm64      # 期望：arm64: ok
+```
+
+只补 arm64 一个即可；AOSC 原有的 x86 探针不要覆盖（它们归属那个包，改了两边
+都不一致）。
+
 ---
 
 ## 4. 我们做过的改动（不是上游行为）
