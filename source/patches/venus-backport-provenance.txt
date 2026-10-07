@@ -1,9 +1,11 @@
 Venus hfi_parser backport provenance
+====================================
 
-Local patch: 0001-venus-hfi_parser-fix-payload-size.patch
-Target tree: Linux 6.18.49 (source/linux-6.18.49)
+【已退场，2026-10-07】本地补丁 0004-venus-hfi_parser-fix-payload-size.patch
+已删除：内核升到 7.2.9 后，上游本身已含这个修复，补丁成为空操作。下面是
+完整记录，包括当初为什么要回移、以及退场的实测依据。
 
-Upstream commits backported (torvalds/linux), merged 2026-07-30, first released in v7.3:
+当初回移的修复（torvalds/linux，merged 2026-07-30，标注 first released in v7.3）：
 
   a51cea23e409278f6e2ea072280aba93cc1dd75e
     media: venus: fix payload size returned by parse_caps() and parse_alloc_mode()
@@ -13,19 +15,25 @@ Upstream commits backported (torvalds/linux), merged 2026-07-30, first released 
     media: venus: fix payload size calculation in parse_raw_formats()
     hfi_parser.c | 5 ++---  (2 insertions, 3 deletions)
 
-Combined: 1 file changed, 4 insertions(+), 5 deletions(-) - matches our local diff exactly.
+合并后 1 file changed, 4 insertions(+), 5 deletions(-)，与本地补丁完全一致。
 
-Bug origin: 9edaaa8e3e15 ("media: venus: hfi_parser: refactor hfi packet
-parsing logic"), committed 2025-03-03 (v6.15 window). Any v6.15..v7.2 tree is
-affected, including all HFI v1 platforms (msm8916, msm8939).
+Bug 引入：9edaaa8e3e15 ("media: venus: hfi_parser: refactor hfi packet parsing
+logic"), 2025-03-03（v6.15 窗口）。影响所有 HFI v1 平台（msm8916、msm8939）。
 
-Why backport instead of upgrading: the fix is in v7.3 only; the 6.18.y stable
-branch has not picked it up yet. Both upstream commits carry Cc: stable, so a
-6.18.y backport is expected eventually and should match this patch.
+当初为什么用回移而不是升级：6.18.49 与 7.1.13 两棵树上三个函数自 6.15
+重构以来没被碰过，所以回移零 fuzz、干净套用；而升级内核的成本远大于一个
+4 行的修复。
 
-Applicability: applies cleanly with no fuzz. The three functions were untouched
-between the 6.15 refactor and the 7.3 fix, so our 6.18.49 context lines are
-byte-identical to upstream's.
+--- 退场依据（2026-10-07，对着 pristine v7.2.9 实测）---
+
+1. 套用时 patch 直接报 "Reversed (or previously applied) patch detected!"，
+   5 个 hunk 全被跳过。
+2. 逐函数对比 pristine 7.2.9 与「7.1.13 + 0004」：parse_alloc_mode、
+   parse_caps、parse_raw_formats 三个函数**逐字节相同**。即上游已包含
+   完全一致的修复，补丁再套一次只会把它改回去。
+
+原记录里写的 "Any v6.15..v7.2 tree is affected" 已被推翻，7.2.y 已吃到该
+修复（同在 6.18.y 上是否已被捡走，本项目不再关心——两棵旧树都清理了）。
 
 --- 补丁系列缺陷与修复（2026-09-14，随 7.1.13 升级一并修掉）---
 
@@ -41,13 +49,14 @@ byte-identical to upstream's.
 暴露；换到干净的 7.1.13 树上一套就现形。
 
 修复：把 hfi_parser.c 那一段从 0005 里删除，hfi_parser.c 的改动全部归 0004。
-已验证：
 
-  * 只套 0004 就能得到完整的、与 6.18.49 工作树逐字节相同的 hfi_parser.c，
-    说明重复的那份本来就是多余的。
-  * 修正后 0004、0005 在 pristine 6.18.49 与 pristine 7.1.13 上都能按序
-    干净套用（patch 无 fuzz、无 reject）。
-  * 0005 现在只负责 vdec.c / venc.c / venc_ctrls.c。
+--- 现状（补丁序列 4 个）---
 
-两份补丁在本仓与分发仓 /opt/helloworld/ufi00x-mainline/patches/ 保持逐字节
-一致（0005 已同步过去）。
+  0001 wcn36xx feat-caps 可读
+  0002 wcn36xx MAX_MEDIUM_TIME 6000->20000（上行速率修复）
+  0003 wcn36xx cfg override 诊断
+  0005 venus HFI 1xx 编码修复
+
+在 pristine 7.2.9 上按序套用全部干净（无 fuzz、无 reject），再反向套用也
+全部干净，说明改动完整落位。分发仓 ufi00x-mainline/patches/ 与本仓逐字节
+一致，0004 已同步删除。

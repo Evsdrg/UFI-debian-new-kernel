@@ -9,9 +9,7 @@
 #
 # 用法：tools/build-board-set.sh [板型名 ...]   缺省构建全部未完成的。
 #   可用板型（键 = DTS 后缀，空 = 基线）：
-#     "" oc12 no4g-novenus
-#     venus venus-oc12 venus-oc-100 venus-oc-burst
-#     venus-oc-100-gpu venus-no4g
+#     "" 4g venus venus-4g venus-4g-gpu
 set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"

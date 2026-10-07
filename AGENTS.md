@@ -8,7 +8,7 @@
 分发仓 `ufi00x-mainline/`（本目录下，自带 git）有它自己的 `AGENTS.md`。
 
 工程一句话：为 **MSM8916（高通 410）USB 4G 棒** 构建 Debian 13 arm64 + 自编译
-Linux **7.1.13**，机型为 Handsome OpenStick 家族五块板（UFI103s/UFI003、UFI001b、
+Linux **7.2.9**，机型为 Handsome OpenStick 家族五块板（UFI103s/UFI003、UFI001b、
 UFI001c、SP970、UZ801）。
 
 ---
@@ -145,7 +145,9 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 
 ### 2.8 rootfs 的 MODULE_TREE 必须用 GPU 树
 
-`msm.ko`/`drm.ko` 只在 `-ufi003-gpu` 模块树里，`-ufi003-venus` 树里没有。
+`msm.ko`/`drm.ko` 只在 `venus-4g-gpu` 板型的模块树里
+（`<ver>-ufix0x-venus-4g-gpu-dirty`），纯 venus 板型（`<ver>-ufix0x-venus-dirty`）
+里没有。
 拿错树构建 rootfs，开机 `modprobe msm` 只报一句
 `Module drm not found`，表现为 `/dev/dri` 静默缺失、渲染退回 llvmpipe。
 `build-rootfs.sh` 内置了这个错配的告警。
@@ -233,7 +235,7 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 **重要**：这些是本地改动。看代码时不要把 `source/linux-*/` 里的现状当作上游原样，
 也不要在别处照抄。判断"某行为是不是上游的"，先看 `source/patches/`。
 
-### 4.1 内核补丁（`source/patches/`，共 5 个）
+### 4.1 内核补丁（`source/patches/`，共 4 个）
 
 内核树是**就地打补丁**的：`HEAD` 保持 pristine，改动留在工作区。
 （这样 `ufi00x-mainline/tools/check-repo.sh` 才能对着干净树验证补丁可应用性。）
@@ -243,33 +245,40 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 | `0001` wcn36xx feat-caps 可读 | 通过 debugfs 暴露固件的 feature caps，用于诊断 |
 | `0002` wcn36xx MAX_MEDIUM_TIME 6000→20000 | **真正的上行速率修复**：6000 太小导致固件速率自适应卡在 MCS0（约 6 Mbit/s），改后 45–50 Mbit/s |
 | `0003` wcn36xx cfg override 诊断 | 允许运行时把 `WCN36XX_HAL_CFG_*` 值推给固件（debugfs），用于在不重编内核的情况下探测参数 |
-| `0004` venus hfi_parser payload size | 从上游 v7.3 回移（本树 7.1.13 仍有此 bug）；修 `parse_caps`/`parse_alloc_mode`/`parse_raw_formats` 的返回长度 |
 | `0005` venus HFI 1xx 编码修复 | 8x8 transform 只发给 HFI 4xx/6xx；1xx 强制 in-band headers；对外广告真实的 128x32 对齐；vdec 等 reconf 事件 |
 
-`source/patches/venus-backport-provenance.txt` 记录了 0004 的上游 commit 与
-适用版本的推导。
+（原 `0004` venus hfi_parser payload size 已随 7.2.9 退场，见下。）
+
+`source/patches/venus-backport-provenance.txt` 记录了 `0004` 的完整沿革：当初
+为什么要回移，以及 2026-10-07 为什么退场。退场依据是实测——升到 pristine
+7.2.9 后再套会报 `Reversed (or previously applied) patch detected`，且逐函数
+对比 pristine 7.2.9 与「7.1.13 + 0004」的结果**逐字节相同**，即上游已含该修复。
 
 **已知缺陷（已修，2026-09-14）**：`0005` 原本还含一份与 `0004` **逐字节重复**的
 `hfi_parser.c` 改动，导致按序号套用必然冲突（`patch` 报
 `Reversed (or previously applied) patch detected`）。已把该段从 0005 删除、
-`hfi_parser.c` 全部归 0004。修改补丁序列时注意保持"每个文件只有一个归属"。
+`hfi_parser.c` 全部归 0004（该补丁随后于 2026-10-07 随 7.2.9 升级一并删除）。
+修改补丁序列时仍要遵守这条：**每个文件只有一个归属**。
 
 补丁必须与分发仓 `ufi00x-mainline/patches/` **逐字节一致**
 （两边都有校验脚本会比对）。
 
-### 4.2 自写设备树（`boards/*/*/dts/`，共 12 个文件）
+### 4.2 自写设备树（`boards/*/*/dts/`，共 10 个 + 1 个共享 dtsi）
 
-这些 DTS/dtsi 是我们自己写的，**不在内核树的上游部分**（在 `source/linux-*/
-` 里是未跟踪文件）。权威副本在 `boards/` 下，构建时复制/包含进内核树。
+这些 DTS/dtsi 是我们自己写的，**不在内核树的上游部分**。权威副本在 `boards/`
+与 `source/dts/common/` 下；构建时用独立的 `cpp` + `dtc` 就地编译，只把内核树
+当 include 来源（不往内核树里拷文件，也不改内核 `Makefile`）。
 
-- 共享基础：`msm8916-handsome-openstick-common.dtsi`
-- 每板一个基础 DTS + UFI103s 的多个频率/功能变体（oc12、venus、venus-oc12、
-  venus-oc-100、venus-oc-burst、venus-oc-100-gpu）
+- 共享基础：`source/dts/common/msm8916-handsome-openstick-common.dtsi`
+- 每板一个基础 DTS；UFI103s 另有 4 个功能变体（`-4g`、`-venus`、`-venus-4g`、
+  `-venus-4g-gpu`），合计 5 个功能组合。早期那批频率变体（`oc12`、
+  `venus-oc-100`、`venus-oc-burst` 等）已于 2026-09-16 收敛删除——CPU 超频
+  全员化进公共 dtsi，不再占名字。
 - **每型有专属 `compatible`**：`handsome,ufi103s` / `ufi001b` / `ufi001c` /
   `sp970` / `uz801`（早期五板共用 `handsome,openstick`，只能靠 `model` 区分）。
   新增板子时照这个约定给专属 compatible，不要复用别人的。
-- 好消息：**DTS 跨内核版本零漂移**。同一份 DTS 在 6.18 与 7.1 上编译出的 DTB
-  逐字节相同，所以升级内核时 DTS 不用改。
+- 好消息：**DTS 跨内核版本零漂移**。同一份 DTS 在 6.18 / 7.1 / 7.2 上编译出的
+  DTB 逐字节相同（7.2.9 上与 7.1.13 对比验证过），所以升级内核时 DTS 不用改。
 
 ### 4.3 rootfs 定制（`build-rootfs.sh`）
 
@@ -302,8 +311,8 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
   （见 `GPU-STREAMING.md`）
 - `ufi-console.sh`：有界串口访问
 - `flash.sh`（仓库根）：刷机，`fastboot-flash` 会比对 build.json 的 sha256 再写。
-  （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 归档到
-  `archive/superseded-20260914/tools/`。）
+  （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 已从
+  仓库删除，其历史归档随后于 2026-10-07 一并清理。）
 
 ---
 
@@ -317,18 +326,22 @@ release 字符串。**升级内核只改这个文件**，脚本不要硬编码�
 
 **内核命名 = 设备令牌 + 板型（DTS 后缀）**。设备令牌写在
 `KERNEL_LOCALVERSION`（当前 `-ufix0x`）。每个板型独立 release 与模块树，如
-`7.1.13-ufix0x-dirty`、`7.1.13-ufix0x-4g-dirty`、`7.1.13-ufix0x-venus-4g-gpu-dirty`。
-板型级构建用 `tools/build-board-set.sh`（5 个功能组合）。旧名沿革：`-ufi003`
-（PCB 号）→ `-ufi103s`（单板名，2026-09-30 弃用）→ `-ufix0x`。已编出的
-`-ufi103s` / `-ufi003` 模块树仍在 `shared/modules/`，vermagic 不通用。
+`7.2.9-ufix0x-dirty`、`7.2.9-ufix0x-4g-dirty`、`7.2.9-ufix0x-venus-4g-gpu-dirty`。
+板型级构建用 `tools/build-board-set.sh`（5 个功能组合，表驱动）。旧名沿革：
+`-ufi003`（PCB 号）→ `-ufi103s`（单板名，2026-09-30 弃用）→ `-ufix0x`。
 **重刷时内核与模块树必须成对**，只刷 boot.img 会让模块全部静默失配。MF32 用 `-mf32`。
-重建 6.18.49 遗留产物时用 `KERNEL_LOCALVERSION=-ufi003` 覆盖。
+7.1.13 / 6.18.49 时代的模块树（`-ufi103s-*`、`-ufi003-*`）已于 2026-10-07 清理；
+vermagic 本就不通用，回退只能靠 `recovery/` 与 `out/rollback/` 的分区读回。
 
-重建旧版本（回退验证）用环境变量覆盖：
+重建旧版本（回退验证）用环境变量覆盖 `KERNEL_VERSION`：
 
 ```sh
-KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh
+KERNEL_VERSION=7.1.13 bash tools/build-board-set.sh
 ```
+
+但注意：**旧内核树本身已经在 2026-10-07 清退**（只剩 7.2.9 一棵），所以现在
+这条路只在同一棵树上换其它变量才有效（比如 `KERNEL_LOCALVERSION` 建一次
+验证性构建）。要回到旧内核跑，只能用 `recovery/` 或 `out/rollback/` 里的分区读回。
 
 产物名与构建目录都带版本号 —— **这是必须保持的**：早先不带版本号时，换版本重编
 会覆盖掉旧版本的 `Image.gz`，而 boot 镜像不在 git 里（`.gitignore` 排除 `*.img`），
@@ -362,35 +375,31 @@ KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh
 # 当前版本（先看一眼，命令里的 <ver> 就是它）
 . source/kernel-version.env && echo "$KERNEL_VERSION"
 
-# 构建内核变体（venus / gpu / 基线）
+# 五个板型的内核 + 模块树 + boot 镜像（表驱动，缺省只建未完成的）
+bash tools/build-board-set.sh
+bash tools/build-board-set.sh venus-4g-gpu      # 单个板型
+
+# 单独重编某个变体（少用；build-board-set.sh 已含这一步）
 # 追加 source/configs/kernel-size.config 可得体积极限版（-8.4% Image.gz，
 # 2026-09-15 实测；代价：oops 无符号名 + 必须用同配置重编的模块树，
 # KALLSYMS=n 会改 struct module 布局，旧模块全部拒载）。
 bash tools/build-kernel-variant.sh venus source/configs/ufi103s-venus.config \
-     "$PWD/shared/modules/<ver>-ufi003-venus"
-bash tools/build-kernel-variant.sh venus source/configs/ufi103s-venus.config:source/configs/kernel-size.config \
-     "$PWD/shared/modules/<ver>-ufi003-venus-size"
-bash tools/build-gpu-variant.sh          # 含 boot 打包
-bash tools/build-boot-images.sh          # 基线 boot 镜像
+     "$PWD/shared/modules/<ver>-ufix0x-venus-dirty"
 
-# rootfs（注意 §3.4/3.5/3.6 的三个坑）
-MMDEBSTRAP_FORMAT=ext4 TMPDIR="$PWD/out/tmp" \
-KERNEL_RELEASE="<ver>-ufi003-venus-dirty" \
-MODULE_TREE="$PWD/shared/modules/<ver>-ufi003-gpu" \
-EXTRA_MODULE_TREES="$PWD/shared/modules/<ver>-ufi003-dirty" \
-EXTRA_FIRMWARE_DIR="$PWD/shared/firmware/ufi103s-venus" \
-ROOTFS_PATH="$PWD/shared/rootfs/debian13-arm64-ufi103s-<ver>-venus.ext4" \
-EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
-bash build-rootfs.sh
+# 全矩阵 rootfs（7 个：max/basic/slim/micro × nm|native；注意 §3.4/3.5/3.6 三个坑）
+ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
+bash tools/build-matrix.sh max                  # 单个档位
 
-# 布局与产物自检（应 exit 0）
+# QEMU 冒烟（不碰真机，改档位/砍包后必做）
+bash tools/smoke-all.sh
+
+# 布局与产物自检（应 exit 0；默认校验 max 档镜像，可用 ROOTFS_IMAGE 换档）
 bash tools/verify-layout.sh
-ROOTFS_IMAGE=shared/rootfs/<venus 镜像> bash tools/verify-layout.sh
+ROOTFS_IMAGE=shared/rootfs/ufi103s-<ver>-slim.ext4 bash tools/verify-layout.sh
 
 # 分发仓自检（传当前内核树）
 cd ufi00x-mainline
-K=$(cd /opt/helloworld/openstick && . source/kernel-version.env && echo "$PWD/source/linux-$KERNEL_VERSION")
+K=$(cd .. && . source/kernel-version.env && echo "$PWD/source/linux-$KERNEL_VERSION")
 sh tools/check-repo.sh "$K"
 ```
 
@@ -412,7 +421,7 @@ sh tools/check-repo.sh "$K"
 
 | 项 | 值 |
 |---|---|
-| 内核 | `7.1.13-ufi003-venus-dirty`（venus/GPU 变体）／`7.1.13-ufi003-dirty`（基线） |
+| 内核 | `7.2.9-ufix0x-venus-4g-gpu-dirty`（GPU / max 档）／`7.2.9-ufix0x-dirty`（基线） |
 | rootfs PARTUUID | `a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`（cmdline 必须匹配） |
 | 串口 | `/dev/ttyACM0` @ **115200**（CH343，CDC-ACM）；端口名会变，用前 `tools/ufi-console.sh id` 确认 |
 | 设备 root 密码 | `REDACTED` |
@@ -446,4 +455,3 @@ sh tools/check-repo.sh "$K"
 | `TRIMMING.md` | 精简档位与体积；**QEMU 冒烟测试流程**（改档位/砍包后必做） |
 | `AOSC-RESEARCH.md` | AOSC OS / Afterglow 调研结论（Afterglow 不支持 arm64） |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |
-| `archive/reports/` | 历史专题研究（CPU 频率/电压、EDL、刷机证据等） |

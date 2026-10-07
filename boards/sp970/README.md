@@ -4,17 +4,15 @@ MSM8916 机型，WiFi 为 **WCN3660b**。独立设计：reset 键与三颗 LED �
 编号都与 ufi00x 家族和其它机型不同，因此**不能复用 ufi00x 的 boot 镜像**。
 
 - DTS：`dts/msm8916-handsome-openstick-sp970.dts`
-- boot 镜像：`boot/boot-baseline.img`
 - DTB：`boot/board.dtb`
-- 内核：`7.1.13-ufi003-venus-dirty`（7.1.13 与所有机型共用同一份内核；
-  6.18.49 产物保留作回退）
+- 内核：同家族共用（当前 7.2.9，5 个板型组合见 `AGENTS.md` §5.1）
 - 设备树标识：`model` = `Handsome OpenStick SP970`，`compatible` = `handsome,sp970`, `qcom,msm8916`
-- cmdline：见 `boot/build.json`
+- boot 镜像：**暂无 7.2.y 产物** —— 6.18.49 时代那张（离线校验级）已随
+  2026-10-07 的旧内核清理移除；要重出得跑对应板型的构建
 
 ## 验证状态
 
-**仅离线校验**（构建成功、哈希自洽、DTB 布局正确），**从未刷入实机**。
-本工作区没有该型号硬件。
+**只有 DTS/DTB，从未在硬件上启动过**。本工作区没有该型号硬件。
 
 DTS 里自带一张最高 **1.8 GHz** 的 CPU OPP 表（DTS 注释说该芯片可到 2.1 GHz，
 但因跨批次不保证、故封顶 1.8 GHz）。那是**上游 DTS 的声明**，本工作区未在

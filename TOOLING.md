@@ -19,9 +19,10 @@
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
 
 版本相关的一切都从 `source/kernel-version.env` 派生，脚本里不再硬编码版本号；
-重建旧版本用环境变量覆盖即可（如
-`KERNEL_VERSION=6.18.49 bash tools/build-gpu-variant.sh`）。构建目录与产物名
-都带版本号，所以不同版本的内核镜像不会互相覆盖。
+换版本用环境变量覆盖即可（如 `KERNEL_VERSION=... bash tools/build-board-set.sh`）。
+构建目录与产物名都带版本号，所以不同版本的内核镜像不会互相覆盖。
+注意 6.18.49 / 7.1.13 的内核树已于 2026-10-07 清理，现在只剩 7.2.9 一棵，
+**旧版本不再能重建**。
 
 ### 刷机与设备访问
 
@@ -100,10 +101,11 @@ cmdline 有 PARTUUID/PARTLABEL 两种混用（见
 
 **6. ~~LED 镜像新旧不一致~~（已解决）**
 `shared/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
-没 NetworkManager、没中文）。现已重建为两张同源镜像，内容统一：
-`debian13-arm64-ufi103s-7.1.13.ext4`（基线）与 `…-venus.ext4`（Venus 变体），
-都带 NetworkManager + 中文 + 通用 LED 脚本 + fstab 的 x-systemd.growfs。
-旧镜像归档在 `archive/superseded-20260914/rootfs-networkd/`。
+没 NetworkManager、没中文）。现由 `tools/build-matrix.sh` 一次产出全部 7 张
+同源镜像（`ufi103s-7.2.9-{max,basic,slim,micro}{,-native}.ext4`），都带通用
+LED 脚本 + fstab 的 `x-systemd.growfs`（网络栈按档位是 NM 或 networkd）。
+旧的 `debian13-arm64-ufi103s-*` 命名与它们的归档副本已随 2026-10-07 的
+旧内核清理移除。
 
 ## 不建议做的
 

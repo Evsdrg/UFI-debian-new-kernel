@@ -2,7 +2,11 @@
 
 2026-09-15 规划定稿。命名规则见 AGENTS.md §5.1：内核 release 的设备令牌是
 `KERNEL_LOCALVERSION`（当前 `-ufix0x`，2026-09-30 从 `-ufi103s` 改来；更早的
-`-ufi003` 已弃用）。已编出的旧模块树仍是旧 release，重刷成对更新。
+`-ufi003` 已弃用）。
+
+**2026-10-07：矩阵整体在 7.2.9 上重建。** 7.1.13 / 6.18.49 的内核树、模块树与
+rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产物为
+`boot-board-<板型>-7.2.9.img`。
 
 ## 一、档位矩阵
 
@@ -36,7 +40,7 @@
 | venus-4g-gpu | +硬件编解码 +4G +GPU | **max** |
 
 每板型独立内核 release 与模块树（vermagic 含 release，不可复用），
-boot 镜像 `boot-board-<板型>-7.1.13.img`。刷机配对：max↔venus-4g-gpu、
+boot 镜像 `boot-board-<板型>-7.2.9.img`。刷机配对：max↔venus-4g-gpu、
 basic↔4g、slim/micro↔空，boot 与 rootfs 必须成对。
 
 ## 三、USB 网络共享（所有档默认）
@@ -108,10 +112,12 @@ build-rootfs.sh 自动装入镜像）：
 
 | 步骤 | 内容 | 验证 |
 |---|---|---|
-| 1 ✓ | 内核命名统一（-ufi103s） | kver 推导 + 本提交 |
-| 2 | USB 共享内核 config + gadget 脚本 + NM shared 连接 | fastboot boot 干跑，PC 侧看网卡与网关 |
-| 3 | 非 NM 网络栈资产（networkd/wpa/dnsmasq/nft 模板 + ROOTFS_NET 开关） | QEMU 冒烟 |
-| 4 | 档位矩阵化：F1..F4 × NET 写进 build-rootfs.sh（STAGE/产物名带档位+栈） | 7 个镜像构建 |
+| 1 ✓ | 内核命名统一（→`-ufi103s`，后统一为 `-ufix0x`） | kver 推导 + 提交 |
+| 2 ✓ | USB 共享内核 config + gadget 脚本 + NM shared 连接 | 真机 E2E：PC 侧拿到 10.42.0.x 并可用网关出网 |
+| 3 ✓ | 非 NM 网络栈资产（networkd/wpa/dnsmasq/nft 模板 + `ROOTFS_NET` 开关） | QEMU 冒烟 |
+| 4 ✓ | 档位矩阵化：F1..F4 × NET 写进 build-rootfs.sh（产物名带档位+栈） | 7 个镜像构建 |
 | 5 ✓ | F1 i3 预配置资产（i3-config/i3status.conf/scrot） | QEMU 到 i3 会话 + RDP 截图 |
-| 6 | 7 个 ufi103s rootfs 全量构建 + 冒烟 | 每个镜像 QEMU 到 login、0 FAILED |
-| 7 | mf32 bring-up 后套用（起步 F4-native） | 实机 |
+| 6 ✓ | 7 个 ufi103s rootfs 全量构建 + 冒烟 | 7/7 QEMU 到 login、0 非预期 FAILED |
+| 7 ✓ | 内核升到 7.2.9，全链重建（5 板型内核/boot + 7 rootfs） | build-board-set + build-matrix + smoke-all 全过 |
+| 8 | 7.2.9 刷真机复测（GPU/Venus/4G/WiFi） | 实机 |
+| 9 | mf32 bring-up 后套用（起步 F4-native） | 实机 |

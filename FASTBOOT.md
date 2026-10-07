@@ -181,11 +181,11 @@ systemctl reboot --reboot-argument=bootloader
 fastboot devices
 
 # 3) 刷 boot（本板变体见 boards/ufi00x/ufi103s-ufi003/README.md）
-fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-burst.img
+fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 
-# 4) 刷 rootfs。-S 必需：LK 的 max-download-size 只有 256M，而镜像 ~1G。
+# 4) 刷 rootfs。-S 必需：LK 的 max-download-size 只有 256M，而 max 档己 2G。
 #    刷的是 rootfs 文件系统镜像，不是 3.4G 的整分区 dump（后者会被 LK 拒绝）。
-fastboot -S 200M flash rootfs shared/rootfs/debian13-arm64-ufi103s-6.18.49-venus.ext4
+fastboot -S 200M flash rootfs shared/rootfs/ufi103s-7.2.9-max.ext4
 
 # 5) 正常启动
 fastboot reboot

@@ -1,24 +1,32 @@
 # 系统精简：档位（flavor）与体积
 
-`build-rootfs.sh` 支持 `ROOTFS_FLAVOR=full|minimal|tiny`，用包集合 + dpkg
-`path-exclude` 裁剪，**不是复制脚本**。
+`tools/build-matrix.sh` 一键产出 **7 个 rootfs**：四档 × 两种网络栈。档位是
+`ROOTFS_FLAVOR`（`max` / `basic` / `slim` / `micro`），网络栈是 `ROOTFS_NET`
+（`nm` / `native`）；裁剪用包集合 + dpkg `path-exclude`，**不是复制脚本**。
 
-## 三档对比（7.1.13，实测内容体积）
+矩阵的完整定义（各档的功能集、内核/DTB 配对）见 `BUILD-MATRIX.md`。
 
-| 档位 | 内容体积 | 中文化 | 蓝牙 | 4G | 另含 |
-|---|---|---|---|---|---|
-| `full`（默认） | **760 MB** | ✅ | ✅ | ✅ | 桌面(xrdp+i3)、GPU/mesa、man |
-| `minimal` | **294 MB** | ✅ | ✅ | ✅ | **nmtui**、SSH、zram、LED |
-| `tiny` | **213 MB** | ❌ | ❌ | ❌ | **nmtui**、SSH、zram、LED |
+## 档位 × 网络栈（2026-10-07，内核 7.2.9 实测）
+
+| 镜像 | 档位 | 网络栈 | 文件体积 | 内容体积 | 4G | 蓝牙 | 中文 | 桌面/GPU |
+|---|---|---|---|---|---|---|---|---|
+| `ufi103s-7.2.9-max.ext4` | max | NM | 2.0G | 1.6G | ✅ | ✅ | ✅ | i3+xrdp+GPU |
+| `…-basic.ext4` | basic | NM | 404M | 317M | ✅ | ✅ | ✅ | ✗ |
+| `…-basic-native.ext4` | basic | native | 383M | 300M | ✅ | ✅ | ✅ | ✗ |
+| `…-slim.ext4` | slim | NM | 326M | 256M | ✗ | ✗ | ✅ | ✗ |
+| `…-slim-native.ext4` | slim | native | 296M | 232M | ✗ | ✗ | ✅ | ✗ |
+| `…-micro.ext4` | micro | NM | 301M | 234M | ✗ | ✗ | ✗ | ✗ |
+| `…-micro-native.ext4` | micro | native | 271M | 211M | ✗ | ✗ | ✗ | ✗ |
 
 **两个体积口径别混用**：
 
-- **内容体积**（把镜像 loop 挂载后 `du -sm`）：上表用的就是这个，代表实际装了
-  多少东西。
-- **文件体积**（`ls -l`）：mmdebstrap 按内部估算给 ext4 留了大量空闲块与 inode
-  表，实测 tiny 文件 299MB 而内容只有 213MB。刷到设备后 fstab 的
-  `x-systemd.growfs` 会把文件系统撑满 3.3GB 分区，所以这些预留**不占实机空间**，
-  但对**分发文件**（下载/传输）是实打实的体积。
+- **文件体积**（`ls -l`）：下载/传输看到的数，也是分发仓里列的数。
+- **内容体积**：已用块 × 块大小 —— `dumpe2fs -h <镜像>` 的
+  `(Block count - Free blocks) × Block size`，代表实际装了多少东西。
+  mmdebstrap 按内部估算给 ext4 留了空闲块与 inode 表，所以文件体积比内容体积
+  大一截（micro：301M vs 234M）。刷到设备后 fstab 的 `x-systemd.growfs` 会把
+  文件系统撑满 3.3GB 分区，所以这些预留**不占实机空间**，但对**分发文件**
+  （下载/传输）是实打实的体积。
 
 用 `ROOTFS_SHRINK=1` 可把文件收掉这部分：先 `resize2fs -M` 压到最小，再加
 **固定 32MB 余量**（不是按比例——growfs 才是实际扩容手段，镜像内余量只需够
@@ -28,54 +36,70 @@ growfs 之前那几秒的写入）。实测 tiny：**299MB → 267MB**（最小 
 > 大小而非内容占用，拿这个数再加 25% 反而会得到比原文件更大的镜像（踩过）。
 > 余量也别用 `-M` 后的最小值按百分比放大（25% 就是 58MB，过肥）。
 
-三个维度（中文化 / 蓝牙 / 4G）是**正交开关**，不是绑死在档位上：
+## 四个正交开关
 
-| 开关 | 默认 | 作用 |
+档位只给默认值，四个维度本身是**正交开关**，可以单独覆盖：
+
+| 开关 | 默认（max / basic / slim / micro） | 作用 |
 |---|---|---|
-| `ROOTFS_ZH` | full/minimal=`1`，tiny=`0` | 中文 locale + NM 翻译（关掉则用 `C.UTF-8`） |
-| `ROOTFS_BT` | full/minimal=`1`，tiny=`0` | bluez（蓝牙用户态） |
-| `ROOTFS_4G` | full/minimal=`1`，tiny=`0` | ModemManager/qmi/qrtr/rmtfs + modem 固件 |
+| `ROOTFS_ZH` | `1 / 1 / 1 / 0` | 中文 locale + NM 翻译（关掉则用 `C.UTF-8`） |
+| `ROOTFS_BT` | `1 / 1 / 0 / 0` | bluez（蓝牙用户态） |
+| `ROOTFS_4G` | `1 / 1 / 0 / 0` | ModemManager/qmi/qrtr/rmtfs + modem 固件 |
+| `ROOTFS_NET` | `nm`（全部档位） | `nm`=NetworkManager；`native`=networkd+wpa_supplicant+nftables |
 
-所以「无 4G 但保留中文与蓝牙」= `ROOTFS_FLAVOR=tiny ROOTFS_ZH=1 ROOTFS_BT=1`。
+所以「无 4G 但保留中文与蓝牙」= `ROOTFS_FLAVOR=micro ROOTFS_ZH=1 ROOTFS_BT=1`。
 
-内容体积 = 把镜像 loop 挂载后 `du -sm`；**不要用 ext4 文件大小比较**
+内容体积一律用上面那个"已用块"口径；**不要用 ext4 文件大小比较**
 （mmdebstrap 会按内部估算 padding，同一内容可能有 ±40MB 差异）。
 
-三档都保留：SSH、NetworkManager + **nmtui**、中文 locale（`zh_CN.UTF-8`）、
-zram swap、LED 状态服务、fstab 的 `x-systemd.growfs`、串口 getty。
+四档都保留：SSH、**nmtui**（NM 档）/ `wpa_cli`（native 档）、
+NetworkManager 或 networkd、zram swap、LED 状态服务、fstab 的
+`x-systemd.growfs`、串口 getty。
 
 ## 用法
 
 ```sh
-ROOTFS_FLAVOR=minimal MMDEBSTRAP_FORMAT=ext4 TMPDIR="$PWD/out/tmp" \
-KERNEL_RELEASE=7.1.13-ufi003-venus-dirty \
-MODULE_TREE=$PWD/shared/modules/7.1.13-ufi003-gpu \
-EXTRA_MODULE_TREES=$PWD/shared/modules/7.1.13-ufi003-dirty \
-ROOTFS_PATH=$PWD/out/debian13-arm64-ufi103s-7.1.13-minimal.ext4 \
+# 全矩阵 7 个镜像（档位 × 网络栈；Wi-Fi 凭据从环境读，否则镜像不带凭据）
+ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
+
+# 只建其中几个
+bash tools/build-matrix.sh max basic-native
+
+# 单个档位，且不用 build-matrix 的配对表时，直接调 build-rootfs.sh：
+MMDEBSTRAP_FORMAT=ext4 TMPDIR="$PWD/out/tmp" \
+KERNEL_RELEASE=7.2.9-ufix0x-venus-4g-gpu-dirty \
+MODULE_TREE=$PWD/shared/modules/7.2.9-ufix0x-venus-4g-gpu-dirty \
+EXTRA_MODULE_TREES=$PWD/shared/modules/7.2.9-ufix0x-dirty \
+EXTRA_FIRMWARE_DIR=$PWD/shared/firmware/ufi103s-venus \
+ROOTFS_PATH=$PWD/shared/rootfs/ufi103s-7.2.9-max.ext4 \
+EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
+ROOTFS_FLAVOR=max ROOTFS_NET=nm \
 ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
 bash build-rootfs.sh
 
 # 想进一步收掉文件的 padding（分发用），加 ROOTFS_SHRINK=1
-# 另可显式控制三个维度：
-#   ROOTFS_ZH=1 ROOTFS_BT=1 ROOTFS_4G=0
+# 另可显式控制正交开关：
+#   ROOTFS_ZH=1 ROOTFS_BT=1 ROOTFS_4G=0 ROOTFS_NET=native
 ```
 
 ## 精简从哪儿省出来的
 
-原始镜像 760MB 里 `/usr` 占 736MB，主要三块：
+原始镜像（max）里 `/usr` 占绝大部分，主要几块：
 
 | 项 | 体积 | 处理 |
 |---|---|---|
-| `libLLVM.so.19.1` + `mesa-libgallium` | **151 MB** | 精简档位不装 mesa（GPU 是 render-only，无显示面板，本来也用不上） |
+| `libLLVM.so.*` + `mesa-libgallium` | **151 MB** | 精简档位不装 mesa（GPU 是 render-only，无显示面板，本来也用不上） |
 | `usr/share/doc` + `man` + `usr/share/locale` | 114 MB | `path-exclude`（保留各包 `copyright`，Debian 政策要求） |
 | `modem.*` 固件（4G） | **39 MB** | 关掉 4G 时删除（不装 ModemManager、不加载 modem 模块，固件永不被读取） |
 | `usr/share/i18n` + `locales`（中文） | **~23 MB** | 关掉中文时删除（`i18n` 17MB 是大头），改用 libc-bin 内建的 `C.UTF-8` |
 | `bluez`（蓝牙） | **~5.2 MB** | 关掉蓝牙时删除。注意 `network-manager` 依赖 `libbluetooth3`(336KB)，那个小库去不掉 |
 
 体积大头来自 **mesa → libLLVM**：连一个只做 3D 渲染的 render 节点都要拖进
-117MB 的 LLVM。若将来要做 GPU 分区镜像，这是首先要解决的依赖。
+一百多 MB 的 LLVM。若将来要做 GPU 分区镜像，这是首先要解决的依赖。
 
-内核侧本已精简：模块树 26MB（678 个），最大子系统（`drivers/net`）仅 2.4MB，
+（这些单项数字是 7.1.13 那轮对照测出来的，7.2.9 上结构不变、数值差在 MB 级。）
+
+内核侧本已精简：单棵模块树 26MB，最大子系统（`drivers/net`）仅 2.4MB，
 可压缩空间远小于固件与 mesa。
 
 ## 两个构建陷阱（都实测踩过）
@@ -99,11 +123,14 @@ bash build-rootfs.sh
 换成配对的 gpu 树后 0 FAILED。**QEMU 冒烟的通过标准应包含"无 FAILED 单元"**，
 不要只看有没有到 login。
 
+7.2.9 起配对关系是：max ↔ `…-venus-4g-gpu-dirty`，basic ↔ `…-4g-dirty`，
+slim / micro ↔ `…-dirty`（基线）。`tools/build-matrix.sh` 内置这张表。
+
 ## 必须显式声明的包（否则镜像不可启动）
 
 ### `systemd-sysv` —— 提供 `/usr/sbin/init`
 
-它**只是 `systemd` 的 Recommends**。`tiny` 档位移除 4G 包后依赖链断裂，
+它**只是 `systemd` 的 Recommends**。`micro` 档位移除 4G 包后依赖链断裂，
 镜像里没有 `/sbin/init`，内核依次尝试 `/sbin/init`→`/etc/init`→`/bin/init`
 全部失败，**落到 `/bin/sh`，系统起不来**（无 SSH、无网络，刷到真机只能
 按复位键走 EDL 恢复）。
@@ -115,41 +142,27 @@ bash build-rootfs.sh
 
 详见 `BLUETOOTH.md`。内核有 `hci0` 但没有 `bluetoothctl` 的话，蓝牙等于不可用。
 
-## QEMU 冒烟测试（精简档位必须做的一步）
+## QEMU 冒烟测试（改档位 / 砍包后必做）
 
 设备只能从**运行中的系统**进 fastboot；若新 rootfs 起不来就只能物理复位，
 所以刷 rootfs 前应先在不碰真机的前提下验证可启动性。
 
-我们的内核配置恰好齐备 QEMU `virt` 所需项（`ARM_GIC`/`GIC_V3`/`ARCH_TIMER`/
-`PSCI_FW`/`SERIAL_AMBA_PL011`/`VIRTIO_MMIO`/`VIRTIO_BLK`，全部 `=y` 内建，
-无需 `ARCH_VIRT`，arm64 也没有这个符号）。所以：
-
 ```sh
-# 1) 从 boot 镜像提取裸 Image（跳过 2048 字节 Android header，
-#    截止到 appended DTB 的 d00dfeed 魔数）
-python3 - <<'PY'
-import struct, gzip, pathlib
-d = pathlib.Path("boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-100-gpu-7.1.13.img").read_bytes()
-page = struct.unpack_from("<I", d, 36)[0]
-off  = d.find(bytes.fromhex("d00dfeed"), page)
-pathlib.Path("out/qemu-test/Image").write_bytes(gzip.decompress(d[page:off]))
-PY
+# 全部 7 个镜像（自动按档位配上对应的内核 Image.gz）
+bash tools/smoke-all.sh
 
-# 2) 准备可写 rootfs：改 fstab 为 /dev/vda，加 ttyAMA0 getty
-cp out/<镜像>.ext4 out/qemu-test/test.ext4
-#   /etc/fstab 写 "/dev/vda / ext4 defaults 0 1"
-#   ln -sf /lib/systemd/system/serial-getty@.service \
-#          /etc/systemd/system/getty.target.wants/serial-getty@ttyAMA0.service
-
-# 3) 按设备规格启动（4×Cortex-A53、376MB，与真机一致）
-qemu-system-aarch64 -M virt -cpu cortex-a53 -smp 4 -m 376 \
-  -kernel out/qemu-test/Image \
-  -append "console=ttyAMA0 root=/dev/vda rw rootwait" \
-  -drive file=out/qemu-test/test.ext4,if=none,id=d0,format=raw \
-  -device virtio-blk-device,drive=d0 -nographic -no-reboot
+# 单个镜像
+tools/qemu-smoke.sh shared/rootfs/ufi103s-7.2.9-micro-native.ext4 \
+                   build/variant-7.2.9-board-baseline/arch/arm64/boot/Image.gz
 ```
 
-**通过标准**：出现 `ufi103s login:`（或 `Welcome to Debian GNU/Linux 13`）。
+`tools/qemu-smoke.sh` 自己做三件事：从 boot 构建树里取裸 `Image`、把镜像
+复制一份改成可写（`/etc/fstab` 改成 `/dev/vda`、加 `serial-getty@ttyAMA0`）、
+按设备规格（`-M virt -cpu cortex-a53 -smp 4 -m 376`，与真机 376MB 一致）启动
+并抓串口。
+
+**通过标准**：出现 `ufi103s login:`（或 `Welcome to Debian GNU/Linux 13`），
+且没有**非预期**的 FAILED 单元。日志落在 `out/qemu-test/`。
 
 ### 预期内的假故障
 
@@ -161,13 +174,12 @@ QEMU 里没有高通硬件，所以下列失败是**正常的**，不要当成�
 
 真机上这些服务是 `active (running)`。
 
-## 精简档位的实机状态
+## 实机状态
 
-**2026-09-16 矩阵化**：档位改 max/basic/slim/micro × nm/native 共 7 镜像
-（`tools/build-matrix.sh` 一键构建，`tools/qemu-smoke.sh` + `smoke-all.sh`
-冒烟），**7/7 QEMU 冒烟通过**，但**尚未刷入真机**：设备只能从运行中的系统
-进 fastboot，刷 rootfs 失败需物理复位，这一步应在操作者在场时进行。刷机
-命令与回退方式见 `boards/ufi00x/ufi103s-ufi003/README.md`。
+**2026-10-07（内核 7.2.9）**：7 个 rootfs 全量重建，`tools/smoke-all.sh`
+**7/7 QEMU 冒烟通过**（0 非预期 FAILED）。但**尚未刷入真机**：设备只能从运行中的
+系统进 fastboot，刷 rootfs 失败需物理复位，这一步应在操作者在场时进行。
+7.1.13 那批（2026-09-16）同样只做到冒烟，随旧内核一并清理。
 
-注意：max 档配 GPU 内核（模块树 `7.1.13-ufi103s-gpu`），其余档配基线内核
-（`7.1.13-ufi103s`）——刷机时 boot.img 与 rootfs 必须按档位成对。
+刷机命令与回退方式见 `boards/ufi00x/ufi103s-ufi003/README.md`。
+**刷机时 boot.img 与 rootfs 必须按档位成对**（见上"模块树必须与内核配对"）。

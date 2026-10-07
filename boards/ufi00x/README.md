@@ -16,8 +16,9 @@ OpenStick 系列 DTS，并经 UFI103s 实机设备树 dump 核对。它们都 `#
 
 **注意**：ufi001b / ufi001c 的 DTS 里各带一张最高 1.6 GHz 的 OPP 表，那是
 **来自上游 DTS 的声明，不是本工作区实测的结论**。本工作区只在 UFI103s 上
-做过频率标定，实测结论是约 1209.6 MHz 之后无收益（见
-`archive/reports/CPU-OVERCLOCKING.md` 等）。没有实机就不要照搬那两张表。
+做过频率标定，实测结论是约 1209.6 MHz 之后无收益（那份完整研究记录随历史
+归档于 2026-10-07 清理，结论不变：`1401.6 MHz` 零增益，且降压不可行——
+电压由 PSCI 固件掌控，无 `opp-microvolt` 可改）。没有实机就不要照搬那两张表。
 
 ## 产物
 
@@ -26,11 +27,13 @@ OpenStick 系列 DTS，并经 UFI103s 实机设备树 dump 核对。它们都 `#
 - `dts/` — 该机型的设备树源文件
 - `boot/` — 组装好的 boot 镜像（同一 `Image.gz` + 本板 DTB）+ `build.json`
 
-UFI103s 有 6 个 boot 变体（基线 / 超频 / Venus 组合），其余两型各 1 个基线
-镜像。变体说明见 `ufi103s-ufi003/README.md`。
+UFI103s 有 5 个 boot 变体（WiFi-only / +4G / +Venus / +Venus+4G /
++Venus+4G+GPU，与 5 个 DTS 功能组合一一对应）。ufi001b / ufi001c 目前
+**只有 DTS 与 DTB**——它们 6.18.49 时代的 boot 镜像（离线校验级）已随
+2026-10-07 的旧内核清理移除，要重出得跑对应板型的构建。
+变体说明见 `ufi103s-ufi003/README.md`。
 
 ## 只有 UFI103s 插过真机
 
-ufi001b / ufi001c 的产物是**离线校验**级别（构建成功、哈希自洽），未曾在
-硬件上启动。这两个型号的测试是分发仓 `ufi00x-mainline/`
-招募测试者的目的之一。
+ufi001b / ufi001c 到目前为止只做到 DTS/DTB 级别，从未在硬件上启动过。
+这两个型号的测试是分发仓 `ufi00x-mainline/` 招募测试者的目的之一。

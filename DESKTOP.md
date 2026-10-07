@@ -182,7 +182,7 @@ OpenGL ES profile version: OpenGL ES 3.0 Mesa 25.0.7
 构建方式：
 
 ```sh
-tools/build-gpu-variant.sh          # 编内核 + 打包 boot-venus-oc-100-gpu.img
+tools/build-board-set.sh venus-4g-gpu   # 编 GPU 板型内核 + 打包对应 boot 镜像
 # 然后 fastboot flash boot <该镜像>
 ```
 
@@ -252,7 +252,7 @@ MMDEBSTRAP_FORMAT=ext4 ROOTFS_PATH=/path/to/rootfs.ext4 \
   bash build-rootfs.sh
 
 # 3) 刷 boot + rootfs
-fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-100-gpu.img
+fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 fastboot -S 200M flash rootfs /path/to/rootfs.ext4
 fastboot reboot
 # 4) 首次开机后（镜像已带 x-systemd.growfs，无需手工 resize）

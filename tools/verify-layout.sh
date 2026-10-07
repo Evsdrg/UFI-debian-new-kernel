@@ -152,22 +152,22 @@ printf 'led_discovery=auto\n'
 
 printf '\n== board boot status ==\n'
 for board in ufi103s-ufi003 ufi001b ufi001c sp970 uz801; do
-  if [[ -f "$(board_dir "$board")/boot/boot-baseline.img" ]]; then
+  if [[ -f "$(board_dir "$board")/boot/boot-board-baseline-$KERNEL_VERSION.img" ]]; then
     printf '%s=board-specific-boot\n' "$board"
   else
-    printf '%s=DTB-only-or-placeholder; do-not-flash\n' "$board"
+    printf '%s=no-%s-boot-image; do-not-flash\n' "$board" "$KERNEL_VERSION"
   fi
 done
 
 printf '\n== venus codec variant ==\n'
-# boot 镜像命名有两种约定：7.1.13 起带内核版本后缀（boot-venus-7.1.13.img），
-# 6.18 时期是无后缀（boot-venus.img）。按版本名优先、无后缀兜底，两种都能校验。
+# 这一段校验 max 档的三件套配套：boot（GPU 内核，含 venus）+ rootfs
+# （含 baseline 与 venus-4g-gpu 两棵模块树、venus 固件、ffmpeg）+ venus 模块。
+# boot 镜像名随板型构建走：boot-board-<板型>-<内核版本>.img。
 _venus_boot_dir="$(board_dir ufi103s-ufi003)/boot"
-VENUS_BOOT="$_venus_boot_dir/boot-venus-$KERNEL_VERSION.img"
-[ -f "$VENUS_BOOT" ] || VENUS_BOOT="$_venus_boot_dir/boot-venus.img"
+VENUS_BOOT="$_venus_boot_dir/boot-board-venus-4g-gpu-$KERNEL_VERSION.img"
 VENUS_ROOTFS="$ROOTFS_VENUS"
-VENUS_REL="${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty"
-VENUS_MODS="$MODULES_DIR_VENUS/lib/modules/$VENUS_REL"
+VENUS_REL="${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-4g-gpu-dirty"
+VENUS_MODS="$MODULES_DIR_GPU/lib/modules/$VENUS_REL"
 test -f "$VENUS_BOOT"
 test -f "$VENUS_ROOTFS"
 test -f "$BASE/source/configs/ufi103s-venus.config"
@@ -184,7 +184,7 @@ for m in venus-core venus-dec venus-enc; do
 done
 
 # 若变体构建树还在（未清理中间产物），再做一次解析后配置的强校验。
-VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-venus"
+VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-board-venus-4g-gpu"
 if [ -f "$VENUS_BUILD/.config" ]; then
   grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"
   grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$VENUS_BUILD/.config"
@@ -251,8 +251,8 @@ done
 grep -q '^CONFIG_DRM_MSM=m' "$BASE/source/configs/ufi103s-gpu.config" \
   || { printf 'ERROR: gpu fragment lacks CONFIG_DRM_MSM=m\n' >&2; exit 1; }
 printf 'gpu_config_fragment=ok\n'
-# GPU boot 产物（若已构建）。镜像名带内核版本，与 tools/build-gpu-variant.sh 一致。
-if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-venus-oc-100-gpu-$KERNEL_VERSION.img" ]; then
+# GPU boot 产物（若已构建）。镜像名与 tools/build-board-set.sh 一致。
+if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-board-venus-4g-gpu-$KERNEL_VERSION.img" ]; then
   printf 'gpu_boot=present\n'
 else
   printf 'gpu_boot=absent (run tools/build-gpu-variant.sh to build it)\n'

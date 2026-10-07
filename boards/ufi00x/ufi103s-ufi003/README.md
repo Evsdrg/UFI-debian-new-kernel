@@ -14,40 +14,45 @@
 
 ## 内核版本
 
-当前 **7.1.13**（`KERNEL_RELEASE=7.1.13-ufi003-venus-dirty`）。
-版本号由 `source/kernel-version.env` 统一管理，脚本从它派生路径；
-6.18.49 的树与产物原样保留作回退（把 `KERNEL_VERSION` 改回 6.18.49 即可）。
+当前 **7.2.9**，release 令牌 `KERNEL_LOCALVERSION=-ufix0x`（均来自
+`source/kernel-version.env`）。
+
+> **设备上跑的还是 7.1.13**：7.2.9 的全链（5 个板型内核 + 7 个 rootfs）已建好并
+> 通过 QEMU 冒烟，但**尚未刷机**——刷 rootfs 失败只能物理复位，这一步要在操作者
+> 在场时做。6.18.49 与 7.1.13 的内核树、模块树、boot 镜像已于 2026-10-07 清理，
+> 回退只能靠分区读回（见"回退"一节）。
 
 ## 产物
 
-`dts/` — 7 个设备树变体；`boot/` — 对应 boot 镜像 + `board.dtb`。
+`dts/` — 5 个功能组合；`boot/` — 对应 boot 镜像 + 每个镜像的 `build.json` +
+`board.dtb`。板型命名规则见 `AGENTS.md` §5.1：release =
+`<版本>-ufix0x<板型后缀>-dirty`，后缀只写"有的功能"。
 
-带 `-7.1.13` 的是当前内核；不带版本号的是 6.18.49 时期的产物（保留作回退）。
-
-| boot 镜像 | DTS | 用途 | 内核 |
+| boot 镜像 | DTS | 功能 | 配对模块树 |
 |---|---|---|---|
-| `boot-venus-oc-100-gpu-7.1.13.img` | `ufi103s-venus-oc-100-gpu.dts` | **已交付配置**：Venus + ~100MHz 频率表 + Adreno GPU | 7.1.13 |
-| `boot-venus-oc-100-7.1.13.img` | `ufi103s-venus-oc-100.dts` | Venus + 约 100 MHz 粒度频率表 | 7.1.13 |
-| `boot-venus-oc-burst-7.1.13.img` | `ufi103s-venus-oc-burst.dts` | Venus + burst 策略 | 7.1.13 |
-| `boot-venus-oc12-7.1.13.img` | `ufi103s-venus-oc12.dts` | Venus + 频率档 1094.4/1152/1209.6 | 7.1.13 |
-| `boot-venus-7.1.13.img` | `ufi103s-venus.dts` | Venus 基线频率（200/400/800/998.4） | 7.1.13 |
-| `out/boot-7.1.13/boot-ufi103s-7.1.13-baseline.img` | `ufi103s.dts` | 无 Venus 的纯基线 | 7.1.13 |
-| `out/boot-7.1.13/boot-ufi103s-7.1.13-oc12.img` | `ufi103s-oc12.dts` | 基线 + 频率档 | 7.1.13 |
-| `boot-venus-oc-100-gpu-6.18.49.img` | 同上 | 6.18.49 的 GPU 变体（回退用） | 6.18.49 |
-| `boot-venus*.img`（无版本号） | 同上 | 6.18.49 时期产物 | 6.18.49 |
+| `boot-board-baseline-7.2.9.img` | `msm8916-handsome-openstick-ufi103s.dts` | WiFi/BT（4G 链与 venus 全关） | `7.2.9-ufix0x-dirty` |
+| `boot-board-4g-7.2.9.img` | `…-ufi103s-4g.dts` | +4G | `7.2.9-ufix0x-4g-dirty` |
+| `boot-board-venus-7.2.9.img` | `…-ufi103s-venus.dts` | +Venus | `7.2.9-ufix0x-venus-dirty` |
+| `boot-board-venus-4g-7.2.9.img` | `…-ufi103s-venus-4g.dts` | +Venus +4G | `7.2.9-ufix0x-venus-4g-dirty` |
+| `boot-board-venus-4g-gpu-7.2.9.img` | `…-ufi103s-venus-4g-gpu.dts` | +Venus +4G +GPU | `7.2.9-ufix0x-venus-4g-gpu-dirty` |
+
+CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不再占板型名字；
+早期那批频率变体（`oc12`、`venus-oc-100`、`venus-oc-burst` 等）已于 2026-09-16 收敛删除。
 
 配套产物：
 
-- rootfs：`shared/rootfs/debian13-arm64-ufi103s-<版本>-venus.ext4`（Venus/GPU 变体）
-  或 `...-<版本>.ext4`（基线）
-- 模块：`shared/modules/<版本>-ufi003-venus/`（Venus）、`...-ufi003-gpu/`（GPU）、
-  `...-ufi003-dirty/`（基线）
+- rootfs：`shared/rootfs/ufi103s-7.2.9-<档>{,-native}.ext4`，共 7 张
+  （max / basic / slim / micro × nm|native，见下）
+- 模块：`shared/modules/7.2.9-ufix0x-*.dirty`
 - 固件：`shared/firmware/ufi103s-venus/`（比 common 多 `qcom/venus-1.8/venus.mbn`）
 
-**GPU 变体的模块树必须用 `-gpu` 那份**：render-only 模式需要 `separate_gpu_kms=1`
-以及 `msm.ko`/`drm.ko`，而 `-venus` 树里没有它们。详见 `DESKTOP.md`。
+**GPU 板型的模块树必须用 `-venus-4g-gpu` 那份**：render-only 模式需要
+`separate_gpu_kms=1` 以及 `msm.ko`/`drm.ko`，而 `-venus`（无 gpu）树里没有它们，
+拿错树构建 rootfs 会表现为 `/dev/dri` 静默缺失、渲染退回 llvmpipe。详见 `DESKTOP.md`。
 
-## 实机状态（7.1.13，2026-09-14 实测）
+## 实机状态
+
+### 7.1.13（2026-09-14 实测，设备上正在运行的那一版）
 
 - 启动 ✅：`uname -r` = `7.1.13-ufi003-venus-dirty`，型号与 compatible 正确；
   开机日志 0 error（仅一条 PSCI `failed to set PC mode` 固件报告，6.18 时期就有）。
@@ -62,63 +67,84 @@
 - CPU 频率：档位 200/400/800/998.4/1094.4/1209.6/1401.6 MHz 齐全；
   实测约 1209.6 MHz 后无收益，降压不可行（电压由 PSCI 固件掌控）。
 
-## 升级到 7.1.13 的过程（可复现）
+### 7.2.9（2026-10-07 构建，**未上真机**）
 
-改动只在 boot 分区，rootfs 无需重刷（模块以新增目录方式装入，旧的 6.18 模块保留）：
+- 5 个板型内核 + boot 镜像 ✅（`tools/build-board-set.sh`）
+- 7 个 rootfs ✅（`tools/build-matrix.sh`），`tools/smoke-all.sh` **7/7 冒烟通过**，
+  0 非预期 FAILED
+- 设备刷机、GPU/Venus/4G/WiFi 的实机复测：**待做**
+
+## 升级到 7.2.9（步骤已就绪，尚未执行）
+
+改动只在 boot 分区，rootfs 不必重刷（模块以新增目录方式装入，旧目录保留）。
+但 **7.2.9 与 7.1.13 的 vermagic 不同**，所以第 1 步必须先把新模块推上设备，
+否则预演启动时模块会全部静默失配：
 
 ```sh
 # 1) 主机：模块推到设备（纯新增，不动现有模块）
-tar -C shared/modules/7.1.13-ufi003-gpu/lib/modules -czf /tmp/m.tar.gz 7.1.13-ufi003-venus-dirty
-scp /tmp/m.tar.gz root@<设备>:/tmp/ && ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a'
+tar -C shared/modules/7.2.9-ufix0x-venus-4g-gpu-dirty/lib/modules \
+    -czf /tmp/m.tar.gz 7.2.9-ufix0x-venus-4g-gpu-dirty
+scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
+  ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a'
 
 # 2) 零风险预演：从内存启动，完全不写 flash
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
-fastboot boot boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-100-gpu-7.1.13.img
-#    启动后 uname -r 即为 7.1.13；验完直接重进 fastboot 即可，flash 未被改动
+fastboot boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
+#    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
+#    预演失败也不会影响设备——boot 分区上仍是 7.1.13
 
 # 3) 正式刷入
-bash flash.sh fastboot-flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-venus-oc-100-gpu-7.1.13.img
+bash flash.sh fastboot-flash boot \
+  boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 fastboot continue
 ```
 
-**回退**：把任意 6.18.49 的 boot 镜像刷回 p12 即可（例如
-`boot-venus-oc-100-gpu-6.18.49.img`）。6.18 的模块树仍在设备上，所以回退后
-WiFi/Venus 等功能立即恢复。设备 boot 分区的完整读回副本在
-`out/rollback/boot-backup-6.18-gpu.img`。
+### 回退
 
-## rootfs 镜像
+主机上已经没有旧内核树了，回退靠分区读回（**不可再生**，别删）：
 
-设备上正在跑的 rootfs 仍是 6.18.49 时构建的那张（内核升级不需要重刷 rootfs）。
-7.1.13 的配套镜像也已构建好，供全新刷机使用：
-
-| 镜像 | 用途 | 内核模块树 |
+| 目标 | 镜像 | 说明 |
 |---|---|---|
-| `shared/rootfs/debian13-arm64-ufi103s-7.1.13-venus.ext4` | Venus/GPU 变体 | `7.1.13-ufi003-venus-dirty`（GPU 树）+ `-ufi003-dirty`（基线，随镜像附带） |
-| `shared/rootfs/debian13-arm64-ufi103s-7.1.13.ext4` | 基线（无 Venus） | `7.1.13-ufi003-dirty` |
+| 回到 7.1.13 | `out/rollback/boot-7.1.13-as-flashed-28e0902f.img` | 设备 boot 分区当前内容的逐字节副本；设备上也已有 7.1.13 的模块目录 |
+| 回到 6.18.49 | `out/rollback/boot-backup-6.18-gpu.img` | 6.18 的 boot；其模块树已从主机清理，设备上是否留有需实机确认 |
+| 原厂 boot | `recovery/original/boot-original-p12.img` | 出厂读回 |
+| 分区级全量 | `recovery/backups/{boot,rootfs}-*.bin` | 6.18.49 时代 p12/p14 的读写前后读回 |
 
-两张都通过 `tools/verify-layout.sh` 全量校验（exit 0）。
+刷回：`fastboot flash boot <img>` 后 `fastboot continue`。
+
+## rootfs 镜像（7 个矩阵档）
+
+`tools/build-matrix.sh` 一次产出全部 7 张，配对关系写在脚本里：
+
+| 镜像 | 档位 | 网络栈 | 配对内核/模块树 |
+|---|---|---|---|
+| `ufi103s-7.2.9-max.ext4` | max | NM | `7.2.9-ufix0x-venus-4g-gpu-dirty`（+ 基线树随镜像附带） |
+| `ufi103s-7.2.9-basic.ext4` | basic | NM | `7.2.9-ufix0x-4g-dirty` |
+| `ufi103s-7.2.9-basic-native.ext4` | basic | native | 同上 |
+| `ufi103s-7.2.9-slim.ext4` | slim | NM | `7.2.9-ufix0x-dirty` |
+| `ufi103s-7.2.9-slim-native.ext4` | slim | native | 同上 |
+| `ufi103s-7.2.9-micro.ext4` | micro | NM | 同上 |
+| `ufi103s-7.2.9-micro-native.ext4` | micro | native | 同上 |
+
+体积、四个正交开关、精简档位的取舍见 `TRIMMING.md`；矩阵定义见 `BUILD-MATRIX.md`。
 
 **构建时必须传 Wi-Fi 凭据**，否则镜像里没有预置连接，刷完即失联：
 
 ```sh
-MMDEBSTRAP_FORMAT=ext4 \
-KERNEL_RELEASE=7.1.13-ufi003-venus-dirty \
-MODULE_TREE=$PWD/shared/modules/7.1.13-ufi003-gpu \
-EXTRA_MODULE_TREES=$PWD/shared/modules/7.1.13-ufi003-dirty \
-EXTRA_FIRMWARE_DIR=$PWD/shared/firmware/ufi103s-venus \
-ROOTFS_PATH=$PWD/shared/rootfs/debian13-arm64-ufi103s-7.1.13-venus.ext4 \
-EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
-bash build-rootfs.sh
+ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
 ```
 
 两个易踩点：`MMDEBSTRAP_FORMAT=ext4` 不写的话只产出目录树（脚本默认
-`directory`）；`TMPDIR` 若落在小容量的 tmpfs 上会在装桌面包时 "No space left
-on device"（本机 `/tmp` 就是 11G tmpfs，需指到大盘上）。
+`directory`；`build-matrix.sh` 已代设）；`TMPDIR` 若落在小容量的 tmpfs 上会在装
+桌面包时 "No space left on device"（本机 `/tmp` 就是 11G tmpfs，需指到大盘上）。
 
 ## 刷机前
 
 **必须先用 Miko 做整片 eMMC 全量备份**，再刷任何分区。只动 `boot` 与
-`rootfs`，不动 GPT、aboot、modem、NV。
+`rootfs`，不动 GPT、aboot、modem、NV。注意这条备份目前**无法脚本化**
+（Miko 是 Windows GUI 工具），仓库里能依赖的是上面那张分区级读回表。
 
 原始 boot 分区读回单份保存在 `recovery/original/boot-original-p12.img`。
+
+刷机命令与坑见 `FASTBOOT.md`；rootfs 刷机用 `-S 200M` 分片（LK 的
+`max-download-size` 只有 256 MB）。

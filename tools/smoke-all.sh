@@ -4,17 +4,19 @@
 set -u
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE"
+. tools/kver.sh
+V="$KERNEL_VERSION"
 
 declare -A K=(
-  [max]="$BASE/build/variant-7.1.13-board-venus-4g-gpu/arch/arm64/boot/Image.gz"
-  [basic]="$BASE/build/variant-7.1.13-board-4g/arch/arm64/boot/Image.gz"
-  [slim]="$BASE/build/variant-7.1.13-board-baseline/arch/arm64/boot/Image.gz"
-  [micro]="$BASE/build/variant-7.1.13-board-baseline/arch/arm64/boot/Image.gz"
+  [max]="$BASE/build/variant-$V-board-venus-4g-gpu/arch/arm64/boot/Image.gz"
+  [basic]="$BASE/build/variant-$V-board-4g/arch/arm64/boot/Image.gz"
+  [slim]="$BASE/build/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
+  [micro]="$BASE/build/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
 )
 
 rc=0
 for t in max basic slim micro basic-native slim-native micro-native; do
-  img="shared/rootfs/ufi103s-7.1.13-$t.ext4"
+  img="shared/rootfs/ufi103s-$V-$t.ext4"
   if [ ! -f "$img" ]; then
     echo "SMOKE[$t] SKIP（镜像不存在）"
     continue

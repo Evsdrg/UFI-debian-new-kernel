@@ -51,12 +51,13 @@ KERNEL_BASE_CFG = BASE / f"source/configs/common-{KERNEL_VERSION}-os.config"
 KERNEL_RELEASE = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-dirty"
 KERNEL_RELEASE_VENUS = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
 
-KERNEL_BUILD_DIR = BASE / f"out/build-ufi103s-{KERNEL_VERSION}-os"
+KERNEL_BUILD_DIR = BASE / f"build/variant-{KERNEL_VERSION}-board-baseline"
 IMAGE_GZ = KERNEL_BUILD_DIR / "arch/arm64/boot/Image.gz"
 
 MODULES_DIR = BASE / f"shared/modules/{KERNEL_RELEASE}"
-MODULES_DIR_VENUS = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus"
-MODULES_DIR_GPU = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-gpu"
+MODULES_DIR_VENUS = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
+MODULES_DIR_GPU = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-4g-gpu-dirty"
 
-ROOTFS_BASE = BASE / f"shared/rootfs/debian13-arm64-ufi103s-{KERNEL_VERSION}.ext4"
-ROOTFS_VENUS = BASE / f"shared/rootfs/debian13-arm64-ufi103s-{KERNEL_VERSION}-venus.ext4"
+# 默认指向 max 档；见 tools/kver.sh 里的说明。
+ROOTFS_BASE = BASE / f"shared/rootfs/ufi103s-{KERNEL_VERSION}-max.ext4"
+ROOTFS_VENUS = ROOTFS_BASE
