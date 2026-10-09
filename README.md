@@ -1,5 +1,10 @@
 # OpenStick 工作区
 
+> **2026-10-10 实机验收**：7.2.9 `venus-4g-gpu` 已两次 RAM 启动并验证回退，
+> 未正式刷写。WiFi/GPU/H.264/VP8/USB 直连等通过，但 **USB NAT 缺项、持续负载
+> 散热限制、MPEG-4 固件错误**尚未解决，不能称为全功能通过。
+> 见 [完整验收报告](VALIDATION-7.2.9.md)。
+
 面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
 Linux **7.2.9** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
 UFI001b / UFI001c / SP970 / UZ801**。
@@ -69,7 +74,7 @@ openstick/
 
 | 机型 | 家族 | WiFi | DTS | 7.2.9 boot 镜像 | 实机验证 |
 |---|---|---|---|---|---|
-| UFI103s / UFI003 | ufi00x | WCN3620 | 5 个功能组合 | 5 个 | **已验证**（当前主力设备） |
+| UFI103s / UFI003 | ufi00x | WCN3620 | 5 个功能组合 | 5 个 | 仅 GPU 组合做过 7.2.9 RAM 验收，有阻塞项 |
 | UFI001b | ufi00x | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
 | UFI001c | ufi00x | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
 | SP970 | sp970 | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
@@ -105,8 +110,9 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
   `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。**这个 PARTUUID 只对
   本工程构建的 rootfs 成立**，刷别处的根文件系统要在 fastboot 时改 cmdline。
 - **WiFi 上行速率**：核心修复是 `MAX_MEDIUM_TIME` 6000→20000（见
-  `source/patches/0002`），实测 6 → 44–50 Mbit/s（在 6.18.49 上测得，7.2.9 未
-  复测）。响应非单调，详见分发仓 `docs/wifi-tx-throughput.md`。
+  `source/patches/0002`），6.18.49 上实测 6 → 44–50 Mbit/s；2026-10-10
+  在 7.2.9 GPU 组合复测上行 49.24、下行 62.76 Mbit/s（非重新做补丁前后 A/B）。
+  响应非单调，详见分发仓 `docs/wifi-tx-throughput.md`。
 - **监管域**：镜像内已用 `update-alternatives` 固定为 upstream
   `regulatory.db`（含 `country CN`）。
 - **网络栈是 NetworkManager**（不是早期的 networkd + wpa_supplicant）：用户可用

@@ -66,6 +66,10 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
   与 `cdc_acm`（`/dev/ttyACM0`）绑定，重插后 tty 名与 USB 序列号都会变。
   用之前先跑 `tools/ufi-console.sh id`；不确定时用波特率扫描识别端口。
 - `/dev/ttyACM1` 属于**另一台设备（LubanCat）**，任何时候都不要用它。
+- **无可靠串口时不要默认 RX 安静**：2026-10-10 旧系统出现串口 overrun 与大量
+  SysRq，随后非预期重启（重启原因未最终确认）。本次 RAM 预演临时去掉串口
+  console、屏蔽 serial-getty，并设 `kernel.sysrq=0`；具体隔离/恢复状态见
+  `VALIDATION-7.2.9.md`。在物理问题排除前不要恢复危险的串口 SysRq。
 
 ### 1.6 凭据现状
 
@@ -109,7 +113,9 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
 
 ### 2.3 Venus 没有 H.265 / VP9 硬解
 
-Venus 1.8 早于这些格式。硬解只有 H.264/MPEG4/VC1/VP8/H263/XVID 等；
+Venus 1.8 早于这些格式。V4L2 枚举 H.264/MPEG4/VC1/VP8/H263/XVID 等，
+但**枚举不等于可用**：2026-10-10 实测 H.264/VP8 通过，MPEG-2 有微小舍入差异；
+MPEG-4 在 7.2.9 与 7.1.13 均触发 `Err_Fatal ... vbuffer.c:1200`，只能重启恢复。
 **H.265 只能软解**，1080p H.265 在本机达不到实时。同一 ffmpeg 进程里用
 v4l2m2m 同时编+解只出 1 帧，所以**必须软解 + 硬编**。
 
@@ -222,11 +228,11 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 - 进 fastboot 的正确写法是 `systemctl reboot --reboot-argument=bootloader`；
   写成位置参数会报 `Too many arguments`
 
-### 3.10 升级内核时用 `fastboot boot` 做零风险预演
+### 3.10 升级内核时用 `fastboot boot` 做内存预演
 
-`fastboot boot <img>` 从内存启动，**完全不写 flash**。升级/换内核时先这样验证，
-通过再正式刷。这是本工程验证过的最安全的升级路径（见
-`boards/ufi00x/ufi103s-ufi003/README.md` 的升级流程）。
+`fastboot boot <img>` 从内存启动，**不写 boot 分区**。升级/换内核时先这样验证，
+通过再正式刷；启动/驱动硬挂死仍可能需要物理断电，不能称为“零风险”。
+2026-10-10 无串口预演的 cmdline、兜底重启与回退验证见 `VALIDATION-7.2.9.md`。
 
 ### 3.11 宿主 `arch-test` 缺 arm64 探针 → mmdebstrap 直接拒构 rootfs
 
@@ -337,6 +343,10 @@ arch-test arm64      # 期望：arm64: ok
 - `desktop/ufi-stream-push.sh` / `-clock.sh` / `-play.sh`：GPU 推流链路
   （见 `GPU-STREAMING.md`）
 - `ufi-console.sh`：有界串口访问
+- **USB 共享当前有验收阻塞（2026-10-10）**：7.2.9 GPU 配置缺 nft CT/reject，
+  NM max 镜像缺 nftables、usb0 管理权覆盖；`tools/usb-gadget.sh` 还写了不存在的
+  interface `b_vendor_code` 属性。USB DHCP/DNS/SSH 成功不能代表 NAT 成功；
+  `verify-layout.sh` 仍会过，详细证据见 `VALIDATION-7.2.9.md`。
 - `flash.sh`（仓库根）：刷机，`fastboot-flash` 会比对 build.json 的 sha256 再写。
   （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 已从
   仓库删除，其历史归档随后于 2026-10-07 一并清理。）
@@ -454,14 +464,17 @@ sh tools/check-repo.sh "$K"
 | 设备 root 密码 | `REDACTED` |
 | 宿主机 sudo 密码 | `REDACTED` |
 | 设备地址 | DHCP，历史上出现过 `.102`/`.108`，用前先 `ping` |
-| CPU | 4× Cortex-A53；档位 200/400/800/998.4/1094.4/1209.6/1401.6 MHz |
+| CPU | 4× Cortex-A53；当前 7.2.9 DTS 档位 200/400/800/998.4/1094.4/1152/1209.6 MHz |
 | 内存 / CMA | 376 MB / 32 MB |
 | boot 镜像布局 | Android legacy header v0、page 2048、base 0x80000000、appended DTB |
 | 网卡 | wlan0（WCN3620 或 WCN3660B）、wwan0-7（4G）、蓝牙 |
 | 设备树 | model 写明具体型号；`compatible` 每型专属 |
 
-**CPU 频率的实测结论**：约 1209.6 MHz 后无收益（1401.6 MHz 零增益）；
-**降压不可行**（电压由 PSCI 固件掌控，无 `opp-microvolt` 可改）。
+**CPU 频率的实测结论**：旧运行镜像曾有 1401.6 MHz 档且无增益；当前源码/7.2.9
+最高 1209.6 MHz，别把旧镜像 OPP 表套过来。**降压不可行**（电压由 PSCI 固件掌控）。
+2026-10-10 当前散热条件下，四核满频 + 96MiB 校验约 27 秒到 80°C，被测试保护
+中止；限 800MHz 后完成 60s CPU / 90s 内存测试，峰值 75°C。持续 GPU 推流也触发
+80°C 保护，未完成长稳；不要宣称默认频率可无限持续满载。
 
 ---
 
@@ -476,6 +489,7 @@ sh tools/check-repo.sh "$K"
 | `NETWORK.md` | NetworkManager 迁移与中文化 |
 | `DESKTOP.md` | i3 桌面 / xrdp / Adreno GPU 渲染 |
 | `GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
+| `VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：通过项、USB NAT/MPEG-4/散热失败项、回退与现场状态 |
 | `VIDEO-CODEC.md` | 编解码实测数据 |
 | `LED.md` | LED 跨型号适配 |
 | `BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |

@@ -17,10 +17,11 @@
 当前 **7.2.9**，release 令牌 `KERNEL_LOCALVERSION=-ufix0x`（均来自
 `source/kernel-version.env`）。
 
-> **设备上跑的还是 7.1.13**：7.2.9 的全链（5 个板型内核 + 7 个 rootfs）已建好并
-> 通过 QEMU 冒烟，但**尚未刷机**——刷 rootfs 失败只能物理复位，这一步要在操作者
-> 在场时做。6.18.49 与 7.1.13 的内核树、模块树、boot 镜像已于 2026-10-07 清理，
-> 回退只能靠分区读回（见"回退"一节）。
+> **boot 分区仍是 7.1.13，7.2.9 已做 RAM 实机预演**：2026-10-10 对
+> `venus-4g-gpu` 两次 `fastboot boot`，并实测正常重启回退；未刷 boot/rootfs。
+> 发现 NM USB NAT 配置缺口、持续负载散热限制，暂不正式刷入。
+> 详细通过项、失败项与原始日志位置见 [`VALIDATION-7.2.9.md`](../../../VALIDATION-7.2.9.md)。
+> 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 
 ## 产物
 
@@ -52,7 +53,7 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 ## 实机状态
 
-### 7.1.13（2026-09-14 实测，设备上正在运行的那一版）
+### 7.1.13（2026-09-14 实测，仍在 boot 分区的默认启动版）
 
 - 启动 ✅：`uname -r` = `7.1.13-ufi003-venus-dirty`，型号与 compatible 正确；
   开机日志 0 error（仅一条 PSCI `failed to set PC mode` 固件报告，6.18 时期就有）。
@@ -67,14 +68,19 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 - CPU 频率：档位 200/400/800/998.4/1094.4/1209.6/1401.6 MHz 齐全；
   实测约 1209.6 MHz 后无收益，降压不可行（电压由 PSCI 固件掌控）。
 
-### 7.2.9（2026-10-07 构建，**未上真机**）
+### 7.2.9（2026-10-07 构建；2026-10-10 RAM 实测）
 
 - 5 个板型内核 + boot 镜像 ✅（`tools/build-board-set.sh`）
-- 7 个 rootfs ✅（`tools/build-matrix.sh`），`tools/smoke-all.sh` **7/7 冒烟通过**，
-  0 非预期 FAILED
-- 设备刷机、GPU/Venus/4G/WiFi 的实机复测：**待做**
+- 7 个 rootfs 的 QEMU 冒烟 ✅；不是实机全功能验收。
+- 仅 `venus-4g-gpu` 做了 RAM 实机测试：WiFi、USB 直连、GPU、H.264/VP8、xrdp、
+  蓝牙扫描、存储与内存校验通过；4G 仅到 `sim-missing`。
+- USB NAT ❌：缺 nft CT/reject 支持，NM 镜像还缺 nftables 及 gadget 管理权配置。
+- 满频压力、持续推流 ⚠️：80°C 测试保护中止；800MHz 限频校验通过，之后已恢复。
+- MPEG-4 硬解 ❌：两版内核同样触发 Venus 固件 fatal；只能重启恢复，不卸载模块。
+- 当前 DTS 的 CPU OPP 为 200/400/800/998.4/1094.4/**1152/1209.6 MHz**。
+- 其它 4 个变体及 7 个新 rootfs 的实机矩阵未测；正式 flash 未执行。
 
-## 升级到 7.2.9（步骤已就绪，尚未执行）
+## 升级到 7.2.9（RAM 预演已执行，正式刷入暂缓）
 
 改动只在 boot 分区，rootfs 不必重刷（模块以新增目录方式装入，旧目录保留）。
 但 **7.2.9 与 7.1.13 的 vermagic 不同**，所以第 1 步必须先把新模块推上设备，
@@ -85,15 +91,16 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 tar -C shared/modules/7.2.9-ufix0x-venus-4g-gpu-dirty/lib/modules \
     -czf /tmp/m.tar.gz 7.2.9-ufix0x-venus-4g-gpu-dirty
 scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
-  ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a'
+  ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a 7.2.9-ufix0x-venus-4g-gpu-dirty'
 
-# 2) 零风险预演：从内存启动，完全不写 flash
+# 2) 内存预演：不写 boot flash，但启动失败仍可能需要物理复位
+#    无可靠串口时，用 VALIDATION-7.2.9.md 中的临时 cmdline 与兜底措施。
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
 fastboot boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 #    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
 #    预演失败也不会影响设备——boot 分区上仍是 7.1.13
 
-# 3) 正式刷入
+# 3) 正式刷入（当前暂停；先解决验收报告中的阻塞项）
 bash flash.sh fastboot-flash boot \
   boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 fastboot continue
@@ -105,7 +112,8 @@ fastboot continue
 
 | 目标 | 镜像 | 说明 |
 |---|---|---|
-| 回到 7.1.13 | `out/rollback/boot-7.1.13-as-flashed-28e0902f.img` | 设备 boot 分区当前内容的逐字节副本；设备上也已有 7.1.13 的模块目录 |
+| 本次升级前整分区 | `out/rollback/20261010/boot-p12-before.bin` | 64MiB p12 读回；本次各阶段散列一致，回退启动已验证 |
+| 回到 7.1.13 | `out/rollback/boot-7.1.13-as-flashed-28e0902f.img` | 历史 boot 镜像读回；设备上保留 7.1.13 模块目录 |
 | 回到 6.18.49 | `out/rollback/boot-backup-6.18-gpu.img` | 6.18 的 boot；其模块树已从主机清理，设备上是否留有需实机确认 |
 | 原厂 boot | `recovery/original/boot-original-p12.img` | 出厂读回 |
 | 分区级全量 | `recovery/backups/{boot,rootfs}-*.bin` | 6.18.49 时代 p12/p14 的读写前后读回 |
