@@ -1,0 +1,21 @@
+# 本机台架凭据 —— 本文件已被 .gitignore 排除，不会提交。
+#
+# 脚本按“环境变量 > 本文件”的顺序取值（见 tools/lib-creds.sh）。
+# 只填你实际用到的项；未填的项保持空即可，脚本会给出提示。
+# 值必须用引号包住，否则含 @ / < > 等字符时会被 shell 误解析。
+
+# 设备 SSH 目标（DHCP 地址会变，用前先 ping 确认；例：'root@192.0.2.10'）
+DEV=''
+
+# 设备 root 口令（flash.sh、build-rootfs.sh 的 ROOTFS_ROOT_PASSWORD 用）
+PW=''
+
+# 本机 sudo 口令（tools/qemu-smoke.sh、tools/ufi-console.sh 用）
+SUDO_PW=''
+
+# 构建 rootfs 时要预置的 Wi-Fi（不填则镜像不带预置网络）
+ROOTFS_WIFI_SSID=''
+ROOTFS_WIFI_PSK=''
+
+# 要写进镜像的设备 root 口令（build-rootfs.sh 用；通常是 PW 的同一个值）
+ROOTFS_ROOT_PASSWORD=''

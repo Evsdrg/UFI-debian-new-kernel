@@ -18,7 +18,9 @@ set -u
 
 PORT="${UFI_CONSOLE_PORT:-/dev/ttyACM0}"
 BAUD="${UFI_CONSOLE_BAUD:-115200}"
-SUDO_PW="${SUDO_PW:-REDACTED}"
+. "$(dirname "$0")/lib-creds.sh"
+# 本机 sudo 口令：环境变量 > .local-creds；缺失时 cred 会给出提示并退出。
+SUDO_PW="$(cred SUDO_PW '访问串口需要 sudo')"
 
 sudo_do() { echo "$SUDO_PW" | sudo -S "$@" 2>/dev/null; }
 

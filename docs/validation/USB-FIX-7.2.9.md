@@ -1,6 +1,6 @@
 # USB 共享修复与回归（7.2.9，2026-10-10）
 
-接续 [原验收](VALIDATION-7.2.9.md) 和 [源码研究](RESEARCH-ISSUES-7.2.9.md)。
+接续 [实机验收](VALIDATION-7.2.9.md)；根因核对已并入 `../ISSUES.md`。
 **USB 的已确认缺陷已修复；MPEG-4、散热、Windows/macOS兼容性不在本次通过范围。**
 
 ## 修改范围

@@ -15,6 +15,12 @@ set -uo pipefail
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE"
 . tools/kver.sh
+. tools/lib-creds.sh
+# Wi-Fi 预置与 root 口令：环境变量 > .local-creds。未提供时不报错
+# （镜像就不带预置网络；刷到无屏棒子上要靠 USB 共享进系统配网）。
+ROOTFS_WIFI_SSID="$(cred_opt ROOTFS_WIFI_SSID)"
+ROOTFS_WIFI_PSK="$(cred_opt ROOTFS_WIFI_PSK)"
+ROOTFS_ROOT_PASSWORD="$(cred_opt ROOTFS_ROOT_PASSWORD)"
 
 # 配对（板型级命名 + 正向功能后缀，见 tools/build-board-set.sh）：
 #   max   → venus-4g-gpu 板型（GPU 内核）
@@ -74,6 +80,7 @@ for t in "${TARGETS[@]}"; do
     ROOTFS_PATH="$OUTROOT/ufi103s-$KERNEL_VERSION-$t.ext4" \
     ROOTFS_WIFI_SSID="${ROOTFS_WIFI_SSID:-}" \
     ROOTFS_WIFI_PSK="${ROOTFS_WIFI_PSK:-}" \
+    ROOTFS_ROOT_PASSWORD="${ROOTFS_ROOT_PASSWORD:-}" \
     bash build-rootfs.sh
     rc=$?
     if [ $rc -ne 0 ]; then

@@ -111,5 +111,5 @@ LED 脚本 + fstab 的 `x-systemd.growfs`（网络栈按档位是 NM 或 network
 
 - **不要给 LED 加软件 PWM**：实测软件 PWM 会带来约 +101 次/秒的深空闲退出
   （13118 vs 3007 per 100 s，用 cpuidle state1 计数测出），已改用 CPU 负载档位。
-  完整研究记录见 `WORKSPACE-INDEX.txt` 的 “LED status research” 一节。
+  完整研究记录见 `../ISSUES.md`（与 `LED.md`）。
 - 不要把内核树、产物、备份塞进 git：已在 `.gitignore` 里排除。

@@ -73,13 +73,22 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
 
 ### 1.6 凭据现状
 
-- **已提交**（脚本默认值）：设备 root 密码 `REDACTED`、主机 sudo 密码 `REDACTED`。
-  `flash.sh` / `build-rootfs.sh` / `tools/ufi-console.sh` 都把它们当默认值，
-  所以脚本能直接跑。这些是本地台架设备的，不是需要保守的机密。
-- **未提交**：盘面 WiFi 的 PSK（只在构建 rootfs 时通过环境变量传入，刻意不落仓库；
-  SSID 仅作为注释里的示例出现在 `tools/ufi-led-state.sh` 的状态行格式说明中）。
-- 规则：**不要把新的私有凭据提交进来**；需要凭据的地方用环境变量传
-  （`ROOTFS_WIFI_SSID`/`ROOTFS_WIFI_PSK`、`PW`、`SUDO_PW`）。
+**仓库里不含任何真实凭据。** 口令、Wi-Fi PSK、设备 IP 一律从本地文件或环境变量取：
+
+| 来源 | 说明 |
+|---|---|
+| `.local-creds` | 仓库根，**已 gitignore**；本机台架值都写在这里 |
+| 环境变量 | 同名校验，优先级最高（`DEV` / `PW` / `SUDO_PW` / `ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK` / `ROOTFS_ROOT_PASSWORD`） |
+
+取值统一走 `tools/lib-creds.sh` 的 `cred` / `cred_opt`；格式模板见
+`.local-creds.example`。使用方：`flash.sh`（`DEV`/`PW`）、`tools/ufi-console.sh`
+与 `tools/qemu-smoke.sh`（`SUDO_PW`）、`tools/build-matrix.sh`（Wi-Fi 与 root 口令，
+转给 `build-rootfs.sh`）。
+
+- **未提交**：Wi-Fi PSK 与设备 root 口令只在构建 rootfs 时经文件传入镜像
+  （`$STAGE/root/.root-password`，用完立即删除，不进命令行/日志）。
+- 规则：**不要把任何真实口令、PSK、内网地址提交进来**；新增需要凭据的地方，
+  用 `tools/lib-creds.sh` 取，不要写默认值。
 
 ---
 
@@ -254,7 +263,7 @@ E: arm64 can neither be executed natively nor via qemu user emulation with binfm
 curl -fsSL -o /tmp/arch-test.deb \
   https://mirrors.cernet.edu.cn/debian/pool/main/a/arch-test/arch-test_0.22-1.1_all.deb
 dpkg-deb -x /tmp/arch-test.deb /tmp/arch-test-ext
-echo REDACTED | sudo -S cp /tmp/arch-test-ext/usr/libexec/arch-test/arm64 /usr/libexec/arch-test/arm64
+echo "$SUDO_PW" | sudo -S cp /tmp/arch-test-ext/usr/libexec/arch-test/arm64 /usr/libexec/arch-test/arm64
 arch-test arm64      # 期望：arm64: ok
 ```
 
@@ -463,9 +472,9 @@ sh tools/check-repo.sh "$K"
 | 内核 | `7.2.9-ufix0x-venus-4g-gpu-dirty`（GPU / max 档）／`7.2.9-ufix0x-dirty`（基线） |
 | rootfs PARTUUID | `a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`（cmdline 必须匹配） |
 | 串口 | `/dev/ttyACM0` @ **115200**（CH343，CDC-ACM）；端口名会变，用前 `tools/ufi-console.sh id` 确认 |
-| 设备 root 密码 | `REDACTED` |
-| 宿主机 sudo 密码 | `REDACTED` |
-| 设备地址 | DHCP，历史上出现过 `.102`/`.108`，用前先 `ping` |
+| 设备 root 口令 | 见 `.local-creds`（`ROOTFS_ROOT_PASSWORD`）；脚本无内置默认值 |
+| 宿主机 sudo 口令 | 见 `.local-creds`（`SUDO_PW`） |
+| 设备地址 | DHCP，会变；用前 `ping` 确认，地址写在 `.local-creds` 的 `DEV` |
 | CPU | 4× Cortex-A53；当前 7.2.9 DTS 档位 200/400/800/998.4/1094.4/1152/1209.6 MHz |
 | 内存 / CMA | 376 MB / 32 MB |
 | boot 镜像布局 | Android legacy header v0、page 2048、base 0x80000000、appended DTB |
@@ -486,6 +495,8 @@ sh tools/check-repo.sh "$K"
 |---|---|
 | `README.md` | 工作区结构与整体状态 |
 | `AGENTS.md`（本文件） | 约束、平台限制、我们做过的改动 |
+| `docs/CHANGES.md` | **改动清单**：相对上游 Linux/Debian 改了什么（交付层 diff） |
+| `docs/ISSUES.md` | **问题清单**：已定案的踩坑（现象/根因/修法/证据）+ 尚未闭环的问题 |
 | `docs/build/BUILD-MATRIX.md` | 设备 × 档位 × 网络栈矩阵与实施顺序 |
 | `docs/build/TRIMMING.md` | 精简档位与体积；**QEMU 冒烟测试流程**（改档位/砍包后必做） |
 | `docs/build/TOOLING.md` | 工具清单与**已知缺口** |
@@ -494,10 +505,9 @@ sh tools/check-repo.sh "$K"
 | `docs/hardware/DESKTOP.md` | i3 桌面 / xrdp / Adreno GPU 渲染 |
 | `docs/hardware/GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
 | `docs/hardware/VIDEO-CODEC.md` | 编解码实测数据（含 7.2.9 注记） |
+| `docs/hardware/CPU-POWER.md` | CPU 频率/电压/散热；降压为何不可行 |
 | `docs/hardware/LED.md` | LED 跨型号适配 |
 | `docs/hardware/BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |
 | `docs/validation/VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
 | `docs/validation/USB-FIX-7.2.9.md` | USB 全链修复：NM/native 真实 NAT、gadget 生命周期、交付断言与保留风险 |
-| `docs/validation/RESEARCH-ISSUES-7.2.9.md` | 验收问题的源码研究记录 |
-| `docs/research/AOSC-RESEARCH.md` | AOSC OS / Afterglow 调研结论（Afterglow 不支持 arm64） |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |

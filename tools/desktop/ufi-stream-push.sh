@@ -5,9 +5,9 @@
 #   ffmpeg 转 NV12 -> h264_v4l2m2m(venus) -> mpegts -> udp
 #
 # 用法:
-#   ufi-stream-push.sh              启动（默认推到 192.0.2.13:5000）
+#   ufi-stream-push.sh              启动（推给 TARGET，默认见下）
 #   ufi-stream-push.sh stop         停掉整条链
-#   TARGET=192.0.2.12 ./ufi-stream-push.sh
+#   TARGET=<接收端IP> ./ufi-stream-push.sh
 #
 # 关键点 1：venus 驱动只注册了 V4L2_CID_MPEG_VIDEO_H264_I_PERIOD，
 # 而 ffmpeg 的 v4l2m2m 封装只设 GOP_SIZE（驱动忽略它），所以 -g 形同虚设 ——
@@ -22,7 +22,8 @@
 set -u
 
 R=${R:-/tmp/stream}
-TARGET=${TARGET:-192.0.2.13}
+# 接收端地址按需覆盖；不设则用一个明确的占位地址（不会误发到别人机器上）。
+TARGET=${TARGET:-192.0.2.10}
 PORT=${PORT:-5000}
 W=${W:-1280}
 H=${H:-736}

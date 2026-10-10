@@ -11,14 +11,17 @@
 #                        旧接口：不校验地刷一个 rootfs 分区名
 #
 # 刷任何分区前，必须先用 Miko 做整片 eMMC 全量备份。
+#
+# 设备地址与口令不写在仓库里：首次使用时从 .local-creds（已被 .gitignore
+# 排除）或环境变量 DEV / PW 取。
 set -euo pipefail
 
 WORKDIR="$(cd "$(dirname "$0")" && pwd)"
 . "$WORKDIR/tools/kver.sh"
-# 设备地址是 DHCP 分配的，会变（历史上出现过 .102 与 .108）。用前先确认：
-#   ping 一下，或 ip neigh 查 ARP 表。DEV 可用环境变量覆盖。
-DEV="${DEV:-root@192.0.2.10}"
-PW="${PW:-REDACTED}"
+. "$WORKDIR/tools/lib-creds.sh"
+# 设备地址是 DHCP 分配的，会变。用前先 ping 或 ip neigh 确认。
+DEV="$(cred DEV '设备 SSH 地址，如 root@<ip>')"
+PW="$(cred PW '设备 root 口令')"
 # 默认用本工作区的权威产物；均可用环境变量覆盖。
 BOARD_DIR="${BOARD_DIR:-$WORKDIR/boards/ufi00x/ufi103s-ufi003/boot}"
 ROOTFS_IMAGE="${ROOTFS_IMAGE:-$ROOTFS_BASE}"

@@ -8,7 +8,8 @@
 #             "-" writes to stdout; a local path (e.g. /tmp/out.flv) lets you
 #             test the whole pipeline without a streaming server.
 #
-# Why this shape (all measured on the stick, see WORKSPACE-INDEX.txt):
+# Why this shape (all measured on the stick, see docs/hardware/VIDEO-CODEC.md
+# and docs/hardware/GPU-STREAMING.md):
 #   * Decode in software, encode in hardware.  Using v4l2m2m for BOTH in one
 #     ffmpeg process truncates the output to a single frame, so the decoder
 #     must stay software.  Software H.264 1080p decode runs ~78fps, plenty.

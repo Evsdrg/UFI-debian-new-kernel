@@ -4,7 +4,7 @@
 > 未正式刷写。**USB NAT已完成修复，NM/native共享路径均实测出网**；持续负载
 > 散热限制、MPEG-4固件错误仍未解决，不能称为全功能通过。
 > 见 [USB修复回归](docs/validation/USB-FIX-7.2.9.md)、[原验收报告](docs/validation/VALIDATION-7.2.9.md)；
-> 后续根因核对见 [问题源码研究](docs/validation/RESEARCH-ISSUES-7.2.9.md)。
+> 根因核对与踩坑记录见 [问题清单](docs/ISSUES.md)，改动面见 [改动清单](docs/CHANGES.md)。
 
 面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
 Linux **7.2.9** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
@@ -34,11 +34,14 @@ openstick/
 ├── README.md              本文件（结构与整体状态）
 ├── AGENTS.md              ★ 给 agent 的作业须知：硬约束、平台限制、我们做过的改动
 ├── docs/                  专题文档（按主题分组）
+│   ├── CHANGES.md         改动清单：相对上游改了什么
+│   ├── ISSUES.md          问题清单：已定案的踩坑 + 尚未闭环的问题
 │   ├── build/             构建矩阵、精简档位、工具清单
 │   │   ├── BUILD-MATRIX.md    设备 × 档位 × 网络栈矩阵与实施顺序
-│   │   ├── TRIMMING.md        系统精简：max/basic/slim/micro 四档 × nm/native、QEMU 冒烟测试
+│   │   ├── TRIMMING.md        系统精简：max/basic/slim/micro 四档 × nm|native、QEMU 冒烟测试
 │   │   └── TOOLING.md         工具清单与缺口
 │   ├── hardware/          硬件能力与踩坑
+│   │   ├── CPU-POWER.md       CPU 频率/电压/散热（含降压为何不可行）
 │   │   ├── DESKTOP.md         桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
 │   │   ├── GPU-STREAMING.md   GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）
 │   │   ├── VIDEO-CODEC.md     编解码实测数据
@@ -46,12 +49,9 @@ openstick/
 │   │   ├── BLUETOOTH.md       蓝牙（内核侧就绪、装 bluez 即用，含实测）
 │   │   ├── LED.md             LED 跨型号适配说明
 │   │   └── FASTBOOT.md        fastboot 刷机（含实测数据与两个坑）
-│   ├── validation/        实机验收报告（2026-10-10）
-│   │   ├── VALIDATION-7.2.9.md        无串口 RAM 预演：通过项与阻塞项
-│   │   ├── USB-FIX-7.2.9.md           USB 共享全链修复与回归
-│   │   └── RESEARCH-ISSUES-7.2.9.md   验收问题的源码研究记录
-│   └── research/          一次性调研
-│       └── AOSC-RESEARCH.md   AOSC OS / Afterglow 适配调研（含实测 bootstrap 与启动）
+│   └── validation/        实机验收报告（2026-10-10）
+│       ├── VALIDATION-7.2.9.md   无串口 RAM 预演：通过项与阻塞项
+│       └── USB-FIX-7.2.9.md      USB 共享全链修复与回归
 ├── boards/                各机型产物，按硬件家族分组
 │   ├── README.md          家族划分依据（含 DTS 逐字节 diff 表）
 │   ├── ufi00x/            ufi103s-ufi003 / ufi001b / ufi001c
@@ -195,7 +195,10 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
 ## 历史
 
 > 本节是操作记录，写的是当时的状态。`archive/` 在 9 月的记录里出现过，
-> 但已随 2026-10-07 的旧内核清理删除（见下文）；不要按本节的旧路径去找文件。
+> 但已随 2026-10-07 的旧内核清理删除；不要按本节的旧路径去找文件。
+> 同期存在的 `WORKSPACE-INDEX.txt`（重组前的状态索引）也已删除，
+> 其中仍有价值的结论已归入 `docs/ISSUES.md`、`docs/hardware/CPU-POWER.md`
+> 与 `docs/CHANGES.md`。
 
 - **中间产物已清理（2026-09-14）**：删掉了约 **9 GB** 可再生产物——
   `out/` 下 4 个与 `shared/rootfs`、`archive/` 重复的 rootfs 镜像（3.0G）、
@@ -213,7 +216,6 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
   `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
   自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。
-- `WORKSPACE-INDEX.txt`：重组前的完整状态索引（保留作对照）
 - **旧内核全部清退（2026-10-07，内核升到 7.2.9）**：6.18.49 与 7.1.13 的内核树、
   模块树、旧命名的 rootfs 与 boot 镜像、`build/variant-7.1.13-*`、以及历史归档
   `archive/`（含 `archive/superseded-20260914/`）都已删除，共释放约 30 GB。

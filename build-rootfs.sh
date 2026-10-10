@@ -23,6 +23,9 @@
 #   ROOTFS_WIFI_SSID / ROOTFS_WIFI_PSK
 #                            预置 Wi-Fi。**不传则镜像不带任何网络配置**，
 #                            刷到无屏幕的棒子上会直接失联 —— 给别人刷机时务必传。
+#                            本机可从 .local-creds（已 gitignore）读取，见 tools/lib-creds.sh。
+#   ROOTFS_ROOT_PASSWORD     设备 root 口令。不传则镜像里 root 无口令（只能串口/
+#                            共享网络登录），给别人刷机时务必传。
 #   TMPDIR=<大盘上的目录>    mmdebstrap 的临时目录。若落在小容量 tmpfs（本机
 #                            /tmp 是 11G tmpfs）上，装桌面包时会 "No space left
 #                            on device" 而失败。
@@ -35,6 +38,8 @@ OUT_DIR="$WORKDIR/out"
 # 显式传 ROOTFS_PATH 时以显式值为准）。
 ROOTFS="${ROOTFS_PATH:-}"
 MMDEBSTRAP_FORMAT="${MMDEBSTRAP_FORMAT:-directory}"
+# 设备 root 口令：从环境变量取（不设则不在镜像里设口令）。
+ROOTFS_ROOT_PASSWORD="${ROOTFS_ROOT_PASSWORD:-}"
 MIRROR="https://mirrors.cernet.edu.cn/debian"
 # KERNEL_RELEASE 由 tools/kver.sh 从 source/kernel-version.env 派生；
 # MODULE_TREE 默认也指向该版本对应的模块树（可用环境变量覆盖）。
@@ -401,6 +406,13 @@ fi
 
 # zram: 376MiB RAM (measured), use zstd and enable at boot
 mkdir -p "$STAGE/etc/systemd/system" "$STAGE/etc/modules-load.d" "$STAGE/usr/local/sbin" "$STAGE/root"
+# root 口令经文件传入镜像：不出现在命令行与构建日志里，用完即删（见下方 hook）。
+if [[ -n "$ROOTFS_ROOT_PASSWORD" ]]; then
+    printf 'root:%s\n' "$ROOTFS_ROOT_PASSWORD" > "$STAGE/root/.root-password"
+    chmod 600 "$STAGE/root/.root-password"
+else
+    : > "$STAGE/root/.root-password"
+fi
 mkdir -p "$STAGE/etc/systemd/system/rmtfs.service.d" "$STAGE/etc/systemd/system/sysinit.target.wants"
 
 # Watchdog: the PM8916 PON watchdog accepts at most 127 s
@@ -735,7 +747,7 @@ MMDEBSTRAP_ARGS=(
 	# 桌面：启用 xrdp 与其会话管理器（xrdp 依赖 xrdp-sesman 拉起会话）。
 	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then mkdir -p $1/etc/systemd/system/multi-user.target.wants && ln -sf /lib/systemd/system/xrdp.service $1/etc/systemd/system/multi-user.target.wants/xrdp.service && ln -sf /lib/systemd/system/xrdp-sesman.service $1/etc/systemd/system/multi-user.target.wants/xrdp-sesman.service; fi'
 	'--customize-hook=if test -f $1/lib/systemd/system/xrdp.service; then test -L $1/etc/systemd/system/multi-user.target.wants/xrdp.service; fi'
-	'--customize-hook=printf '\''root:REDACTED\n'\'' | chroot $1 /usr/sbin/chpasswd'
+	'--customize-hook=if test -s $1/root/.root-password; then chroot $1 /usr/sbin/chpasswd < $1/root/.root-password; else echo "build-rootfs: 警告：未提供 ROOTFS_ROOT_PASSWORD，镜像里 root 无口令" >&2; fi; rm -f $1/root/.root-password'
 	'--customize-hook=echo "debconf debconf/frontend select Noninteractive" | chroot $1 debconf-set-selections'
 	# cfg80211 verifies regulatory.db against certificates built into the kernel.
 	# This kernel carries the upstream certs (net/wireless/certs/wens.hex,

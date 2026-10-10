@@ -189,7 +189,7 @@ ffmpeg -f rawvideo -pix_fmt bgra -s 1280x736 -r 30 -i /tmp/stream/p.yuv \
   -c:v h264_v4l2m2m -b:v 4M \
   -force_key_frames "expr:gte(t,n_forced*1)" -fps_mode passthrough \
   -bsf:v dump_extra=freq=keyframe \
-  -f mpegts "udp://192.0.2.13:5000?pkt_size=1316"
+  -f mpegts "udp://<接收端IP>:5000?pkt_size=1316"
 ```
 
 要点：
@@ -256,7 +256,7 @@ ffmpeg -f rawvideo -pix_fmt bgra -s 1280x736 -r 30 -i /tmp/stream/p.yuv \
 
 ```sh
 # 设备
-TARGET=192.0.2.13 ufi-stream-push.sh     # 默认就是 .113:5000
+TARGET=<接收端IP> ufi-stream-push.sh        # 不设则用脚本里的占位地址
 ufi-stream-push.sh stop
 
 # 接收端

@@ -11,6 +11,9 @@ IMGGZ="${2:?缺少 Image.gz}"
 TIMEOUT="${3:-240}"
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
+. "$BASE/tools/lib-creds.sh"
+# 本机 sudo 口令：环境变量 > .local-creds；缺失时 cred 会给出提示并退出。
+SUDO_PW="$(cred SUDO_PW '准备 QEMU 测试镜像需要 sudo')"
 # 并行回归必须使用不同目录，避免互相覆盖 test.ext4/Image 或卸载别人的挂载。
 T="${QEMU_TEST_DIR:-$BASE/out/qemu-test}"
 NAME="$(basename "$IMG" .ext4)"
@@ -24,8 +27,8 @@ cp "$IMG" "$T/test.ext4"
 MNT="$T/mnt"
 mkdir -p "$MNT"
 # 预清理：上一次异常退出可能留下挂载
-echo REDACTED | sudo -S umount "$MNT" 2>/dev/null || true
-LOOP=$(echo REDACTED | sudo -S bash -c "
+echo "$SUDO_PW" | sudo -S umount "$MNT" 2>/dev/null || true
+LOOP=$(echo "$SUDO_PW" | sudo -S bash -c "
 set -e
 mount -o loop \"$T/test.ext4\" \"$MNT\"
 sed -i 's|^PARTUUID.*|/dev/vda  /  ext4  defaults  0 1|' \"$MNT\"/etc/fstab

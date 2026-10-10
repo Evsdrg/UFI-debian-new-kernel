@@ -15,7 +15,7 @@ while true; do
 	printf '   >>>  %s   <<<\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 	printf '\n'
 	printf '   push ->  udp://%s:%s  (MPEG-TS/H.264)\n' \
-		"${TARGET:-192.0.2.13}" "${PORT:-5000}"
+		"${TARGET:-192.0.2.10}" "${PORT:-5000}"
 	printf '\n'
 	printf '   PID %s   uptime %s\n' "$$" "$(cut -d. -f1 /proc/uptime)s"
 	sleep 1

@@ -158,7 +158,7 @@ red_for_load() {
 wifi_state_nm() {
     command -v nmcli >/dev/null 2>&1 || return 1
     _if=$1
-    # 设备状态行形如：wlan0:wifi:connected:REDACTED_SSID
+    # 设备状态行形如：wlan0:wifi:connected:<SSID>
     _line=$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION device status 2>/dev/null |
         awk -F: -v want="$_if" '$1 == want { print; exit }')
     [ -n "$_line" ] || return 1

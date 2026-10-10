@@ -1,7 +1,7 @@
 [320] fastboot_init()
 [790] fastboot: processing commands
 [9980] booting linux @ 0x80000000, ramdisk @ 0x82000000 (0), tags/device tree @ 0x81e00000
-[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@bench-host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
+[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
 [  221.045733] systemd-shutdown[1]: Rebooting with argument 'bootloader'.
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
@@ -10,7 +10,7 @@
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
 [850] booting linux @ 0x80000000, ramdisk @ 0x82000000 (0), tags/device tree @ 0x81e00000
-[    0.000000] Linux version 6.18.49-ufi003-dirty (builder@bench-host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #1 SMP PREEMPT Fri Sep  4 17:59:03 CST 2026
+[    0.000000] Linux version 6.18.49-ufi003-dirty (builder@host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #1 SMP PREEMPT Fri Sep  4 17:59:03 CST 2026
 [  314.721020] systemd-shutdown[1]: Rebooting with argument 'bootloader'.
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
@@ -19,7 +19,7 @@
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
 [870] booting linux @ 0x80000000, ramdisk @ 0x82000000 (0), tags/device tree @ 0x81e00000
-[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@bench-host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
+[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
 [  809.504250] systemd-shutdown[1]: Rebooting with argument 'bootloader'.
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
@@ -28,7 +28,7 @@
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
 [860] booting linux @ 0x80000000, ramdisk @ 0x82000000 (0), tags/device tree @ 0x81e00000
-[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@bench-host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
+[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
 [  166.629463] systemd-shutdown[1]: Rebooting with argument 'bootloader'.
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
@@ -37,4 +37,4 @@
 [0] OpenStick Bootloader V0.01
 [210] sdcard init failed![220] pm8x41_get_is_cold_boot: cold boot
 [860] booting linux @ 0x80000000, ramdisk @ 0x82000000 (0), tags/device tree @ 0x81e00000
-[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@bench-host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
+[    0.000000] Linux version 6.18.49-ufi003-venus-dirty (builder@host) (aarch64-linux-gnu-gcc (GCC) 15.3.0, GNU ld (GNU Binutils) 2.47.20260726) #5 SMP PREEMPT Fri Sep 11 21:22:27 CST 2026
