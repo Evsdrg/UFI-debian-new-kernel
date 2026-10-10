@@ -32,7 +32,7 @@ B 做了两次都进 fastboot（可重复）。A/B 对照说明**是参数在起
 
 ```
 $ fastboot devices
-REDACTED-SERIAL	 fastboot
+<device-serial>	 fastboot
 ```
 
 USB 上设备是 `18d1:d00d`（Android/fastboot 标准 ID），实测出现在主机 USB hub 的
