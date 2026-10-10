@@ -4,6 +4,10 @@
 `KERNEL_LOCALVERSION`（当前 `-ufix0x`，2026-09-30 从 `-ufi103s` 改来；更早的
 `-ufi003` 已弃用）。
 
+> **档位命名对照**：规划时的 F1/F2/F3/F4 就是现在的 max/basic/slim/micro
+> （`tools/build-matrix.sh` 与 `docs/build/TRIMMING.md` 用后者）。
+> 下文表格保留 F1–F4 是为了与 9 月的实施记录对上，读的时候按此对照换算。
+
 **2026-10-07：矩阵整体在 7.2.9 上重建。** 7.1.13 / 6.18.49 的内核树、模块树与
 rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产物为
 `boot-board-<板型>-7.2.9.img`。
@@ -20,7 +24,7 @@ rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产�
 | **F4 深度精简** | NM | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
 | F4-native | 非 NM | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✗ | ✓ |
 
-\* GPS 只有 MF32 有，且已定案删除（README 定制清单 #1）。
+\* GPS 只有 MF32 有，MF32 板级定制见 `boards/thwc-mf32/README.md`。
 共 **7 个 rootfs**。F1 只有 NM（用户指定）；USB 网络共享是所有档的默认能力。
 
 ## 二、内核与 DTB 板型映射（ufi103s）
@@ -44,6 +48,12 @@ boot 镜像 `boot-board-<板型>-7.2.9.img`。刷机配对：max↔venus-4g-gpu�
 basic↔4g、slim/micro↔空，boot 与 rootfs 必须成对。
 
 ## 三、USB 网络共享（所有档默认）
+
+> **本节是 9 月的规划原文，已被实现取代。** 实际落地的 USB 共享（公共内核
+> 配置、gadget 状态机、NM/native 配套）与 2026-10-10 的实机回归见
+> `../validation/USB-FIX-7.2.9.md`。下面保留原文作规划对照：
+> 网关地址 **10.42.0.1/24** 至今未变；但 gadget 是单 RNDIS 配置（非 RNDIS+ECM
+> 双配置），native 栈也不是简单的 oneshot 串行，而是有监督的服务。
 
 设备插 PC = USB 网卡 + NAT 网关，网关地址 **10.42.0.1/24**（NM shared 模式默认值，
 两套网络栈保持一致）：
@@ -99,7 +109,7 @@ build-rootfs.sh 自动装入镜像）：
 - **SD 卡**：驱动零缺口（`qcom,sdhci-msm-v4` 与 eMMC 同驱动，已在 103s 验证）；
   DTB 已使能（4-bit、cd=GPIO38 低有效、vmmc=l11/vqmmc=l12）。唯一缺口：CD
   引脚的 `pmx-sdc2-cd-pin-state` 定义了但 pinctrl-0 **未引用**（GPIO38 上拉
-  可能缺失）→ 加入定制清单 #6，实机插卡验证。
+  可能缺失）→ MF32 板级定制清单，实机插卡验证。
 - **RGB 拆解**：红蓝灯珠相邻、混色效果好；绿灯单独放置。→ LED 方案新增
   **品红（R+B）= 充电中**状态；绿通道继续禁止混色。已改 `mf32-led-state.sh`
   （`rgb_set` 支持 magenta，自测扩至 34 项）。
@@ -119,5 +129,6 @@ build-rootfs.sh 自动装入镜像）：
 | 5 ✓ | F1 i3 预配置资产（i3-config/i3status.conf/scrot） | QEMU 到 i3 会话 + RDP 截图 |
 | 6 ✓ | 7 个 ufi103s rootfs 全量构建 + 冒烟 | 7/7 QEMU 到 login、0 非预期 FAILED |
 | 7 ✓ | 内核升到 7.2.9，全链重建（5 板型内核/boot + 7 rootfs） | build-board-set + build-matrix + smoke-all 全过 |
-| 8 | 7.2.9 刷真机复测（GPU/Venus/4G/WiFi） | 实机 |
-| 9 | mf32 bring-up 后套用（起步 F4-native） | 实机 |
+| 8 ✓ | 7.2.9 RAM 预演与 USB 修复（GPU 变体两次 `fastboot boot`，NM/native 真实 NAT 通过；未正式刷写） | 实机，见 `../validation/USB-FIX-7.2.9.md` |
+| 9 | 7.2.9 正式刷机（GPU/Venus/4G/WiFi 全量复测）与其它变体/新 rootfs 实机矩阵 | 实机 |
+| 10 | mf32 bring-up 后套用（起步 F4-native） | 实机 |

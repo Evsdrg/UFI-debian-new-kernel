@@ -2,7 +2,9 @@
 
 来源：反编译的 DTB（`dts/msm8916-thwc-mf32.decompiled.dts`，phandle 形态）。
 model = `"MF32_MB_V02 (4G) ak201314"`，compatible = `"ak201314,MF32_MB_V02", "qcom,msm8916"`。
-dtsi 代次与我们的 7.1.13 同期（pm8916-lbc / bms-vm / pwm / psci domain-idle 都在），
+dtsi 代次与我们的 7.2.9 同期（pm8916-lbc / bms-vm / pwm / psci domain-idle 都在；
+7.1.13 时 supply 驱动还在 `drivers/power/supply/qcom/` 下，7.2.9 上游移到了
+`drivers/power/supply/` 根目录，文件名不变），
 即这是别人基于近主线内核做过的板子，不是 Stock DT 的翻译。
 
 ## 硬件清单（全部来自 DTS 实证）
@@ -25,7 +27,7 @@ dtsi 代次与我们的 7.1.13 同期（pm8916-lbc / bms-vm / pwm / psci domain-
 
 ## 电池与开关机（此设备的 bring-up 核心）
 
-内核 7.1.13 **驱动已齐**，只差配置：
+内核 7.2.9 **驱动已齐**（7.1.13 核对时即齐，7.2.9 上复核仍在），只差配置：
 - `CONFIG_CHARGER_PM8916_LBC`（充电控制，依赖 MFD_SPMI_PMIC ✓）
 - `CONFIG_BATTERY_PM8916_BMS_VM`（电压法电量计，读数经 `QCOM_SPMI_VADC`（=m 已有））
 - `CONFIG_INPUT_PM8941_PWRKEY=y` 已开（电源键→logind 默认触发 poweroff）

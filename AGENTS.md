@@ -30,7 +30,7 @@ GPT 或 aboot 写坏 = 设备进不了任何模式，只能 EDL 全片恢复；N
 
 仓库文档要求「先用 Miko 做整片 eMMC 全量备份」，**但这条是个已知缺口**：
 Miko 是 Windows GUI 工具（`edl-tools/Miko/miko_service_tool_pro.7z`），
-没有脚本化的命令行路径，无法校验、无法复现（详见 `TOOLING.md` 的「缺口」一节）。
+没有脚本化的命令行路径，无法校验、无法复现（详见 `docs/build/TOOLING.md` 的「缺口」一节）。
 
 实际可依赖的是**分区级读回**：`recovery/backups/` 与 `recovery/original/` 里有
 p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读回。动手刷之前，
@@ -69,7 +69,7 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
 - **无可靠串口时不要默认 RX 安静**：2026-10-10 旧系统出现串口 overrun 与大量
   SysRq，随后非预期重启（重启原因未最终确认）。本次 RAM 预演临时去掉串口
   console、屏蔽 serial-getty，并设 `kernel.sysrq=0`；具体隔离/恢复状态见
-  `VALIDATION-7.2.9.md`。在物理问题排除前不要恢复危险的串口 SysRq。
+  `docs/validation/VALIDATION-7.2.9.md`。在物理问题排除前不要恢复危险的串口 SysRq。
 
 ### 1.6 凭据现状
 
@@ -130,7 +130,7 @@ v4l2m2m 同时编+解只出 1 帧，所以**必须软解 + 硬编**。
 判定在 `pm_helpers.c` 的 `load_scale_v1()`、超限时只 `dev_warn`
 （`HW is overloaded`），**不拒绝**。实测 1080p60（489600）仍然能编，
 只是刷警告且没有实时余量。不要把它当硬墙 —— 曾经把它当硬限制并归咎于一次
-"1080p60 挂死"，后来查明真凶是一个 0 帧的坏测试素材（详见 `VIDEO-CODEC.md`）。
+"1080p60 挂死"，后来查明真凶是一个 0 帧的坏测试素材（详见 `docs/hardware/VIDEO-CODEC.md`）。
 
 ### 2.6 GPU 只能分配 RGB 格式
 
@@ -232,7 +232,7 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 
 `fastboot boot <img>` 从内存启动，**不写 boot 分区**。升级/换内核时先这样验证，
 通过再正式刷；启动/驱动硬挂死仍可能需要物理断电，不能称为“零风险”。
-2026-10-10 无串口预演的 cmdline、兜底重启与回退验证见 `VALIDATION-7.2.9.md`。
+2026-10-10 无串口预演的 cmdline、兜底重启与回退验证见 `docs/validation/VALIDATION-7.2.9.md`。
 
 ### 3.11 宿主 `arch-test` 缺 arm64 探针 → mmdebstrap 直接拒构 rootfs
 
@@ -341,12 +341,12 @@ arch-test arm64      # 期望：arm64: ok
 - `ufi-led-state.sh`：五机型通用的状态灯控制（**不需要按型号改**，按 sysfs 名字
   发现，失败按颜色兜底；`fix` 里的 trap 必须 `exit 0` 否则 stop 会挂到超时）
 - `desktop/ufi-stream-push.sh` / `-clock.sh` / `-play.sh`：GPU 推流链路
-  （见 `GPU-STREAMING.md`）
+  （见 `docs/hardware/GPU-STREAMING.md`）
 - `ufi-console.sh`：有界串口访问
 - **USB 共享修复（2026-10-10）**：公共配置补齐 nft CT/reject；两栈均携带
   nftables，NM明确接管usb0；gadget按UDC内容判断状态、检查失败并回滚。
   NM/native的DHCP/DNS/真实NAT及gadget半装配恢复已实机通过，见
-  `USB-FIX-7.2.9.md`。`verify-usb-sharing.py`检查五内核/七镜像，
+  `docs/validation/USB-FIX-7.2.9.md`。`verify-usb-sharing.py`检查五内核/七镜像，
   `verify-layout.sh`已接入；新rootfs仍未整机刷入验收，不可外推蜂窝/Windows支持。
 - `flash.sh`（仓库根）：刷机，`fastboot-flash` 会比对 build.json 的 sha256 再写。
   （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 已从
@@ -371,10 +371,11 @@ release 字符串。**升级内核只改这个文件**，脚本不要硬编码�
 7.1.13 / 6.18.49 时代的模块树（`-ufi103s-*`、`-ufi003-*`）已于 2026-10-07 清理；
 vermagic 本就不通用，回退只能靠 `recovery/` 与 `out/rollback/` 的分区读回。
 
-重建旧版本（回退验证）用环境变量覆盖 `KERNEL_VERSION`：
+做验证性构建而不必编辑版本文件时，用环境变量临时覆盖（例如换 release 名
+重编一棵树做对比）：
 
 ```sh
-KERNEL_VERSION=7.1.13 bash tools/build-board-set.sh
+KERNEL_LOCALVERSION=-test bash tools/build-board-set.sh baseline
 ```
 
 但注意：**旧内核树本身已经在 2026-10-07 清退**（只剩 7.2.9 一棵），所以现在
@@ -485,16 +486,18 @@ sh tools/check-repo.sh "$K"
 |---|---|
 | `README.md` | 工作区结构与整体状态 |
 | `AGENTS.md`（本文件） | 约束、平台限制、我们做过的改动 |
-| `TOOLING.md` | 工具清单与**已知缺口** |
-| `FASTBOOT.md` | fastboot 刷机全流程（含实测数据与两个坑） |
-| `NETWORK.md` | NetworkManager 迁移与中文化 |
-| `DESKTOP.md` | i3 桌面 / xrdp / Adreno GPU 渲染 |
-| `GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
-| `USB-FIX-7.2.9.md` | USB全链修复：NM/native真实NAT、gadget生命周期、交付断言与保留风险 |
-| `VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
-| `VIDEO-CODEC.md` | 编解码实测数据 |
-| `LED.md` | LED 跨型号适配 |
-| `BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |
-| `TRIMMING.md` | 精简档位与体积；**QEMU 冒烟测试流程**（改档位/砍包后必做） |
-| `AOSC-RESEARCH.md` | AOSC OS / Afterglow 调研结论（Afterglow 不支持 arm64） |
+| `docs/build/BUILD-MATRIX.md` | 设备 × 档位 × 网络栈矩阵与实施顺序 |
+| `docs/build/TRIMMING.md` | 精简档位与体积；**QEMU 冒烟测试流程**（改档位/砍包后必做） |
+| `docs/build/TOOLING.md` | 工具清单与**已知缺口** |
+| `docs/hardware/FASTBOOT.md` | fastboot 刷机全流程（含实测数据与两个坑） |
+| `docs/hardware/NETWORK.md` | NetworkManager 迁移与中文化 |
+| `docs/hardware/DESKTOP.md` | i3 桌面 / xrdp / Adreno GPU 渲染 |
+| `docs/hardware/GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
+| `docs/hardware/VIDEO-CODEC.md` | 编解码实测数据（含 7.2.9 注记） |
+| `docs/hardware/LED.md` | LED 跨型号适配 |
+| `docs/hardware/BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |
+| `docs/validation/VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
+| `docs/validation/USB-FIX-7.2.9.md` | USB 全链修复：NM/native 真实 NAT、gadget 生命周期、交付断言与保留风险 |
+| `docs/validation/RESEARCH-ISSUES-7.2.9.md` | 验收问题的源码研究记录 |
+| `docs/research/AOSC-RESEARCH.md` | AOSC OS / Afterglow 调研结论（Afterglow 不支持 arm64） |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |

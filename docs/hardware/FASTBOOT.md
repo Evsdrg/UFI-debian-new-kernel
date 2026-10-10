@@ -1,5 +1,10 @@
 # fastboot 刷机（MSM8916 OpenStick）
 
+> **时效注记**：下面的分步实测做于 6.18.49 时代（镜像名如 `boot-venus-oc-100.img`
+> 已随旧内核清理删除），但 fastboot 流程本身（进 fastboot、双分区、-S 分片、
+> growfs）至今未变，命令里的镜像名按当前 `boot-board-<板型>-7.2.9.img` 换算即可。
+> 7.2.9 的升级/回退流程见 `boards/ufi00x/ufi103s-ufi003/README.md`。
+
 **结论：可以在 Linux 里直接重启进 fastboot，已在本机实机验证通过。**
 
 ```sh

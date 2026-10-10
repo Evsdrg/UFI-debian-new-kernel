@@ -486,8 +486,8 @@ fi
 if [[ "$ROOTFS_FLAVOR" == max || "$ROOTFS_FLAVOR" == full ]] && [[ ! -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/drivers/gpu/drm/msm/msm.ko" ]]; then
     echo "警告：模块树里没有 msm.ko，但我们会启用开机加载 drm/msm。" >&2
     echo "      MODULE_TREE=$MODULE_TREE" >&2
-    echo "      GPU 模块在 $MODULES_DIR_GPU（由 tools/build-gpu-variant.sh 产出）。" >&2
-    echo "      若这块板子确实不要 GPU，请用 ROOTFS_FLAVOR=minimal 构建；" >&2
+    echo "      GPU 模块在 $MODULES_DIR_GPU（由 tools/build-board-set.sh venus-4g-gpu 产出）。" >&2
+    echo "      若这块板子确实不要 GPU，请用 basic/slim/micro 档构建；" >&2
     echo "      若要 GPU，请把 MODULE_TREE 指向 GPU 树（并附 baseline 作 EXTRA_MODULE_TREES）。" >&2
 fi
 

@@ -143,7 +143,8 @@ options msm separate_gpu_kms=1
 # CONFIG_DRM_MSM_HDMI is not set
 ```
 
-`tools/build-gpu-variant.sh` 会校验这一点（KMS 若被启用就直接报错退出）。
+`tools/build-board-set.sh venus-4g-gpu` 会校验这一点（KMS 若被启用就直接报错退出）。
+（旧的 `tools/build-gpu-variant.sh` 已废弃删除，校验逻辑已并入 board-set。）
 
 ### 另一个坑：不能只换模块，必须换内核
 
@@ -243,8 +244,8 @@ GL 退回 llvmpipe，**只能重启**。`rmmod venus` 同理（会挂死内核�
 ## 复现步骤（从零）
 
 ```sh
-# 1) 编 GPU 内核（含 venus），产出 boot 镜像
-tools/build-gpu-variant.sh
+# 1) 编 GPU 板型内核（含 venus），产出对应 boot 镜像
+tools/build-board-set.sh venus-4g-gpu
 
 # 2) 构建带桌面的 rootfs（DESKTOP 默认 1）
 MMDEBSTRAP_FORMAT=ext4 ROOTFS_PATH=/path/to/rootfs.ext4 \

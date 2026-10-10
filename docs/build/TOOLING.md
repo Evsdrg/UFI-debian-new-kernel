@@ -13,8 +13,8 @@
 | `tools/kver.sh` / `tools/kver.py` | 版本派生的 shell / Python 实现（其余脚本 source/import 它们） |
 | `build-rootfs.sh` / `tools/build-rootfs-common.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
 | `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
-| `tools/build-gpu-variant.sh` | 构建 Adreno GPU render-only 内核并打包 boot（封装上一条） |
-| `tools/build-boot-images.sh` | 编译板级 DTS 并组装 boot 镜像 |
+| `tools/build-board-set.sh` | 板型级构建：5 个功能组合的内核 + 模块树 + boot 镜像（表驱动，缺省只建未完成的） |
+| `tools/build-boot-images.sh` | 编译板级 DTS 并组装 boot 镜像（非 ufi103s 板出镜像用；语法与静态路径有效，7.2.9 未实机验证） |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
 

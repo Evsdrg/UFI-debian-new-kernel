@@ -111,7 +111,7 @@ leds {
 
 ## 附：硬件 PWM 可用性研究（为什么不能靠它做呼吸灯/混色）
 
-查证于本仓 7.1.13 源码树：
+查证于本仓 7.2.9 源码树（与 7.1.13 核对时一致）：
 
 - **唯一的硬件 PWM 是 PMIC 的 LPG**：`qcom,pm8916-pwm`（dtsi 节点 pm8916_pwm，
   默认 disabled），驱动在 `drivers/leds/rgb/leds-qcom-lpg.c`，单通道

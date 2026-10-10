@@ -20,8 +20,8 @@
 > **boot 分区仍是 7.1.13，7.2.9 已做 RAM 实机预演**：2026-10-10 对
 > `venus-4g-gpu` 两次 `fastboot boot`，并实测正常重启回退；未刷 boot/rootfs。
 > 后续USB修复已完成，NM/native的真实NAT已通过；持续负载散热与MPEG-4仍有
-> 限制，暂不正式刷入。见 [`USB-FIX-7.2.9.md`](../../../USB-FIX-7.2.9.md)。
-> 原始验收与回退日志位置见 [`VALIDATION-7.2.9.md`](../../../VALIDATION-7.2.9.md)。
+> 限制，暂不正式刷入。见 [`USB-FIX-7.2.9.md`](../../../docs/validation/USB-FIX-7.2.9.md)。
+> 原始验收与回退日志位置见 [`VALIDATION-7.2.9.md`](../../../docs/validation/VALIDATION-7.2.9.md)。
 > 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 
 ## 产物
@@ -50,7 +50,7 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 **GPU 板型的模块树必须用 `-venus-4g-gpu` 那份**：render-only 模式需要
 `separate_gpu_kms=1` 以及 `msm.ko`/`drm.ko`，而 `-venus`（无 gpu）树里没有它们，
-拿错树构建 rootfs 会表现为 `/dev/dri` 静默缺失、渲染退回 llvmpipe。详见 `DESKTOP.md`。
+拿错树构建 rootfs 会表现为 `/dev/dri` 静默缺失、渲染退回 llvmpipe。详见 `../../../docs/hardware/DESKTOP.md`。
 
 ## 实机状态
 
@@ -96,7 +96,7 @@ scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
   ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a 7.2.9-ufix0x-venus-4g-gpu-dirty'
 
 # 2) 内存预演：不写 boot flash，但启动失败仍可能需要物理复位
-#    无可靠串口时，用 VALIDATION-7.2.9.md 中的临时 cmdline 与兜底措施。
+#    无可靠串口时，用 docs/validation/VALIDATION-7.2.9.md 中的临时 cmdline 与兜底措施。
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
 fastboot boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
 #    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
@@ -136,7 +136,7 @@ fastboot continue
 | `ufi103s-7.2.9-micro.ext4` | micro | NM | 同上 |
 | `ufi103s-7.2.9-micro-native.ext4` | micro | native | 同上 |
 
-体积、四个正交开关、精简档位的取舍见 `TRIMMING.md`；矩阵定义见 `BUILD-MATRIX.md`。
+体积、四个正交开关、精简档位的取舍见 `../../../docs/build/TRIMMING.md`；矩阵定义见 `../../../docs/build/BUILD-MATRIX.md`。
 
 **构建时必须传 Wi-Fi 凭据**，否则镜像里没有预置连接，刷完即失联：
 
@@ -156,5 +156,5 @@ ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
 
 原始 boot 分区读回单份保存在 `recovery/original/boot-original-p12.img`。
 
-刷机命令与坑见 `FASTBOOT.md`；rootfs 刷机用 `-S 200M` 分片（LK 的
+刷机命令与坑见 `../../../docs/hardware/FASTBOOT.md`；rootfs 刷机用 `-S 200M` 分片（LK 的
 `max-download-size` 只有 256 MB）。

@@ -19,11 +19,13 @@ board_dir() {
 }
 
 printf '== shell ==\n'
-# 对脚本做语法检查。注意 tools/flash.sh 已于 2026-09-14 归档——它是根
-# flash.sh 的旧子集且引用了不存在的路径；权威版本在仓库根。
+# 对脚本做语法检查。注意 tools/flash.sh 已于 2026-09-14 删除（它是根
+# flash.sh 的旧子集且引用了不存在的路径；权威版本在仓库根）。
+# tools/build-gpu-variant.sh 已于 2026-10-11 删除（自我声明废弃，默认 DTS
+# 已不存在；GPU 板型由 tools/build-board-set.sh 构建）。
 bash -n "$BASE/build-rootfs.sh" "$BASE/flash.sh" \
         "$BASE/tools/build-rootfs.sh" "$BASE/tools/build-boot-images.sh" \
-        "$BASE/tools/build-kernel-variant.sh" "$BASE/tools/build-gpu-variant.sh" \
+        "$BASE/tools/build-kernel-variant.sh" \
         "$BASE/tools/verify-layout.sh" "$BASE/tools/ufi-console.sh" \
         "$BASE/tools/usb-gadget.sh" "$BASE/tools/net-native/usb-share.sh"
 printf 'scripts=OK\n'
@@ -259,7 +261,7 @@ printf 'gpu_config_fragment=ok\n'
 if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-board-venus-4g-gpu-$KERNEL_VERSION.img" ]; then
   printf 'gpu_boot=present\n'
 else
-  printf 'gpu_boot=absent (run tools/build-gpu-variant.sh to build it)\n'
+  printf 'gpu_boot=absent (run tools/build-board-set.sh venus-4g-gpu to build it)\n'
 fi
 
 printf '\n== venus 32-alignment guard ==\n'

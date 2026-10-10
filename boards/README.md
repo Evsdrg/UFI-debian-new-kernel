@@ -49,8 +49,8 @@ boot 镜像**。
 4. **LED 脚本也是板无关的**。五机型的三颗状态灯在设备树里语义一致
    （`WLAN`/蓝、`WAN`/绿、`HEARTBEAT`/红），sysfs 名字都是 `blue:wlan`、
    `green:wan`、`red:heartbeat`，只有 GPIO 编号不同——而那由各自的 DTB 承担。
-   所以脚本按名字发现灯即可，不需要按型号分支。详见 `../LED.md`。
-5. **网络配置也板无关**：统一由 NetworkManager 管理，见 `../NETWORK.md`。
+   所以脚本按名字发现灯即可，不需要按型号分支。详见 `../docs/hardware/LED.md`。
+5. **网络配置也板无关**：统一由 NetworkManager 管理，见 `../docs/hardware/NETWORK.md`。
 
 ## 引脚布局的来源
 

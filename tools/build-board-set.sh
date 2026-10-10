@@ -73,7 +73,7 @@ for entry in "${TYPES[@]}"; do
         "$frags:$LVFRAG" "$TREE" || { rc_total=1; rm -f "$LVFRAG"; continue; }
     rm -f "$LVFRAG"
 
-    # GPU 板型：render-only 校验（与 build-gpu-variant.sh 同一套断言）
+    # GPU 板型：render-only 校验（原 build-gpu-variant.sh 的断言，该脚本已删除）
     case "$VARIANT" in
     *gpu)
         CFG="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/.config"

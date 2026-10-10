@@ -3,8 +3,8 @@
 > **2026-10-10 实机验收与修复**：7.2.9 `venus-4g-gpu` 已RAM启动并验证回退，
 > 未正式刷写。**USB NAT已完成修复，NM/native共享路径均实测出网**；持续负载
 > 散热限制、MPEG-4固件错误仍未解决，不能称为全功能通过。
-> 见 [USB修复回归](USB-FIX-7.2.9.md)、[原验收报告](VALIDATION-7.2.9.md)；
-> 后续根因核对见 [问题源码研究](RESEARCH-ISSUES-7.2.9.md)。
+> 见 [USB修复回归](docs/validation/USB-FIX-7.2.9.md)、[原验收报告](docs/validation/VALIDATION-7.2.9.md)；
+> 后续根因核对见 [问题源码研究](docs/validation/RESEARCH-ISSUES-7.2.9.md)。
 
 面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
 Linux **7.2.9** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
@@ -33,15 +33,25 @@ UFI001b / UFI001c / SP970 / UZ801**。
 openstick/
 ├── README.md              本文件（结构与整体状态）
 ├── AGENTS.md              ★ 给 agent 的作业须知：硬约束、平台限制、我们做过的改动
-├── LED.md                 LED 跨型号适配说明
-├── BLUETOOTH.md           蓝牙（内核侧就绪、装 bluez 即用，含实测）
-├── TRIMMING.md            系统精简：max/basic/slim/micro 四档 × nm/native、QEMU 冒烟测试
-├── AOSC-RESEARCH.md       AOSC OS / Afterglow 适配调研（含实测 bootstrap 与启动）
-├── NETWORK.md             网络（NetworkManager）与中文说明
-├── DESKTOP.md             桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
-├── GPU-STREAMING.md        GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）
-├── FASTBOOT.md            fastboot 刷机（含实测数据与两个坑）
-├── TOOLING.md             工具清单与缺口
+├── docs/                  专题文档（按主题分组）
+│   ├── build/             构建矩阵、精简档位、工具清单
+│   │   ├── BUILD-MATRIX.md    设备 × 档位 × 网络栈矩阵与实施顺序
+│   │   ├── TRIMMING.md        系统精简：max/basic/slim/micro 四档 × nm/native、QEMU 冒烟测试
+│   │   └── TOOLING.md         工具清单与缺口
+│   ├── hardware/          硬件能力与踩坑
+│   │   ├── DESKTOP.md         桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
+│   │   ├── GPU-STREAMING.md   GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）
+│   │   ├── VIDEO-CODEC.md     编解码实测数据
+│   │   ├── NETWORK.md         网络（NetworkManager）与中文说明
+│   │   ├── BLUETOOTH.md       蓝牙（内核侧就绪、装 bluez 即用，含实测）
+│   │   ├── LED.md             LED 跨型号适配说明
+│   │   └── FASTBOOT.md        fastboot 刷机（含实测数据与两个坑）
+│   ├── validation/        实机验收报告（2026-10-10）
+│   │   ├── VALIDATION-7.2.9.md        无串口 RAM 预演：通过项与阻塞项
+│   │   ├── USB-FIX-7.2.9.md           USB 共享全链修复与回归
+│   │   └── RESEARCH-ISSUES-7.2.9.md   验收问题的源码研究记录
+│   └── research/          一次性调研
+│       └── AOSC-RESEARCH.md   AOSC OS / Afterglow 适配调研（含实测 bootstrap 与启动）
 ├── boards/                各机型产物，按硬件家族分组
 │   ├── README.md          家族划分依据（含 DTS 逐字节 diff 表）
 │   ├── ufi00x/            ufi103s-ufi003 / ufi001b / ufi001c
@@ -100,7 +110,7 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
 | `…-ufi103s-venus-4g.dts` | +Venus +4G | （备用） |
 | `…-ufi103s-venus-4g-gpu.dts` | +Venus +4G +GPU | max |
 
-矩阵与配对规则的完整说明在 `BUILD-MATRIX.md`。
+矩阵与配对规则的完整说明在 `docs/build/BUILD-MATRIX.md`。
 
 ## 关键事实
 
@@ -117,18 +127,18 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
 - **监管域**：镜像内已用 `update-alternatives` 固定为 upstream
   `regulatory.db`（含 `country CN`）。
 - **网络栈是 NetworkManager**（不是早期的 networkd + wpa_supplicant）：用户可用
-  `nmtui`/`nmcli` 交互配网，改网络不用重启。详见 `NETWORK.md`。
+  `nmtui`/`nmcli` 交互配网，改网络不用重启。详见 `docs/hardware/NETWORK.md`。
 - **系统默认简体中文**（`zh_CN.UTF-8`）：`nmcli`、`apt`、`man` 都有中文输出。
   注意 `network-manager-l10n`（NM 汉化）与 `man-db`（man 命令本身）必须显式
-  安装，前者只是 NM 的 Recommends。详见 `NETWORK.md`。
+  安装，前者只是 NM 的 Recommends。详见 `docs/hardware/NETWORK.md`。
 - **LED 脚本机型通用**：五机型的三颗状态灯语义一致、sysfs 名字一致，脚本按名字
-  发现（失败时按颜色兜底），不需要按型号分支。详见 `LED.md`。
+  发现（失败时按颜色兜底），不需要按型号分支。详见 `docs/hardware/LED.md`。
 - **桌面与远程桌面**：镜像默认带 i3 + xrdp（`ROOTFS_DESKTOP=1`），主机可用
-  `xfreerdp`/`remmina` 连 3389。见 `DESKTOP.md`。
+  `xfreerdp`/`remmina` 连 3389。见 `docs/hardware/DESKTOP.md`。
 - **桌面可实时推流**：GPU 合成桌面 → Venus 硬编 → MPEG-TS/UDP → 对端窗口全屏播放，
   已端到端跑通（1280x736@30，实测 26–28fps，延迟约 1 秒）。设备端
   `tools/desktop/ufi-stream-push.sh`，接收端 `ufi-stream-play.sh`。见
-  `GPU-STREAMING.md`。
+  `docs/hardware/GPU-STREAMING.md`。
 - **GPU 可用但只出 render 节点**：Adreno 306 在主线是 a3xx 家族，设备无显示
   面板，所以用 `separate_gpu_kms=1` 走 render-only，得到 `/dev/dri/renderD128`
   与 freedreno（`FD307`）。**注意**：只有 `venus-4g-gpu` 这个板型的模块树里有
@@ -175,14 +185,17 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
 - **两条刷机路径**：
   - **fastboot**（推荐，速度最快）：在设备 Linux 里
     `systemctl reboot --reboot-argument=bootloader` 进 LK fastboot，然后
-    `flash.sh fastboot-flash boot|rootfs <img>`。机制与完整流程见 `FASTBOOT.md`
+    `flash.sh fastboot-flash boot|rootfs <img>`。机制与完整流程见 `docs/hardware/FASTBOOT.md`
     （已实机验证；注意必须用 `--reboot-argument=`，写成位置参数会报错）。
   - **EDL/9008**：按住 reset 按钮（或把 reset 触点与地短接）后插入电脑，用 Miko
     全片读写。这是任何情况下都能用的兜底路径。
 - 从 fastboot 也能直接进 EDL：`fastboot oem reboot-edl`。
-- 详见 `FASTBOOT.md` 与 `recovery/` 下的备份与刷机记录。
+- 详见 `docs/hardware/FASTBOOT.md` 与 `recovery/` 下的备份与刷机记录。
 
 ## 历史
+
+> 本节是操作记录，写的是当时的状态。`archive/` 在 9 月的记录里出现过，
+> 但已随 2026-10-07 的旧内核清理删除（见下文）；不要按本节的旧路径去找文件。
 
 - **中间产物已清理（2026-09-14）**：删掉了约 **9 GB** 可再生产物——
   `out/` 下 4 个与 `shared/rootfs`、`archive/` 重复的 rootfs 镜像（3.0G）、
@@ -196,7 +209,7 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   `.img` 的内核载荷反解出来（逐字节相同）；另删了 1 个无对应产物的孤儿
   `kernel-venus-oc16-dtb`。
   保留：`out/rollback/`（设备 p12 读回）、`out/boot-*/` 与各板 `boot/` 的 `.img`
-  产物（文档引用）、`shared/`、`boards/`、`recovery/`、`archive/`。
+  产物（文档引用）、`shared/`、`boards/`、`recovery/`。
   同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
   `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
   自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。
