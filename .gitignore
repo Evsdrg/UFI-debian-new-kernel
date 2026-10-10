@@ -12,16 +12,18 @@
 /mkbootimg/
 
 # ==== 产物与中间态（可用 tools/ 下的脚本重建）====
+# 所有构建产物集中在 artifacts/（唯一位位置，见 artifacts/README.md）。
+# 大体积产物与构建输入不入库；小体积的产物元数据（*-build.json）与
+# 板型 DTB 例外入库，供追溯与离线核对。
+/artifacts/rootfs/
+/artifacts/modules/
+/artifacts/firmware/
+/artifacts/boot/*/*.img
+# Image.gz + DTB 的拼接中间产物，可由内核镜像与 DTS 重建
+/artifacts/boot/*/kernel-*-dtb
+/artifacts/boot/*/empty-ramdisk
 /build/
 /out/
-/shared/
-/boards/*/*/boot/*.img
-/boards/*/boot/*.img
-# Image.gz + DTB 的拼接中间产物，可由内核镜像与 DTS 重建
-/boards/*/*/boot/kernel-*-dtb
-/boards/*/boot/kernel-*-dtb
-/boards/*/*/boot/empty-ramdisk
-/boards/*/boot/empty-ramdisk
 
 # ==== 不可再生但体积大：备份与刷机证据（仅在本地保留）====
 # 注意：用 /dir/* 排除内容而不是 /dir/ 排除目录本身，否则无法用 ! 重新包含子路径。

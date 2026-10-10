@@ -43,10 +43,10 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 配套产物：
 
-- rootfs：`shared/rootfs/ufi103s-7.2.9-<档>{,-native}.ext4`，共 7 张
+- rootfs：`artifacts/rootfs/ufi103s-7.2.9-<档>{,-native}.ext4`，共 7 张
   （max / basic / slim / micro × nm|native，见下）
-- 模块：`shared/modules/7.2.9-ufix0x-*.dirty`
-- 固件：`shared/firmware/ufi103s-venus/`（比 common 多 `qcom/venus-1.8/venus.mbn`）
+- 模块：`artifacts/modules/7.2.9-ufix0x-*.dirty`
+- 固件：`artifacts/firmware/ufi103s-venus/`（比 common 多 `qcom/venus-1.8/venus.mbn`）
 
 **GPU 板型的模块树必须用 `-venus-4g-gpu` 那份**：render-only 模式需要
 `separate_gpu_kms=1` 以及 `msm.ko`/`drm.ko`，而 `-venus`（无 gpu）树里没有它们，
@@ -90,7 +90,7 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 ```sh
 # 1) 主机：模块推到设备（纯新增，不动现有模块）
-tar -C shared/modules/7.2.9-ufix0x-venus-4g-gpu-dirty/lib/modules \
+tar -C artifacts/modules/7.2.9-ufix0x-venus-4g-gpu-dirty/lib/modules \
     -czf /tmp/m.tar.gz 7.2.9-ufix0x-venus-4g-gpu-dirty
 scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
   ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a 7.2.9-ufix0x-venus-4g-gpu-dirty'
@@ -98,13 +98,13 @@ scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
 # 2) 内存预演：不写 boot flash，但启动失败仍可能需要物理复位
 #    无可靠串口时，用 docs/validation/VALIDATION-7.2.9.md 中的临时 cmdline 与兜底措施。
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
-fastboot boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
+fastboot boot artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 #    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
 #    预演失败也不会影响设备——boot 分区上仍是 7.1.13
 
 # 3) 正式刷入（当前暂停；先解决验收报告中的阻塞项）
 bash flash.sh fastboot-flash boot \
-  boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
+  artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 fastboot continue
 ```
 

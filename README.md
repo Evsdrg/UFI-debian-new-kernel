@@ -52,34 +52,43 @@ openstick/
 │   └── validation/        实机验收报告（2026-10-10）
 │       ├── VALIDATION-7.2.9.md   无串口 RAM 预演：通过项与阻塞项
 │       └── USB-FIX-7.2.9.md      USB 共享全链修复与回归
-├── boards/                各机型产物，按硬件家族分组
+├── boards/                各机型设备树，按硬件家族分组（只放源码，不放产物）
 │   ├── README.md          家族划分依据（含 DTS 逐字节 diff 表）
 │   ├── ufi00x/            ufi103s-ufi003 / ufi001b / ufi001c
+│   ├── thwc-mf32/         MF32（LED / 电源键方案，固件尚未 bring-up）
 │   ├── sp970/
 │   └── uz801/
-│       └── <机型>/{dts,boot}/    该板的 DTS 与 boot 镜像
+│       └── <机型>/dts/    该板的 DTS
 ├── source/                共享源码
 │   ├── kernel-version.env ★ 内核版本单一事实来源（升级只改这里）
 │   ├── linux-7.2.9/       当前内核树（2.0G，一份，所有机型共用）
 │   ├── patches/           内核补丁（权威，与分发仓逐字节一致）
 │   ├── configs/           内核配置与片段（common-7.2.9-os.config + 变体片段）
 │   └── dts/common/        共享 dtsi
-├── shared/                板无关产物
+├── artifacts/             ★ 所有产物集中在这里（唯一位置，详见其 README）
+│   ├── boot/<机型>/       boot 镜像 + 构建中间态（kernel-*-dtb、empty-ramdisk）
+│   │                      同目录的 *-build.json 入库，记录内核 release 与各哈希
 │   ├── rootfs/            rootfs 镜像（ufi103s-7.2.9-<档>.ext4）
 │   ├── modules/           内核模块树（7.2.9-ufix0x-*，五个板型各一棵）
-│   └── firmware/          固件集（common / ufi103s-venus）
+│   ├── dtb/               各机型的裸板 DTB（非 ufi103s 板当前只有这个）
+│   └── firmware/          固件集（common / ufi103s-venus / board-overrides，构建输入）
 ├── tools/                 构建与验证脚本
-│   ├── kver.sh / kver.py  ★ 版本派生的 shell / Python 实现
+│   ├── kver.sh / kver.py  ★ 版本派生的 shell / Python 实现（artifacts 路径也在这里派）
 │   └── desktop/           桌面与推流脚本
 ├── upstream/              上游参考树（HandsomeMod 等，只读参考）
 ├── edl-tools/             EDL / Miko 刷机工具链
 ├── recovery/              备份、原始分区读回、刷机证据（不可替代）
 ├── ufi00x-mainline/       分发仓（自带 git，父仓 .gitignore 排除）
-└── build/ out/            构建与打包中间产物
+└── build/ out/            构建中间态与验证记录
 ```
 
-**内部分工**：`boards/` 放“每个板子不同的东西”，`shared/` 放“所有板子
-共用的东西”，`source/` 放“源码”。刷机包 = 某板的 boot 镜像 + 共享 rootfs。
+**内部分工**：`boards/` 放**源码**（每板不同的 DTS），`source/` 放**共享源码**，
+`artifacts/` 放**全部产物**（不再散落到 `boards/` 或 `shared/`）。
+刷机包 = 某板的 boot 镜像 + 共享 rootfs。
+
+> 2026-10-11 之前产物曾分放在 `shared/{rootfs,modules,firmware}` 与
+> `boards/<家族>/<机型>/boot/` 两处；现已全部收进 `artifacts/`。
+> 脚本不要自己拼 `artifacts/...`，一律用 `tools/kver.sh` / `kver.py` 派生的变量。
 
 ## 各机型状态
 
@@ -116,7 +125,7 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
 
 - **内核共享、DTB 不共享**：`Image.gz` 所有机型同一份，板间差异只在追加的
   DTB。所以不要跨机型复用 boot 镜像。
-- **root 定位**：`boards/ufi00x/ufi103s-ufi003/boot/*-build.json` 记录每张
+- **root 定位**：`artifacts/boot/ufi103s-ufi003/*-build.json` 记录每张
   boot 镜像的 cmdline，7.2.9 这批统一为
   `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。**这个 PARTUUID 只对
   本工程构建的 rootfs 成立**，刷别处的根文件系统要在 fastboot 时改 cmdline。
@@ -143,7 +152,7 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
   面板，所以用 `separate_gpu_kms=1` 走 render-only，得到 `/dev/dri/renderD128`
   与 freedreno（`FD307`）。**注意**：只有 `venus-4g-gpu` 这个板型的模块树里有
   `msm.ko`/`drm.ko`；拿纯 venus 板型的树去构建 rootfs，开机会静默退回 llvmpipe。
-- **固件**：`shared/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
+- **固件**：`artifacts/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
   `qcom/venus-1.8/venus.mbn`（该固件也提供 Adreno 所需的 `a300_*.fw`）。
 - **补丁只有一套**：`source/patches/` 与分发仓 `ufi00x-mainline/patches/`
   逐字节一致，共 **4 个**（3 个 wcn36xx + 1 个 venus）。原 `0004`
@@ -156,7 +165,7 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
 ```sh
 # 工作区布局与产物自检（默认校验 max 档镜像，可用 ROOTFS_IMAGE 换档）
 bash tools/verify-layout.sh
-ROOTFS_IMAGE=shared/rootfs/ufi103s-7.2.9-slim.ext4 bash tools/verify-layout.sh
+ROOTFS_IMAGE=artifacts/rootfs/ufi103s-7.2.9-slim.ext4 bash tools/verify-layout.sh
 
 # 分发仓自检（补丁可应用性、哈希、文档链接）
 cd ufi00x-mainline
@@ -171,7 +180,7 @@ networkd/wpa_supplicant 已移除**、**zh_CN locale 已生成**、**fstab 带
 x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套配套。
 
 > 历史：重组前它会在最后一项报 `ufi-led-state.sh=MISSING`，因为当时
-> `shared/rootfs/` 里几张镜像新旧不一（旧镜像没装 LED）。现在两张镜像都是
+> `artifacts/rootfs/` 里几张镜像新旧不一（旧镜像没装 LED）。现在两张镜像都是
 > 同一轮构建出来的（NetworkManager + 中文 + 通用 LED + growfs），这个不一致
 > 已经消除。
 
@@ -212,7 +221,7 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
 > 与 `docs/CHANGES.md`。
 
 - **中间产物已清理（2026-09-14）**：删掉了约 **9 GB** 可再生产物——
-  `out/` 下 4 个与 `shared/rootfs`、`archive/` 重复的 rootfs 镜像（3.0G）、
+  `out/` 下 4 个与当时的 `shared/rootfs`（现 `artifacts/rootfs/`）、`archive/` 重复的 rootfs 镜像（3.0G）、
   内核构建树（`out/build-ufi003-*-os` + `build/variant-*`，3.8G）、boot 打包中间态
   （`out/` 与各板 `boot/` 下的 `kernel-*-dtb` 拼接物与 `-check` 解包目录，96M+）、
   6.18.48 时代的陈旧模块树与构建日志、以及被 9/14 版取代的
@@ -223,7 +232,7 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   `.img` 的内核载荷反解出来（逐字节相同）；另删了 1 个无对应产物的孤儿
   `kernel-venus-oc16-dtb`。
   保留：`out/rollback/`（设备 p12 读回）、`out/boot-*/` 与各板 `boot/` 的 `.img`
-  产物（文档引用）、`shared/`、`boards/`、`recovery/`。
+  产物（文档引用）、`artifacts/`、`boards/`、`recovery/`。
   同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
   `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
   自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。

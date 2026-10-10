@@ -8,6 +8,7 @@ import sys
 
 BASE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BASE/'tools'))
+import kver
 from kver import KERNEL_VERSION, KERNEL_LOCALVERSION
 
 SYMBOLS = ('NF_TABLES', 'NF_CONNTRACK', 'NF_NAT', 'NFT_CT', 'NFT_MASQ', 'NFT_NAT',
@@ -47,11 +48,11 @@ try:
             check(re.search(rf'^CONFIG_{symbol}=[my]$',text,re.M),f'{cfg}: CONFIG_{symbol} missing')
         suffix='' if variant=='baseline' else '-'+variant
         rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
-        tree=BASE/f'shared/modules/{rel}/lib/modules/{rel}/kernel'
+        tree=kver.ARTIFACTS_MODULES/f'{rel}/lib/modules/{rel}/kernel'
         for module in MODULES: check((tree/module).is_file(),f'{rel}: missing {module}')
         print(f'kernel[{variant}]=USB_NFT_OK')
     images=[Path(p) for p in sys.argv[1:]] or [
-        BASE/f'shared/rootfs/ufi103s-{KERNEL_VERSION}-{flavor}.ext4'
+        kver.ARTIFACTS_ROOTFS/f'ufi103s-{KERNEL_VERSION}-{flavor}.ext4'
         for flavor in ('max','basic','slim','micro','basic-native','slim-native','micro-native')]
     for image in images:
         check(image.is_file(), f'missing rootfs image: {image}')
@@ -65,7 +66,7 @@ try:
         for module in MODULES:
             path=f'/usr/lib/modules/{rel}/kernel/{module}'
             stat(image,path)
-            source=BASE/f'shared/modules/{rel}/lib/modules/{rel}/kernel/{module}'
+            source=kver.ARTIFACTS_MODULES/f'{rel}/lib/modules/{rel}/kernel/{module}'
             check(hashlib.sha256(debugfs(image,'cat '+path)).digest()==hashlib.sha256(source.read_bytes()).digest(),
                   f'{image.name}: stale module {module}')
         exact_asset(image,'/usr/local/sbin/usb-gadget.sh',BASE/'tools/usb-gadget.sh')

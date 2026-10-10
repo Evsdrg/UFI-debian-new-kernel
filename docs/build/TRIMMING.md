@@ -68,10 +68,10 @@ bash tools/build-matrix.sh max basic-native
 # 单个档位，且不用 build-matrix 的配对表时，直接调 build-rootfs.sh：
 MMDEBSTRAP_FORMAT=ext4 TMPDIR="$PWD/out/tmp" \
 KERNEL_RELEASE=7.2.9-ufix0x-venus-4g-gpu-dirty \
-MODULE_TREE=$PWD/shared/modules/7.2.9-ufix0x-venus-4g-gpu-dirty \
-EXTRA_MODULE_TREES=$PWD/shared/modules/7.2.9-ufix0x-dirty \
-EXTRA_FIRMWARE_DIR=$PWD/shared/firmware/ufi103s-venus \
-ROOTFS_PATH=$PWD/shared/rootfs/ufi103s-7.2.9-max.ext4 \
+MODULE_TREE=$PWD/artifacts/modules/7.2.9-ufix0x-venus-4g-gpu-dirty \
+EXTRA_MODULE_TREES=$PWD/artifacts/modules/7.2.9-ufix0x-dirty \
+EXTRA_FIRMWARE_DIR=$PWD/artifacts/firmware/ufi103s-venus \
+ROOTFS_PATH=$PWD/artifacts/rootfs/ufi103s-7.2.9-max.ext4 \
 EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
 ROOTFS_FLAVOR=max ROOTFS_NET=nm \
 ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
@@ -152,7 +152,7 @@ slim / micro ↔ `…-dirty`（基线）。`tools/build-matrix.sh` 内置这张�
 bash tools/smoke-all.sh
 
 # 单个镜像
-tools/qemu-smoke.sh shared/rootfs/ufi103s-7.2.9-micro-native.ext4 \
+tools/qemu-smoke.sh artifacts/rootfs/ufi103s-7.2.9-micro-native.ext4 \
                    build/variant-7.2.9-board-baseline/arch/arm64/boot/Image.gz
 ```
 

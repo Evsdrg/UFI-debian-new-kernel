@@ -23,7 +23,7 @@ WORKDIR="$(cd "$(dirname "$0")" && pwd)"
 DEV="$(cred DEV '设备 SSH 地址，如 root@<ip>')"
 PW="$(cred PW '设备 root 口令')"
 # 默认用本工作区的权威产物；均可用环境变量覆盖。
-BOARD_DIR="${BOARD_DIR:-$WORKDIR/boards/ufi00x/ufi103s-ufi003/boot}"
+BOOT_DIR="${BOOT_DIR:-$ARTIFACTS_BOOT/ufi103s-ufi003}"
 ROOTFS_IMAGE="${ROOTFS_IMAGE:-$ROOTFS_BASE}"
 
 run_dev() {
@@ -149,11 +149,11 @@ fastboot-reboot)
 	;;
 boot)
 	echo "=== 阶段1: 刷入内核 boot.img 到 mmcblk0p12 ==="
-	BOOT_IMAGE="${BOOT_IMAGE:-$BOARD_DIR/boot-baseline.img}"
+	BOOT_IMAGE="${BOOT_IMAGE:-$BOOT_DIR/boot-board-baseline-$KERNEL_VERSION.img}"
 	if [[ ! -f "$BOOT_IMAGE" ]]; then
 		echo "缺少 $BOOT_IMAGE" >&2
 		echo "可用的本板镜像：" >&2
-		ls "$BOARD_DIR"/boot-*.img >&2 2>/dev/null || echo "  (无)" >&2
+		ls "$BOOT_DIR"/boot-board-*.img >&2 2>/dev/null || echo "  (无)" >&2
 		exit 1
 	fi
 	echo "设备: $DEV"

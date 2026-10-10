@@ -98,7 +98,7 @@ error: write_sparse_skip_chunk: don't care size ... is not a multiple of the blo
 Writing 'rootfs'  FAILED (remote: 'size too large')
 ```
 
-要刷的是 **rootfs 文件系统镜像**（`shared/rootfs/*.ext4`），不是分区 dump。
+要刷的是 **rootfs 文件系统镜像**（`artifacts/rootfs/*.ext4`），不是分区 dump。
 
 ### 4. 返回 Linux
 
@@ -186,11 +186,11 @@ systemctl reboot --reboot-argument=bootloader
 fastboot devices
 
 # 3) 刷 boot（本板变体见 boards/ufi00x/ufi103s-ufi003/README.md）
-fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
+fastboot flash boot artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 
 # 4) 刷 rootfs。-S 必需：LK 的 max-download-size 只有 256M，而 max 档己 2G。
 #    刷的是 rootfs 文件系统镜像，不是 3.4G 的整分区 dump（后者会被 LK 拒绝）。
-fastboot -S 200M flash rootfs shared/rootfs/ufi103s-7.2.9-max.ext4
+fastboot -S 200M flash rootfs artifacts/rootfs/ufi103s-7.2.9-max.ext4
 
 # 5) 正常启动
 fastboot reboot
@@ -257,7 +257,7 @@ fastboot reboot
 | 重启进 fastboot 后电脑看不到设备 | 数据线没接到这台机器。把数据口插到电脑即可，LK 会立刻被识别 |
 | 等了几十秒还没出现 fastboot 设备 | 正常。实测需约 96 秒，别急着判定失败 |
 | 在 fastboot 里想放弃刷机直接开机 | `fastboot continue`（实测可用） |
-| 刷 rootfs 报 `size too large` | 刷错对象了。要刷 `shared/rootfs/*.ext4`（~1G），不是 3.4G 的整分区 dump |
+| 刷 rootfs 报 `size too large` | 刷错对象了。要刷 `artifacts/rootfs/*.ext4`（~1G），不是 3.4G 的整分区 dump |
 | 刷完 rootfs 后 `df /` 只有 930M | 镜像缺 `x-systemd.growfs`（老镜像）。手动 `resize2fs /dev/mmcblk0p14` 可从 111M 恢复到 2.4G |
 | fastboot 下刷错变体 | 重新 `fastboot flash boot <正确变体>` |
 | 刷完开不了机 | 回到 fastboot 刷回原变体；必要时用 `recovery/original/boot-original-p12.img` |

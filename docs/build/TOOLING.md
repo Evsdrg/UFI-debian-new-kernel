@@ -100,7 +100,7 @@ cmdline 有 PARTUUID/PARTLABEL 两种混用（见
 （判断能否复用 DTB），值得有个一行命令的比对脚本。
 
 **6. ~~LED 镜像新旧不一致~~（已解决）**
-`shared/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
+`artifacts/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
 没 NetworkManager、没中文）。现由 `tools/build-matrix.sh` 一次产出全部 7 张
 同源镜像（`ufi103s-7.2.9-{max,basic,slim,micro}{,-native}.ext4`），都带通用
 LED 脚本 + fstab 的 `x-systemd.growfs`（网络栈按档位是 NM 或 networkd）。

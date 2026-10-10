@@ -58,7 +58,7 @@ for entry in "${TYPES[@]}"; do
         VARIANT="$suffix"
     fi
     # 父目录带 -dirty（与 kver MODULES_DIR 惯例一致）
-    TREE="$BASE/shared/modules/$RELEASE"
+    TREE="$ARTIFACTS_MODULES/$RELEASE"
     DTB_SRC="$BOARD_DIR/dts/$dtsname"
 
     echo "=============================================="
@@ -90,7 +90,7 @@ for entry in "${TYPES[@]}"; do
         "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
         "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \
         "$RELEASE" \
-        "$BOARD_DIR/boot" || { rc_total=1; continue; }
+        "$ARTIFACTS_BOOT/ufi103s-ufi003" || { rc_total=1; continue; }
 done
 
 echo "=============================================="

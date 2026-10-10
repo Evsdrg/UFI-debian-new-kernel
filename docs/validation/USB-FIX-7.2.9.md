@@ -26,7 +26,7 @@
 只使用 `fastboot boot` 从RAM启动新内核，**没有正式刷入任何分区**。
 
 - 内核：`7.2.9-ufix0x-venus-4g-gpu-dirty`，构建序号 `#2`。
-- boot文件：`boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img`。
+- boot文件：`artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img`。
 - 新文件SHA256：`11f975b280b357f96d06f72c490284a66c6ca0ebeeb0368778044e61e654bb51`。
 - 两次RAM启动，第二次确认 **usb-share 正式keyfile自动激活**，无手工managed补救。
 - 原p12始终为SHA256 `9159529fe351f82f99d06717cb06480176ec611555bae96f56637af4ad8a7d75`。

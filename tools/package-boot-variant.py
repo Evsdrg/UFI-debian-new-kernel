@@ -20,6 +20,7 @@ import kver  # noqa: E402  (版本单一事实来源，见 tools/kver.py)
 BASE = kver.BASE
 SRC = kver.KERNEL_SRC
 MKBOOTIMG = BASE / "mkbootimg/mkbootimg"
+# 中间产物（.dtb 与拼接前的 kernel-dtb）留在 build/ 下，属可再生中间态。
 BOARD_DIR = BASE / "build/boards/ufi103s-ufi003"
 # This board's DTS live under its board directory, not inside the kernel tree;
 # see boards/README.md for the layout.

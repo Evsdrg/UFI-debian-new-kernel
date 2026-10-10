@@ -7,15 +7,17 @@ ROOTFS="${ROOTFS_IMAGE:-$ROOTFS_BASE}"
 MODULES="$MODULES_DIR/lib/modules/$KERNEL_RELEASE"
 SRC="$KERNEL_SRC"
 
-# boards/<family>/<board> for grouped families, boards/<board> for single-member
-# ones.  Kept in one place so every check below resolves the same way.
+# 源码侧的板目录（DTS 所在），boards/<family>/<board> 或 boards/<board>。
 board_dir() {
-  local board=$1
-  if [ -d "$BASE/boards/ufi00x/$board" ]; then
-    printf '%s\n' "$BASE/boards/ufi00x/$board"
+  if [ -d "$BASE/boards/ufi00x/$1" ]; then
+    printf '%s\n' "$BASE/boards/ufi00x/$1"
   else
-    printf '%s\n' "$BASE/boards/$board"
+    printf '%s\n' "$BASE/boards/$1"
   fi
+}
+# 产物目录（boot 镜像与 build.json），统一在 artifacts/boot/<board>。
+boot_dir() {
+  printf '%s\n' "$ARTIFACTS_BOOT/$1"
 }
 
 printf '== shell ==\n'
@@ -158,7 +160,7 @@ printf 'led_discovery=auto\n'
 
 printf '\n== board boot status ==\n'
 for board in ufi103s-ufi003 ufi001b ufi001c sp970 uz801; do
-  if [[ -f "$(board_dir "$board")/boot/boot-board-baseline-$KERNEL_VERSION.img" ]]; then
+  if [[ -f "$(boot_dir "$board")/boot-board-baseline-$KERNEL_VERSION.img" ]]; then
     printf '%s=board-specific-boot\n' "$board"
   else
     printf '%s=no-%s-boot-image; do-not-flash\n' "$board" "$KERNEL_VERSION"
@@ -169,7 +171,7 @@ printf '\n== venus codec variant ==\n'
 # 这一段校验 max 档的三件套配套：boot（GPU 内核，含 venus）+ rootfs
 # （含 baseline 与 venus-4g-gpu 两棵模块树、venus 固件、ffmpeg）+ venus 模块。
 # boot 镜像名随板型构建走：boot-board-<板型>-<内核版本>.img。
-_venus_boot_dir="$(board_dir ufi103s-ufi003)/boot"
+_venus_boot_dir="$(boot_dir ufi103s-ufi003)"
 VENUS_BOOT="$_venus_boot_dir/boot-board-venus-4g-gpu-$KERNEL_VERSION.img"
 VENUS_ROOTFS="$ROOTFS_VENUS"
 VENUS_REL="${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-4g-gpu-dirty"
@@ -258,7 +260,7 @@ grep -q '^CONFIG_DRM_MSM=m' "$BASE/source/configs/ufi103s-gpu.config" \
   || { printf 'ERROR: gpu fragment lacks CONFIG_DRM_MSM=m\n' >&2; exit 1; }
 printf 'gpu_config_fragment=ok\n'
 # GPU boot 产物（若已构建）。镜像名与 tools/build-board-set.sh 一致。
-if [ -f "$(board_dir ufi103s-ufi003)/boot/boot-board-venus-4g-gpu-$KERNEL_VERSION.img" ]; then
+if [ -f "$(boot_dir ufi103s-ufi003)/boot-board-venus-4g-gpu-$KERNEL_VERSION.img" ]; then
   printf 'gpu_boot=present\n'
 else
   printf 'gpu_boot=absent (run tools/build-board-set.sh venus-4g-gpu to build it)\n'

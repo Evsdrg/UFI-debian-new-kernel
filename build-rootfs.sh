@@ -648,7 +648,7 @@ if [[ -n "${EXTRA_FIRMWARE_DIR:-}" ]]; then
     [[ -d "$EXTRA_FIRMWARE_DIR" ]] || { echo "缺少扩展固件目录: $EXTRA_FIRMWARE_DIR" >&2; exit 1; }
     cp -a "$EXTRA_FIRMWARE_DIR/." "$STAGE/lib/firmware/"
 fi
-cp -a "$WORKDIR/shared/firmware/common/." "$STAGE/lib/firmware/"
+cp -a "$FIRMWARE_DIR/." "$STAGE/lib/firmware/"
 # wireless-regdb is installed by the Debian package above; do not overwrite
 # its /usr/lib/firmware/regulatory.db alternatives symlink.
 
@@ -665,7 +665,7 @@ for dir in "$STAGE/dev/hugepages" "$STAGE/dev/mqueue" "$STAGE/run/lock" "$STAGE/
 	touch "$dir/.keep"
 done
 # wireless-regdb uses these exact filenames with cfg80211
-cp -a "$WORKDIR/shared/firmware/common/"regulatory.db* "$STAGE/lib/firmware/" 2>/dev/null || true
+cp -a "$FIRMWARE_DIR/"regulatory.db* "$STAGE/lib/firmware/" 2>/dev/null || true
 
 # hook 以映射uid运行, 必须放宽stage目录读权限
 chmod -R a+rX "$STAGE"

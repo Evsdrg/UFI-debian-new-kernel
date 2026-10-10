@@ -41,11 +41,11 @@ boot 镜像**。
 ## 关键共性
 
 1. **内核是共享的**。`Image.gz` 所有机型共用；机型差异只体现在追加的 DTB 上。
-   所以 `boards/<家族>/<机型>/boot/` 里的 boot 镜像 = 同一内核 + 各自 DTB。
+   所以 `artifacts/boot/<机型>/` 里的 boot 镜像 = 同一内核 + 各自 DTB。
 2. **所有机型共用同一个 dtsi**：`source/dts/common/msm8916-handsome-openstick-common.dtsi`。
    每个机型的 `.dts` 都 `#include` 它，只在其上覆盖引脚差异。
-3. **rootfs 是板无关的**，统一放在 `shared/rootfs/`。刷机包 = 本板 boot 镜像 +
-   共享 rootfs，见顶层 `README.md`。
+3. **rootfs 是板无关的**，统一放在 `artifacts/rootfs/`。刷机包 = 本板 boot 镜像 +
+   共享 rootfs，见顶层 `README.md` 与 `artifacts/README.md`。
 4. **LED 脚本也是板无关的**。五机型的三颗状态灯在设备树里语义一致
    （`WLAN`/蓝、`WAN`/绿、`HEARTBEAT`/红），sysfs 名字都是 `blue:wlan`、
    `green:wan`、`red:heartbeat`，只有 GPIO 编号不同——而那由各自的 DTB 承担。
@@ -61,6 +61,7 @@ boot 镜像**。
 ## 新增机型时
 
 1. 先在 `boards/<家族>/<机型>/dts/` 放 DTS，在 `source/dts/common/` 里复用 dtsi。
-2. 用 `tools/package-boards.py` 生成 boot 镜像（它会读 `build.json` 里的 cmdline）。
+2. 用 `tools/package-boards.py` 生成 boot 镜像到 `artifacts/boot/<机型>/`
+   （它会读 `build.json` 里的 cmdline）。
 3. 在 `tools/verify-layout.sh` 的机型列表里登记，否则布局校验不会覆盖到它。
 4. 不要假设 DTB 一致就直接复用别的机型的 boot 镜像——先跑 diff 确认。

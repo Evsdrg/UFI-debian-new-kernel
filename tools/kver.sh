@@ -44,17 +44,29 @@ KERNEL_BASE_CFG="${KERNEL_BASE_CFG:-$BASE/source/configs/common-$KERNEL_VERSION-
 KERNEL_RELEASE="${KERNEL_RELEASE:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}-dirty}"
 KERNEL_RELEASE_VENUS="${KERNEL_RELEASE_VENUS:-${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty}"
 
+# 产物根：**所有构建产物集中在这里**，不再散落到 boards/、shared/ 等目录。
+# 这是产物存放位置的单一事实来源；脚本不要自己拼 "artifacts/..."。
+ARTIFACTS="${ARTIFACTS:-$BASE/artifacts}"
+ARTIFACTS_BOOT="$ARTIFACTS/boot"
+ARTIFACTS_ROOTFS="$ARTIFACTS/rootfs"
+ARTIFACTS_MODULES="$ARTIFACTS/modules"
+ARTIFACTS_DTB="$ARTIFACTS/dtb"
+ARTIFACTS_FIRMWARE="$ARTIFACTS/firmware"
+
 # 模块树（modules_install 的 MODDEST 外层目录名；内层是上面的 release）。
 # 板型树的名字由 tools/build-board-set.sh 决定，release 一律带 -dirty。
-MODULES_DIR="${MODULES_DIR:-$BASE/shared/modules/$KERNEL_RELEASE}"
-MODULES_DIR_VENUS="${MODULES_DIR_VENUS:-$BASE/shared/modules/${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty}"
-MODULES_DIR_GPU="${MODULES_DIR_GPU:-$BASE/shared/modules/${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-4g-gpu-dirty}"
+MODULES_DIR="${MODULES_DIR:-$ARTIFACTS_MODULES/$KERNEL_RELEASE}"
+MODULES_DIR_VENUS="${MODULES_DIR_VENUS:-$ARTIFACTS_MODULES/${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-dirty}"
+MODULES_DIR_GPU="${MODULES_DIR_GPU:-$ARTIFACTS_MODULES/${KERNEL_VERSION}${KERNEL_LOCALVERSION}-venus-4g-gpu-dirty}"
 
 # rootfs 产物名。默认指向 max 档：它是功能最全的一张（同时含 baseline 与
 # venus-4g-gpu 两棵模块树、venus 固件、ffmpeg、桌面），verify-layout.sh 的
 # 全部断言都能在这一张上跑；刷机时再用 ROOTFS_IMAGE 显式指定要刷的档。
-ROOTFS_BASE="${ROOTFS_BASE:-$BASE/shared/rootfs/ufi103s-${KERNEL_VERSION}-max.ext4}"
+ROOTFS_BASE="${ROOTFS_BASE:-$ARTIFACTS_ROOTFS/ufi103s-${KERNEL_VERSION}-max.ext4}"
 ROOTFS_VENUS="${ROOTFS_VENUS:-$ROOTFS_BASE}"
+
+# 固件集（构建输入，拷贝进 rootfs；不可再生，见 artifacts/README.md）。
+FIRMWARE_DIR="${FIRMWARE_DIR:-$ARTIFACTS_FIRMWARE/common}"
 
 # 基线板型的构建树（Image.gz 所在）。
 KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BASE/build/variant-$KERNEL_VERSION-board-baseline}"

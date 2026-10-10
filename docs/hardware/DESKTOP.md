@@ -253,7 +253,7 @@ MMDEBSTRAP_FORMAT=ext4 ROOTFS_PATH=/path/to/rootfs.ext4 \
   bash build-rootfs.sh
 
 # 3) 刷 boot + rootfs
-fastboot flash boot boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img
+fastboot flash boot artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 fastboot -S 200M flash rootfs /path/to/rootfs.ext4
 fastboot reboot
 # 4) 首次开机后（镜像已带 x-systemd.growfs，无需手工 resize）

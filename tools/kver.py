@@ -54,10 +54,21 @@ KERNEL_RELEASE_VENUS = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
 KERNEL_BUILD_DIR = BASE / f"build/variant-{KERNEL_VERSION}-board-baseline"
 IMAGE_GZ = KERNEL_BUILD_DIR / "arch/arm64/boot/Image.gz"
 
-MODULES_DIR = BASE / f"shared/modules/{KERNEL_RELEASE}"
-MODULES_DIR_VENUS = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
-MODULES_DIR_GPU = BASE / f"shared/modules/{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-4g-gpu-dirty"
+# 产物根：所有构建产物集中在这里，不再散落到 boards/、shared/ 等目录。
+# 与 tools/kver.sh 保持同一套派生；改这里时两边一起改。
+ARTIFACTS = BASE / "artifacts"
+ARTIFACTS_BOOT = ARTIFACTS / "boot"
+ARTIFACTS_ROOTFS = ARTIFACTS / "rootfs"
+ARTIFACTS_MODULES = ARTIFACTS / "modules"
+ARTIFACTS_DTB = ARTIFACTS / "dtb"
+ARTIFACTS_FIRMWARE = ARTIFACTS / "firmware"
+
+MODULES_DIR = ARTIFACTS_MODULES / KERNEL_RELEASE
+MODULES_DIR_VENUS = ARTIFACTS_MODULES / f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
+MODULES_DIR_GPU = ARTIFACTS_MODULES / f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-4g-gpu-dirty"
 
 # 默认指向 max 档；见 tools/kver.sh 里的说明。
-ROOTFS_BASE = BASE / f"shared/rootfs/ufi103s-{KERNEL_VERSION}-max.ext4"
+ROOTFS_BASE = ARTIFACTS_ROOTFS / f"ufi103s-{KERNEL_VERSION}-max.ext4"
 ROOTFS_VENUS = ROOTFS_BASE
+
+FIRMWARE_DIR = ARTIFACTS_FIRMWARE / "common"

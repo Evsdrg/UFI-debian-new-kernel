@@ -10,7 +10,7 @@
 已用同一素材在旧 7.1.13 复现，不能归因为本次内核升级。
 
 - 测试内核：`7.2.9-ufix0x-venus-4g-gpu-dirty`。
-- 原始 boot 文件：`boards/ufi00x/ufi103s-ufi003/boot/boot-board-venus-4g-gpu-7.2.9.img`。
+- 原始 boot 文件：`artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img`。
 - 文件 SHA256：`5626c15b172b3c42ebb9425b6370f69343166b036f57610fc38765a896cfa035`。
 - **两次通过 `fastboot boot` 内存启动**，临时覆盖 cmdline，未刷 boot/rootfs。
 - 使用设备原有 Debian 13 rootfs，新增配套模块目录；**不是新 max.ext4 的整机验收**。
@@ -93,7 +93,7 @@ SSH 恢复后撤销；它不保证救回用户态启动前的硬挂死。
    NM 生成的 `ct state { established, related }` 和 `reject` 表达式报 ENOENT，
    整套规则事务失败，`nft list ruleset` 为空。
 2. **依赖**：旧 rootfs 没有 nftables，本次仅为测试安装了该包（无其它包升级）。
-   **新 `shared/rootfs/ufi103s-7.2.9-max.ext4` 也没有 `/usr/sbin/nft`**，由 debugfs
+   **新 `artifacts/rootfs/ufi103s-7.2.9-max.ext4` 也没有 `/usr/sbin/nft`**，由 debugfs
    只读检查确认。`build-rootfs.sh:154` 只对 native 分支显式加 nftables。
 3. **管理权**：设备 `/usr/lib/udev/rules.d/85-nm-unmanaged.rules:36` 对 gadget
    设置 `NM_UNMANAGED=1`；现有 NM 配置未针对 usb0 覆盖。

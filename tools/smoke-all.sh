@@ -16,7 +16,7 @@ declare -A K=(
 
 rc=0
 for t in max basic slim micro basic-native slim-native micro-native; do
-  img="shared/rootfs/ufi103s-$V-$t.ext4"
+  img="artifacts/rootfs/ufi103s-$V-$t.ext4"
   if [ ! -f "$img" ]; then
     echo "SMOKE[$t] SKIP（镜像不存在）"
     continue

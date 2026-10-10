@@ -4,7 +4,7 @@
 这三类东西有个共同点：**违反它们时，失败往往没有明确报错**，而是静默出错、挂死、
 或者把一个能用的设备变成砖。所以先读第 1、2 节再动手。
 
-范围：`/opt/helloworld/openstick`（含 `source/`、`boards/`、`tools/`、`shared/`）。
+范围：`/opt/helloworld/openstick`（含 `source/`、`boards/`、`tools/`、`artifacts/`）。
 分发仓 `ufi00x-mainline/`（本目录下，自带 git）有它自己的 `AGENTS.md`。
 
 工程一句话：为 **MSM8916（高通 410）USB 4G 棒** 构建 Debian 13 arm64 + 自编译
@@ -231,7 +231,7 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 
 ### 3.9 刷机时不要刷错对象
 
-- 刷的是 `shared/rootfs/*.ext4`（约 1 GB），**不是** 3.4 GB 的整分区 dump
+- 刷的是 `artifacts/rootfs/*.ext4`（约 1 GB），**不是** 3.4 GB 的整分区 dump
   （LK 会拒绝：`size too large`）
 - 大镜像要 `-S 200M` 分片：LK 的 `max-download-size` 只有 256 MB
 - 进 fastboot 的正确写法是 `systemctl reboot --reboot-argument=bootloader`；
@@ -308,8 +308,9 @@ arch-test arm64      # 期望：arm64: ok
 ### 4.2 自写设备树（`boards/*/*/dts/`，共 10 个 + 1 个共享 dtsi）
 
 这些 DTS/dtsi 是我们自己写的，**不在内核树的上游部分**。权威副本在 `boards/`
-与 `source/dts/common/` 下；构建时用独立的 `cpp` + `dtc` 就地编译，只把内核树
-当 include 来源（不往内核树里拷文件，也不改内核 `Makefile`）。
+（**源码侧，只放 DTS**）与 `source/dts/common/` 下；构建时用独立的 `cpp` + `dtc`
+就地编译，只把内核树当 include 来源（不往内核树里拷文件，也不改内核 `Makefile`）。
+产物 DTB 与 boot 镜像在 `artifacts/`。
 
 - 共享基础：`source/dts/common/msm8916-handsome-openstick-common.dtsi`
 - 每板一个基础 DTS；UFI103s 另有 4 个功能变体（`-4g`、`-venus`、`-venus-4g`、
@@ -417,7 +418,22 @@ KERNEL_LOCALVERSION=-test bash tools/build-board-set.sh baseline
   `--build-id` 选项；目前没做，也没必要。
 - 需要确认"设备上跑的是哪一份"时，比 `out/rollback/` 下的 p12 读回副本。
 
-### 5.2 常用命令
+### 5.1c 产物位置（硬约定）
+
+**所有构建产物只放 `artifacts/`**，不要再散落到 `boards/`、`shared/` 或别处。
+2026-10-11 之前产物分在 `shared/{rootfs,modules,firmware}` 与
+`boards/<家族>/<机型>/boot/` 两处，已全部收进 `artifacts/`。
+
+脚本**不要自己拼 `artifacts/...` 字面路径**，一律用 `tools/kver.sh`（shell）
+或 `tools/kver.py`（Python）派生的 `ARTIFACTS_*` / `MODULES_DIR*` / `ROOTFS_BASE`
+/ `FIRMWARE_DIR` —— 它们都从 `source/kernel-version.env` 算出。
+新增产物类别时，先在 `tools/kver.sh` 与 `tools/kver.py` 两处同步加变量，
+再改脚本。
+
+结构、入库规则（哪些产物入库、哪些被 .gitignore 排除）与用途见
+`artifacts/README.md`。
+
+## 5.2 常用命令
 
 ```sh
 # 当前版本（先看一眼，命令里的 <ver> 就是它）
@@ -428,14 +444,18 @@ bash tools/build-board-set.sh
 bash tools/build-board-set.sh venus-4g-gpu      # 单个板型
 
 # 单独重编某个变体（少用；build-board-set.sh 已含这一步）
+# ⚠️ 重编会覆盖 artifacts/boot/ 下对应的 boot 镜像与 build.json。内核镜像
+# 不是逐位可复现的（§5.1b），所以覆盖后哈希会变，已实机验证过的那一份
+# 就再也拼不回来——动手前先备份，或从分发仓取回已验证的副本。
 # 追加 source/configs/kernel-size.config 可得体积极限版（-8.4% Image.gz，
 # 2026-09-15 实测；代价：oops 无符号名 + 必须用同配置重编的模块树，
 # KALLSYMS=n 会改 struct module 布局，旧模块全部拒载）。
 bash tools/build-kernel-variant.sh venus source/configs/ufi103s-venus.config \
-     "$PWD/shared/modules/<ver>-ufix0x-venus-dirty"
+     "$PWD/artifacts/modules/<ver>-ufix0x-venus-dirty"
 
 # 全矩阵 rootfs（7 个：max/basic/slim/micro × nm|native；注意 §3.4/3.5/3.6 三个坑）
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
+# 凭据从 .local-creds 或环境变量取，脚本无内置默认值（见 §1.6）。
+bash tools/build-matrix.sh
 bash tools/build-matrix.sh max                  # 单个档位
 
 # QEMU 冒烟（不碰真机，改档位/砍包后必做）
@@ -443,7 +463,7 @@ bash tools/smoke-all.sh
 
 # 布局与产物自检（应 exit 0；默认校验 max 档镜像，可用 ROOTFS_IMAGE 换档）
 bash tools/verify-layout.sh
-ROOTFS_IMAGE=shared/rootfs/ufi103s-<ver>-slim.ext4 bash tools/verify-layout.sh
+ROOTFS_IMAGE=artifacts/rootfs/ufi103s-<ver>-slim.ext4 bash tools/verify-layout.sh
 
 # 分发仓自检（传当前内核树）
 cd ufi00x-mainline
@@ -511,3 +531,4 @@ sh tools/check-repo.sh "$K"
 | `docs/validation/VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
 | `docs/validation/USB-FIX-7.2.9.md` | USB 全链修复：NM/native 真实 NAT、gadget 生命周期、交付断言与保留风险 |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |
+| `artifacts/README.md` | **产物唯一存放位置**的结构、入库规则与路径派生约定 |

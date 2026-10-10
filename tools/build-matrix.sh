@@ -2,9 +2,9 @@
 # 全矩阵 rootfs 构建：F1-F4 × nm|native 共 7 个镜像（ufi103s）。
 #
 # 前置：build-board-set.sh 产出的模块树（令牌来自 KERNEL_LOCALVERSION）
-#   shared/modules/<ver>-ufix0x-dirty                 基线（slim/micro）
-#   shared/modules/<ver>-ufix0x-4g-dirty              basic
-#   shared/modules/<ver>-ufix0x-venus-4g-gpu-dirty    max
+#   artifacts/modules/<ver>-ufix0x-dirty                 基线（slim/micro）
+#   artifacts/modules/<ver>-ufix0x-4g-dirty              basic
+#   artifacts/modules/<ver>-ufix0x-venus-4g-gpu-dirty    max
 #
 # Wi-Fi 预置：从环境读 ROOTFS_WIFI_SSID/ROOTFS_WIFI_PSK（不传则镜像不带
 # 凭据，刷到无屏棒子上要靠 USB 网络共享进系统配网）。
@@ -29,11 +29,11 @@ ROOTFS_ROOT_PASSWORD="$(cred_opt ROOTFS_ROOT_PASSWORD)"
 REL_BASE="$KERNEL_VERSION$KERNEL_LOCALVERSION-dirty"
 REL_4G="$KERNEL_VERSION$KERNEL_LOCALVERSION-4g-dirty"
 REL_GPU="$KERNEL_VERSION$KERNEL_LOCALVERSION-venus-4g-gpu-dirty"
-TREE_BASE="$BASE/shared/modules/$REL_BASE"
-TREE_4G="$BASE/shared/modules/$REL_4G"
-TREE_GPU="$BASE/shared/modules/$REL_GPU"
-FIRMWARE_VENUS="$BASE/shared/firmware/ufi103s-venus"
-OUTROOT="$BASE/shared/rootfs"
+TREE_BASE="$ARTIFACTS_MODULES/$REL_BASE"
+TREE_4G="$ARTIFACTS_MODULES/$REL_4G"
+TREE_GPU="$ARTIFACTS_MODULES/$REL_GPU"
+FIRMWARE_VENUS="$ARTIFACTS_FIRMWARE/ufi103s-venus"
+OUTROOT="$ARTIFACTS_ROOTFS"
 
 TARGETS=("$@")
 [ ${#TARGETS[@]} -eq 0 ] && TARGETS=(max basic slim micro basic-native slim-native micro-native)

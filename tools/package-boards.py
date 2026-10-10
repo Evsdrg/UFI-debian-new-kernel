@@ -34,7 +34,8 @@ def run(*args):
 
 for board, (family, name) in BOARDS.items():
     bdir = board_dir(board)
-    out = bdir / 'boot'
+    # 产物统一落到 artifacts/boot/<board>（见 artifacts/README.md）。
+    out = kver.ARTIFACTS_BOOT / board
     build = BASE / 'build/boards' / board
     build.mkdir(parents=True, exist_ok=True)
     source = bdir / 'dts' / f'msm8916-handsome-openstick-{name}.dts'
@@ -52,14 +53,8 @@ for board, (family, name) in BOARDS.items():
     (build / 'kernel-dtb').write_bytes(payload)
     (build / 'empty-ramdisk').write_bytes(b'')
     old = out / 'boot-baseline.img'
-    if old.exists() and board == 'ufi103s-ufi003':
-        archive = BASE / 'archive/old-builds/ufi103s-original-baseline.img'
-        if not archive.exists(): archive.write_bytes(old.read_bytes())
     cmdline = 'earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait'
     run(BASE / 'mkbootimg/mkbootimg', '--kernel', build / 'kernel-dtb', '--ramdisk', build / 'empty-ramdisk', '--base', '0x80000000', '--kernel_offset', '0x00080000', '--ramdisk_offset', '0x02000000', '--second_offset', '0x00f00000', '--tags_offset', '0x01e00000', '--pagesize', '2048', '--header_version', '0', '--cmdline', cmdline, '--output', old)
     metadata = {'board': board, 'kernel_release': kver.KERNEL_RELEASE, 'cmdline': cmdline, 'status': 'offline-validated; not flashed', 'firmware': 'board-specific firmware and calibration required', 'sha256': hashlib.sha256(old.read_bytes()).hexdigest()}
     (out / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n')
-    placeholder = out / 'boot-baseline-candidate-from-common.img'
-    if placeholder.exists():
-        placeholder.rename(BASE / 'archive/old-builds' / (board + '-obsolete-placeholder.img'))
     print(board, metadata['sha256'])
