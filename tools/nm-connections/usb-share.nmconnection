@@ -10,6 +10,7 @@ autoconnect=true
 
 [ipv4]
 method=shared
+address1=10.42.0.1/24
 
 [ipv6]
 method=ignore

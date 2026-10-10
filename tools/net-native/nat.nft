@@ -1,9 +1,17 @@
 #!/usr/sbin/nft -f
-# USB 共享 NAT：把 usb0 侧 PC 的流量伪装到上行口（wlan0 优先，wwan0 兜底）
-table inet nat {
+# 仅管理自己的表，整批替换，重复 start 不叠加规则；不 flush 全局 ruleset。
+add table inet openstick_usb
+flush table inet openstick_usb
+table inet openstick_usb {
     chain postrouting {
         type nat hook postrouting priority srcnat; policy accept;
-        oifname "wlan0" masquerade
-        oifname "wwan0" masquerade
+        iifname "usb0" ip saddr 10.42.0.0/24 oifname != "usb0" masquerade
+    }
+    chain forward {
+        type filter hook forward priority filter; policy accept;
+        oifname "usb0" ip daddr 10.42.0.0/24 ct state { established, related } accept
+        iifname "usb0" ip saddr 10.42.0.0/24 accept
+        iifname "usb0" reject
+        oifname "usb0" reject
     }
 }

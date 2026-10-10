@@ -147,7 +147,8 @@ esac
 
 case "$ROOTFS_NET" in
 nm)
-    PKGS_EXTRA="network-manager,$PKGS_EXTRA"
+    # 两套网络栈都通过 nft 管理共享 NAT；NM 包本身不保证携带 nft。
+    PKGS_EXTRA="network-manager,nftables,$PKGS_EXTRA"
     ;;
 native)
     # nft 提供 nft 二进制（NAT）；networkd/dnsmasq 随 systemd/dnsmasq 已在
@@ -283,6 +284,7 @@ mkdir -p "$STAGE/etc/NetworkManager/system-connections" \
 cat > "$STAGE/etc/NetworkManager/NetworkManager.conf" <<'EOF'
 [main]
 plugins=keyfile
+firewall-backend=nftables
 # 让 NM 生成的配置也用 keyfile 格式，便于手工编辑
 [keyfile]
 unmanaged-devices=none
@@ -300,6 +302,8 @@ match-device=type:wwan;type:wifi
 ipv4.dhcp-timeout=30
 ipv6.dhcp-timeout=30
 EOF
+install -D -m 644 "$WORKDIR/tools/nm-connections/20-usb-managed.conf" \
+    "$STAGE/etc/NetworkManager/conf.d/20-usb-managed.conf"
 
 # 预置 Wi-Fi 连接（keyfile 格式）。变量由环境提供；未提供则镜像不带预置 Wi-Fi，
 # 用户可用 nmtui / nmcli 自己配。
@@ -367,6 +371,12 @@ chmod 600 "$WPA_CONF"
 install -D -m 644 "$NETDIR/dnsmasq.conf" "$STAGE/etc/dnsmasq.d/usb-share.conf"
 install -D -m 644 "$NETDIR/nat.nft"      "$STAGE/etc/nftables.d/nat.nft"
 install -D -m 644 "$NETDIR/native-net.service" "$STAGE/etc/systemd/system/native-net.service"
+install -D -m 755 "$NETDIR/usb-share.sh" "$STAGE/usr/local/sbin/usb-share-native.sh"
+mkdir -p "$STAGE/etc/systemd/system/usb-gadget.service.d"
+cat > "$STAGE/etc/systemd/system/usb-gadget.service.d/native.conf" <<'EOF'
+[Unit]
+Wants=native-net.service
+EOF
 if [[ "$ROOTFS_4G" == 1 ]]; then
     install -D -m 755 "$NETDIR/mm-connect.sh" "$STAGE/usr/local/sbin/mm-connect.sh"
 fi
@@ -510,7 +520,7 @@ fi
 # 内核侧需要 CONFIGFS/RNDIS/extcon/HS-PHY 全内建（common-*-os.config 已设）。
 # NM 档：usb-share 连接 ipv4.method=shared，NM 自动 DHCP/DNS/NAT（dnsmasq 按需
 # 拉起，系统 dnsmasq 服务必须压制，否则抢 53 端口）；native 档资产在
-# tools/net-native/，矩阵接入时替换本段。
+# tools/net-native/；包与管理策略按 ROOTFS_NET 分支装配。
 install -D -m 755 "$WORKDIR/tools/usb-gadget.sh" "$STAGE/usr/local/sbin/usb-gadget.sh"
 install -D -m 644 "$WORKDIR/tools/usb-gadget.service" "$STAGE/etc/systemd/system/usb-gadget.service"
 if [[ "$ROOTFS_NET" == nm ]]; then
@@ -576,6 +586,13 @@ if [[ ! -d "$MODULE_TREE/lib/modules/$KERNEL_RELEASE" ]]; then
     exit 1
 fi
   cp -a "$MODULE_TREE/lib/modules/"* "$STAGE/lib/modules/"
+  # shared 的 nft CT/reject 是两栈的共同需求，缺模块时拒绝生成“可共享”镜像。
+  for _m in net/netfilter/nft_ct.ko net/netfilter/nft_reject.ko \
+            net/ipv4/netfilter/nft_reject_ipv4.ko net/ipv4/netfilter/nf_reject_ipv4.ko; do
+      test -f "$STAGE/lib/modules/$KERNEL_RELEASE/kernel/$_m" || {
+          echo "USB 共享缺模块: $_m" >&2; exit 1;
+      }
+  done
   # rpmsg-wwan 早期是单独交付的模块；现在各个模块树已经把它们
   # 编进去了（kernel/drivers/net/wwan/ 下就有）。所以这里只在树里确实缺
   # 这两个模块时才要求 RPMSG_MODULE_DIR，避免为了一个已经满足的前提而
@@ -690,7 +707,7 @@ MMDEBSTRAP_ARGS=(
 	# STAGE 上必须 chmod -R a+rX 才能让 hook 读到文件，那个会把这里的 600
 	# 变成 644，所以拷进镜像后要重新收权。
 	'--customize-hook=chmod 600 $1/etc/NetworkManager/system-connections/*.nmconnection $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf 2>/dev/null || true'
-	'--customize-hook=if test -f $1/lib/systemd/system/dnsmasq.service; then rm -f $1/etc/systemd/system/multi-user.target.wants/dnsmasq.service $1/lib/systemd/system/multi-user.target.wants/dnsmasq.service; fi' \
+	'--customize-hook=if test -f $1/lib/systemd/system/dnsmasq.service; then ln -sf /dev/null $1/etc/systemd/system/dnsmasq.service; rm -f $1/etc/systemd/system/multi-user.target.wants/dnsmasq.service $1/lib/systemd/system/multi-user.target.wants/dnsmasq.service; fi' \
 	'--customize-hook=mkdir -p $1/dev/hugepages $1/dev/mqueue $1/run/lock $1/tmp && touch $1/dev/hugepages/.keep $1/dev/mqueue/.keep $1/run/lock/.keep $1/tmp/.keep'
 	'--customize-hook=rm -f $1/etc/systemd/system/systemd-resolved.service.d/override.conf'
 	# NetworkManager 接管网络：不再启用 networkd / 独立的 wpa_supplicant 实例。
@@ -707,6 +724,9 @@ MMDEBSTRAP_ARGS=(
 	# 清，它会从 sockets.target 自动拉起 networkd）。native 档没有 NM，不存在
 	# 抢占，反而依赖这些单元——上面的钩子按"镜像里有无 NM 二进制"自动跳过。
 	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then for u in systemd-networkd.service systemd-networkd.socket wpa_supplicant@wlan0.service wpa_supplicant.service; do rm -f $1/etc/systemd/system/multi-user.target.wants/$u $1/etc/systemd/system/sockets.target.wants/$u; done; rm -f $1/etc/systemd/system/dbus-org.freedesktop.network1.service $1/etc/wpa_supplicant/wpa_supplicant-wlan0.conf; fi'
+	'--customize-hook=test -x $1/usr/sbin/nft && test -x $1/usr/sbin/dnsmasq && test -x $1/usr/local/sbin/usb-gadget.sh'
+	# USB 管理权不能靠开机后手工 nmcli；native 也必须携带自己的准备/清理程序。
+	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test -f $1/etc/NetworkManager/conf.d/20-usb-managed.conf && grep -q "^managed=1$" $1/etc/NetworkManager/conf.d/20-usb-managed.conf; else test -x $1/usr/local/sbin/usb-share-native.sh; fi'
 	# 断言：NM 已启用、networkd/每接口 wpa 未被启用（缺失符号链接即视为未启用）。
 	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test -L $1/etc/systemd/system/multi-user.target.wants/NetworkManager.service; fi'
 	'--customize-hook=if test -f $1/usr/sbin/NetworkManager; then test ! -e $1/etc/systemd/system/multi-user.target.wants/systemd-networkd.service; fi'

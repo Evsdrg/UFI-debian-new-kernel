@@ -5,11 +5,11 @@
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
   "boot_image": "boot-board-4g-7.2.9.img",
   "boot_size": 7905280,
-  "kernel_size": 7902526,
-  "appended_dtb_offset": 7854463,
+  "kernel_size": 7902402,
+  "appended_dtb_offset": 7854339,
   "appended_dtb_size": 50111,
-  "image_gz_sha256": "904df327c6e5bb8ee91ef2bdbb4b59d8e9fbaec5e8fd44d616201fa572c770b7",
+  "image_gz_sha256": "ec645f9d7c50aae08f521895cca294454954411cc16bdabc20da81f2f7180a59",
   "dtb_sha256": "37929bb985c44f3f44c71f382747982e9d84cfb18d304deb31c12d364a3a4023",
-  "boot_sha256": "11bd1654bb59b31d4c9b6646c10714d896bb24091fe862b381543380bca97960",
+  "boot_sha256": "9409c7bb9dfc4cccb4edf93ed57b1d77c1588226e3324612271cbbecc795398d",
   "flash_status": "not flashed"
 }

@@ -1,15 +1,21 @@
 [Unit]
-Description=Native (non-NM) USB sharing: dnsmasq + NAT
-After=systemd-networkd.service wpa_supplicant.service
-Wants=network-online.target
+Description=Native USB sharing: supervised DHCP/DNS and scoped NAT
+Requires=systemd-networkd.service
+BindsTo=usb-gadget.service
+After=usb-gadget.service systemd-networkd.service
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
-Type=oneshot
-ExecStart=/usr/sbin/nft -f /etc/nftables.d/nat.nft
-ExecStart=/usr/sbin/sysctl -w net.ipv4.ip_forward=1
-ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/dnsmasq.d/usb-share.conf --pid-file=/run/dnsmasq-usb.pid
-ExecStop=/usr/bin/pkill -F /run/dnsmasq-usb.pid
-RemainAfterExit=yes
+Type=simple
+ExecStartPre=/usr/sbin/dnsmasq --test --conf-file=/etc/dnsmasq.d/usb-share.conf
+ExecStartPre=/usr/local/sbin/usb-share-native.sh start
+ExecStart=/usr/sbin/dnsmasq --keep-in-foreground --conf-file=/etc/dnsmasq.d/usb-share.conf --pid-file=/run/dnsmasq-usb.pid
+ExecStopPost=/usr/local/sbin/usb-share-native.sh stop
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=40
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target

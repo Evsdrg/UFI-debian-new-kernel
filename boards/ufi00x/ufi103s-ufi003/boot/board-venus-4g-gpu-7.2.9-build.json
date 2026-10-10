@@ -5,11 +5,11 @@
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
   "boot_image": "boot-board-venus-4g-gpu-7.2.9.img",
   "boot_size": 8003584,
-  "kernel_size": 8000739,
-  "appended_dtb_offset": 7952688,
+  "kernel_size": 8000737,
+  "appended_dtb_offset": 7952686,
   "appended_dtb_size": 50099,
-  "image_gz_sha256": "7cdebc2bfb0dd4ed44b501416670a783162005e80e3ea07b4812030eb49f7ad4",
+  "image_gz_sha256": "a22d2d4a79aa5bebad3e203013ba7570aa437c542c1bce8f86feb39e1264f385",
   "dtb_sha256": "2bcf27a04910eb53a66e53bdd687179b744aba898a2742013fc4bf60dfb62598",
-  "boot_sha256": "5626c15b172b3c42ebb9425b6370f69343166b036f57610fc38765a896cfa035",
+  "boot_sha256": "11f975b280b357f96d06f72c490284a66c6ca0ebeeb0368778044e61e654bb51",
   "flash_status": "not flashed"
 }

@@ -24,7 +24,8 @@ printf '== shell ==\n'
 bash -n "$BASE/build-rootfs.sh" "$BASE/flash.sh" \
         "$BASE/tools/build-rootfs.sh" "$BASE/tools/build-boot-images.sh" \
         "$BASE/tools/build-kernel-variant.sh" "$BASE/tools/build-gpu-variant.sh" \
-        "$BASE/tools/verify-layout.sh" "$BASE/tools/ufi-console.sh"
+        "$BASE/tools/verify-layout.sh" "$BASE/tools/ufi-console.sh" \
+        "$BASE/tools/usb-gadget.sh" "$BASE/tools/net-native/usb-share.sh"
 printf 'scripts=OK\n'
 
 printf '\n== source ==\n'
@@ -56,6 +57,9 @@ for f in \
   test -f "$MODULES/kernel/$f" 2>/dev/null || test -f "$MODULES/$f"
 done
 printf 'modules=OK\n'
+
+printf '\n== USB sharing delivery ==\n'
+python3 "$BASE/tools/verify-usb-sharing.py" "$ROOTFS"
 
 printf '\n== rootfs ==\n'
 test -f "$ROOTFS"

@@ -19,8 +19,9 @@
 
 > **boot 分区仍是 7.1.13，7.2.9 已做 RAM 实机预演**：2026-10-10 对
 > `venus-4g-gpu` 两次 `fastboot boot`，并实测正常重启回退；未刷 boot/rootfs。
-> 发现 NM USB NAT 配置缺口、持续负载散热限制，暂不正式刷入。
-> 详细通过项、失败项与原始日志位置见 [`VALIDATION-7.2.9.md`](../../../VALIDATION-7.2.9.md)。
+> 后续USB修复已完成，NM/native的真实NAT已通过；持续负载散热与MPEG-4仍有
+> 限制，暂不正式刷入。见 [`USB-FIX-7.2.9.md`](../../../USB-FIX-7.2.9.md)。
+> 原始验收与回退日志位置见 [`VALIDATION-7.2.9.md`](../../../VALIDATION-7.2.9.md)。
 > 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 
 ## 产物
@@ -74,7 +75,8 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 - 7 个 rootfs 的 QEMU 冒烟 ✅；不是实机全功能验收。
 - 仅 `venus-4g-gpu` 做了 RAM 实机测试：WiFi、USB 直连、GPU、H.264/VP8、xrdp、
   蓝牙扫描、存储与内存校验通过；4G 仅到 `sim-missing`。
-- USB NAT ❌：缺 nft CT/reject 支持，NM 镜像还缺 nftables 及 gadget 管理权配置。
+- USB NAT ✅：公共nft依赖、NM管理权/包及gadget/native生命周期已修复，
+  两栈实测客户端经棒子出网；新镜像整机与Windows/macOS兼容性未测。
 - 满频压力、持续推流 ⚠️：80°C 测试保护中止；800MHz 限频校验通过，之后已恢复。
 - MPEG-4 硬解 ❌：两版内核同样触发 Venus 固件 fatal；只能重启恢复，不卸载模块。
 - 当前 DTS 的 CPU OPP 为 200/400/800/998.4/1094.4/**1152/1209.6 MHz**。

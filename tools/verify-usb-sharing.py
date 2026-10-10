@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+"""USB delivery assertions for all resolved kernels and NM/native rootfs images."""
+import hashlib
+from pathlib import Path
+import re
+import subprocess
+import sys
+
+BASE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BASE/'tools'))
+from kver import KERNEL_VERSION, KERNEL_LOCALVERSION
+
+SYMBOLS = ('NF_TABLES', 'NF_CONNTRACK', 'NF_NAT', 'NFT_CT', 'NFT_MASQ', 'NFT_NAT',
+           'NFT_REJECT', 'NFT_REJECT_IPV4', 'NF_REJECT_IPV4', 'NFT_REJECT_INET',
+           'NFT_REJECT_IPV6', 'NF_REJECT_IPV6')
+MODULES = ('net/netfilter/nf_tables.ko', 'net/netfilter/nf_conntrack.ko',
+           'net/netfilter/nf_nat.ko', 'net/netfilter/nft_chain_nat.ko',
+           'net/netfilter/nft_masq.ko', 'net/netfilter/nft_ct.ko', 'net/netfilter/nft_reject.ko',
+           'net/ipv4/netfilter/nf_defrag_ipv4.ko', 'net/ipv6/netfilter/nf_defrag_ipv6.ko',
+           'net/netfilter/nft_reject_inet.ko',
+           'net/ipv4/netfilter/nft_reject_ipv4.ko', 'net/ipv4/netfilter/nf_reject_ipv4.ko',
+           'net/ipv6/netfilter/nft_reject_ipv6.ko', 'net/ipv6/netfilter/nf_reject_ipv6.ko')
+
+def check(condition, message):
+    if not condition: raise RuntimeError(message)
+
+def debugfs(image, command):
+    p = subprocess.run(['debugfs','-R',command,str(image)],capture_output=True,check=False)
+    check(p.returncode == 0, f'{image}: debugfs failed: {p.stderr.decode(errors="replace")}')
+    return p.stdout
+
+def stat(image, path):
+    s=debugfs(image, 'stat '+path).decode(errors='replace')
+    check(re.search(r'^Inode:',s,re.M),f'{image.name}: missing {path}')
+    return s
+
+def exact_asset(image, path, source):
+    stat(image,path)
+    data=debugfs(image,'cat '+path)
+    check(data==source.read_bytes(),f'{image.name}: stale asset {path}')
+
+try:
+    for variant in ('baseline','4g','venus','venus-4g','venus-4g-gpu'):
+        cfg=BASE/f'build/variant-{KERNEL_VERSION}-board-{variant}/.config'
+        text=cfg.read_text()
+        for symbol in SYMBOLS:
+            check(re.search(rf'^CONFIG_{symbol}=[my]$',text,re.M),f'{cfg}: CONFIG_{symbol} missing')
+        suffix='' if variant=='baseline' else '-'+variant
+        rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
+        tree=BASE/f'shared/modules/{rel}/lib/modules/{rel}/kernel'
+        for module in MODULES: check((tree/module).is_file(),f'{rel}: missing {module}')
+        print(f'kernel[{variant}]=USB_NFT_OK')
+    images=[Path(p) for p in sys.argv[1:]] or [
+        BASE/f'shared/rootfs/ufi103s-{KERNEL_VERSION}-{flavor}.ext4'
+        for flavor in ('max','basic','slim','micro','basic-native','slim-native','micro-native')]
+    for image in images:
+        check(image.is_file(), f'missing rootfs image: {image}')
+        native=image.stem.endswith('-native')
+        flavor=image.stem.split(f'{KERNEL_VERSION}-',1)[-1].removesuffix('-native')
+        suffix='-venus-4g-gpu' if flavor=='max' else '-4g' if flavor=='basic' else ''
+        rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
+        for path in ('/usr/sbin/nft','/usr/sbin/dnsmasq'):
+            s=stat(image,path)
+            check(re.search(r'Mode:\s+0[0-7]*[1357][0-7][0-7]',s),f'{image.name}: not executable {path}')
+        for module in MODULES:
+            path=f'/usr/lib/modules/{rel}/kernel/{module}'
+            stat(image,path)
+            source=BASE/f'shared/modules/{rel}/lib/modules/{rel}/kernel/{module}'
+            check(hashlib.sha256(debugfs(image,'cat '+path)).digest()==hashlib.sha256(source.read_bytes()).digest(),
+                  f'{image.name}: stale module {module}')
+        exact_asset(image,'/usr/local/sbin/usb-gadget.sh',BASE/'tools/usb-gadget.sh')
+        exact_asset(image,'/etc/systemd/system/usb-gadget.service',BASE/'tools/usb-gadget.service')
+        stat(image,'/etc/systemd/system/multi-user.target.wants/usb-gadget.service')
+        check('"/dev/null"' in stat(image,'/etc/systemd/system/dnsmasq.service'),f'{image.name}: global dnsmasq not masked')
+        for prefix in ('/etc/systemd/system', '/usr/lib/systemd/system'):
+            check(not re.search(rb'^Inode:', debugfs(image,'stat '+prefix+'/multi-user.target.wants/nftables.service'),re.M),
+                  f'{image.name}: global nftables service competes with sharing owner')
+        if native:
+            for path,source in (
+                ('/etc/systemd/system/native-net.service','native-net.service'),
+                ('/etc/nftables.d/nat.nft','nat.nft'),
+                ('/etc/dnsmasq.d/usb-share.conf','dnsmasq.conf'),
+                ('/usr/local/sbin/usb-share-native.sh','usb-share.sh')):
+                exact_asset(image,path,BASE/'tools/net-native'/source)
+            stat(image,'/etc/systemd/system/multi-user.target.wants/native-net.service')
+            stat(image,'/etc/systemd/system/usb-gadget.service.d/native.conf')
+            check(b'Wants=native-net.service' in debugfs(image,'cat /etc/systemd/system/usb-gadget.service.d/native.conf'), 'native gadget restart dependency')
+        else:
+            exact_asset(image,'/etc/NetworkManager/conf.d/20-usb-managed.conf',BASE/'tools/nm-connections/20-usb-managed.conf')
+            connection='/etc/NetworkManager/system-connections/usb-share.nmconnection'
+            exact_asset(image,connection,BASE/'tools/nm-connections/usb-share.nmconnection')
+            check('Mode:  0600' in stat(image,connection),f'{image.name}: unsafe keyfile mode')
+            check(b'firewall-backend=nftables' in debugfs(image,'cat /etc/NetworkManager/NetworkManager.conf'),f'{image.name}: backend not pinned')
+        print(f'rootfs[{image.name}]=USB_DELIVERY_OK')
+except (RuntimeError, OSError) as e:
+    print('USB_CHECK_FAILED: '+str(e),file=sys.stderr)
+    sys.exit(1)

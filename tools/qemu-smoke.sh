@@ -11,7 +11,8 @@ IMGGZ="${2:?缺少 Image.gz}"
 TIMEOUT="${3:-240}"
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
-T="$BASE/out/qemu-test"
+# 并行回归必须使用不同目录，避免互相覆盖 test.ext4/Image 或卸载别人的挂载。
+T="${QEMU_TEST_DIR:-$BASE/out/qemu-test}"
 NAME="$(basename "$IMG" .ext4)"
 mkdir -p "$T"
 

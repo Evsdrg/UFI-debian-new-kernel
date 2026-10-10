@@ -343,10 +343,11 @@ arch-test arm64      # 期望：arm64: ok
 - `desktop/ufi-stream-push.sh` / `-clock.sh` / `-play.sh`：GPU 推流链路
   （见 `GPU-STREAMING.md`）
 - `ufi-console.sh`：有界串口访问
-- **USB 共享当前有验收阻塞（2026-10-10）**：7.2.9 GPU 配置缺 nft CT/reject，
-  NM max 镜像缺 nftables、usb0 管理权覆盖；`tools/usb-gadget.sh` 还写了不存在的
-  interface `b_vendor_code` 属性。USB DHCP/DNS/SSH 成功不能代表 NAT 成功；
-  `verify-layout.sh` 仍会过，详细证据见 `VALIDATION-7.2.9.md`。
+- **USB 共享修复（2026-10-10）**：公共配置补齐 nft CT/reject；两栈均携带
+  nftables，NM明确接管usb0；gadget按UDC内容判断状态、检查失败并回滚。
+  NM/native的DHCP/DNS/真实NAT及gadget半装配恢复已实机通过，见
+  `USB-FIX-7.2.9.md`。`verify-usb-sharing.py`检查五内核/七镜像，
+  `verify-layout.sh`已接入；新rootfs仍未整机刷入验收，不可外推蜂窝/Windows支持。
 - `flash.sh`（仓库根）：刷机，`fastboot-flash` 会比对 build.json 的 sha256 再写。
   （`tools/flash.sh` 是重组时复制进来的旧子集、引用已失效的路径，2026-09-14 已从
   仓库删除，其历史归档随后于 2026-10-07 一并清理。）
@@ -489,7 +490,8 @@ sh tools/check-repo.sh "$K"
 | `NETWORK.md` | NetworkManager 迁移与中文化 |
 | `DESKTOP.md` | i3 桌面 / xrdp / Adreno GPU 渲染 |
 | `GPU-STREAMING.md` | GPU 合成 → Venus 硬编 → 推流（含关键坑） |
-| `VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：通过项、USB NAT/MPEG-4/散热失败项、回退与现场状态 |
+| `USB-FIX-7.2.9.md` | USB全链修复：NM/native真实NAT、gadget生命周期、交付断言与保留风险 |
+| `VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
 | `VIDEO-CODEC.md` | 编解码实测数据 |
 | `LED.md` | LED 跨型号适配 |
 | `BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |

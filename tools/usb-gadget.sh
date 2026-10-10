@@ -1,111 +1,121 @@
 #!/bin/sh
-# USB 网络共享 gadget 装配（configfs + RNDIS）
-#
-# 把设备的 USB 口变成 RNDIS 网卡：Windows / Linux / macOS 免驱识别，
-# 配合 NM 的 shared 连接（或 native 档的 dnsmasq+nftables），设备向 PC
-# 共享网络，网关 10.42.0.1/24。
-#
-# 内核要求：CONFIG_USB_CONFIGFS / CONFIG_USB_F_RNDIS / CONFIG_CONFIGFS_FS
-# 全部内建（common-*-os.config 已设）。
-#
-# 用法：usb-gadget.sh start|stop|status
-#
-# Windows 兼容说明：写入 MS OS 描述符（compatible_id=RNDIS），Win8+ 免驱
-# 直接认成 RNDIS 网卡，不需要 inf。
-
-set -u
+# RNDIS configfs gadget；Linux 已验，Windows/macOS 兼容性须独立测试。
+# 单一配置，网络策略由 NM shared 或 native-net 接管。
+set -eu
 
 GADGET_NAME=openstick
-VENDOR_ID=0x0525       # Linux-USB gadget 惯用厂商号（netchip）
-PRODUCT_ID=0xa4a2      # Linux-USB Ethernet/RNDIS 惯用产品号
-SERIAL=ufi$(uname -n 2>/dev/null | tr -cd '0-9a-z' | head -c 8)
+CFG=${USB_GADGET_CONFIGFS:-/sys/kernel/config/usb_gadget}
+UDCS=${USB_GADGET_UDCS:-/sys/class/udc}
+LOCK=${USB_GADGET_LOCK:-/run/lock/openstick-usb-gadget.lock}
+G=$CFG/$GADGET_NAME
+BUILDING=0
 
-CFG=/sys/kernel/config/usb_gadget
-udc_fail() { echo "usb-gadget: $*" >&2; exit 1; }
+fail() { echo "usb-gadget: $*" >&2; exit 1; }
+value() { [ -f "$1" ] && tr -d '\000\n' <"$1"; }
+write_attr() {
+    # configfs 属性不允许凭空创建，缺属性即失败（也便于离线模拟）。
+    [ -f "$G/$1" ] || fail "缺少属性 $1"
+    printf '%s\n' "$2" >"$G/$1" || fail "写入 $1 失败"
+}
+remove_tree() {
+    [ -d "$G" ] || return 0
+    if [ -n "$(value "$G/UDC" || true)" ]; then
+        printf '\n' >"$G/UDC" || return 1
+    fi
+    for link in os_desc/c.1 configs/c.1/rndis.usb0; do
+        if [ -L "$G/$link" ]; then rm "$G/$link" || return 1; fi
+    done
+    # 只删本脚本拥有的对象；遇到额外函数/配置时失败，不 rm -rf configfs。
+    for dir in functions/rndis.usb0 configs/c.1/strings/0x409 configs/c.1 strings/0x409; do
+        if [ -d "$G/$dir" ]; then rmdir "$G/$dir" || return 1; fi
+    done
+    rmdir "$G"
+}
+finish() {
+    rc=$?
+    trap - 0
+    if [ "$BUILDING" = 1 ]; then
+        remove_tree || { echo 'usb-gadget: 回滚失败，保留现场供检查' >&2; rc=1; }
+    fi
+    exit "$rc"
+}
+trap finish 0
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
-wait_udc() {
-    _try=0
-    while [ ! -d /sys/class/udc ] || [ -z "$(ls /sys/class/udc 2>/dev/null)" ]; do
-        _try=$((_try + 1))
-        [ "$_try" -ge 20 ] && udc_fail "无 UDC（USB 控制器未就绪）"
+# 装配/解绑串行化，避免两个 systemd/人工调用互相踩 configfs。
+exec 9>"$LOCK"
+flock -w 10 9 || fail '等待装配锁超时'
+
+complete() {
+    [ -n "$(value "$G/UDC" || true)" ] || return 1
+    [ "$(value "$G/idVendor")" = 0x0525 ] || return 1
+    [ "$(value "$G/idProduct")" = 0xa4a2 ] || return 1
+    [ "$(value "$G/os_desc/use")" = 1 ] || return 1
+    [ "$(value "$G/os_desc/b_vendor_code")" = 0xcd ] || return 1
+    [ "$(value "$G/os_desc/qw_sign")" = MSFT100 ] || return 1
+    [ "$(value "$G/functions/rndis.usb0/os_desc/interface.rndis/compatible_id")" = RNDIS ] || return 1
+    [ "$(value "$G/functions/rndis.usb0/os_desc/interface.rndis/sub_compatible_id")" = 5162001 ] || return 1
+    [ -L "$G/configs/c.1/rndis.usb0" ] || return 1
+    [ -L "$G/os_desc/c.1" ] || return 1
+    [ "$(readlink -f "$G/configs/c.1/rndis.usb0")" = "$G/functions/rndis.usb0" ] || return 1
+    [ "$(readlink -f "$G/os_desc/c.1")" = "$G/configs/c.1" ] || return 1
+    [ -d "$UDCS/$(value "$G/UDC")" ]
+}
+start() {
+    [ -d "$CFG" ] || fail 'configfs 未挂载或 USB_CONFIGFS 不可用'
+    bound=$(value "$G/UDC" || true)
+    if [ -n "$bound" ]; then
+        complete || fail '已有绑定 gadget 与期望配置不一致；请先明确停止'
+        echo "usb-gadget: 已装配（UDC=$bound）"
+        return
+    fi
+    # 清理上次失败留下的未绑定对象，再按同一份描述符重新构建。
+    remove_tree || fail '无法清理未绑定 gadget'
+    udc=
+    for _ in $(seq 1 20); do
+        for path in "$UDCS"/*; do
+            [ -d "$path" ] || continue
+            udc=${path##*/}; break
+        done
+        [ -z "$udc" ] || break
         sleep 0.5
     done
-    ls /sys/class/udc | head -1
+    [ -n "$udc" ] || fail '无 UDC（USB 控制器未就绪）'
+    BUILDING=1
+    mkdir "$G"
+    write_attr idVendor 0x0525
+    write_attr idProduct 0xa4a2
+    write_attr bcdDevice 0x0100
+    write_attr bcdUSB 0x0200
+    mkdir "$G/strings/0x409"
+    write_attr strings/0x409/manufacturer OpenStick
+    write_attr strings/0x409/product 'USB Network Gadget'
+    serial=ufi$(uname -n | tr -cd '0-9a-z' | head -c 8)
+    write_attr strings/0x409/serialnumber "$serial"
+    mkdir "$G/configs/c.1"
+    mkdir "$G/configs/c.1/strings/0x409"
+    write_attr configs/c.1/strings/0x409/configuration 'RNDIS Network'
+    write_attr configs/c.1/MaxPower 200 # configfs 单位 mA；不是 2W，也不是实际功耗测量
+    mkdir "$G/functions/rndis.usb0"
+    ln -s "$G/functions/rndis.usb0" "$G/configs/c.1/rndis.usb0"
+    write_attr os_desc/use 1
+    write_attr os_desc/b_vendor_code 0xcd
+    write_attr os_desc/qw_sign MSFT100
+    write_attr functions/rndis.usb0/os_desc/interface.rndis/compatible_id RNDIS
+    write_attr functions/rndis.usb0/os_desc/interface.rndis/sub_compatible_id 5162001
+    ln -s "$G/configs/c.1" "$G/os_desc/c.1"
+    write_attr UDC "$udc"
+    complete || fail '绑定后配置核验失败'
+    BUILDING=0
+    echo "usb-gadget: 已绑定 $udc（rndis.usb0）"
 }
-
-mounted_configfs() {
-    grep -q usb_gadget /proc/mounts 2>/dev/null
-}
-
-start() {
-    [ -d "$CFG" ] || udc_fail "configfs 未挂载（检查 CONFIG_CONFIGFS_FS）"
-    if [ -e "$CFG/$GADGET_NAME/UDC" ] && [ -s "$CFG/$GADGET_NAME/UDC" ]; then
-        echo "usb-gadget: 已装配（UDC=$(cat "$CFG/$GADGET_NAME/UDC" 2>/dev/null)）"
-        exit 0
-    fi
-
-    UDC=$(wait_udc)
-
-    mkdir -p "$CFG/$GADGET_NAME" || udc_fail "无法创建 gadget"
-    cd "$CFG/$GADGET_NAME" || exit 1
-
-    echo "$VENDOR_ID"  > idVendor
-    echo "$PRODUCT_ID" > idProduct
-    echo 0x0100        > bcdDevice
-    echo 0x0200        > bcdUSB           # USB 2.0
-
-    mkdir -p strings/0x409
-    echo "OpenStick"      > strings/0x409/manufacturer
-    echo "USB Network Gadget" > strings/0x409/product
-    echo "$SERIAL"        > strings/0x409/serialnumber
-
-    # 配置 1：RNDIS（单配置，全平台通吃）
-    mkdir -p configs/c.1/strings/0x409
-    echo "RNDIS Network"  > configs/c.1/strings/0x409/configuration
-    echo 200              > configs/c.1/MaxPower       # 2W，够网卡用
-
-    mkdir -p functions/rndis.usb0
-    ln -s functions/rndis.usb0 configs/c.1/
-
-    # Windows 免驱：MS OS 描述符声明 RNDIS
-    echo 1        > os_desc/use
-    echo 0xcd     > os_desc/b_vendor_code
-    echo "MSFT100" > os_desc/qw_sign
-    echo 0x40     > functions/rndis.usb0/os_desc/interface.rndis/b_vendor_code
-    echo "RNDIS"   > functions/rndis.usb0/os_desc/interface.rndis/compatible_id
-    echo "5162001" > functions/rndis.usb0/os_desc/interface.rndis/sub_compatible_id
-    ln -s configs/c.1 os_desc/c.1
-
-    echo "$UDC" > UDC || udc_fail "绑定 UDC $UDC 失败"
-    echo "usb-gadget: 已绑定 $UDC（rndis.usb0）"
-}
-
-stop() {
-    if [ -e "$CFG/$GADGET_NAME/UDC" ]; then
-        echo "" > "$CFG/$GADGET_NAME/UDC" 2>/dev/null || true
-        # 解绑后 configfs 子树才可删
-        rm -f "$CFG/$GADGET_NAME/os_desc/c.1" 2>/dev/null || true
-        rm -f "$CFG/$GADGET_NAME/configs/c.1/rndis.usb0" 2>/dev/null || true
-        rmdir "$CFG/$GADGET_NAME/functions/rndis.usb0" 2>/dev/null || true
-        rmdir "$CFG/$GADGET_NAME/configs/c.1/strings/0x409" 2>/dev/null || true
-        rmdir "$CFG/$GADGET_NAME/configs/c.1" 2>/dev/null || true
-        rmdir "$CFG/$GADGET_NAME/strings/0x409" 2>/dev/null || true
-        rmdir "$CFG/$GADGET_NAME" 2>/dev/null || true
-    fi
-    echo "usb-gadget: 已卸载"
-}
-
-status() {
-    if [ -e "$CFG/$GADGET_NAME/UDC" ] && [ -s "$CFG/$GADGET_NAME/UDC" ]; then
-        echo "active UDC=$(cat "$CFG/$GADGET_NAME/UDC")"
-    else
-        echo "inactive"
-    fi
-}
-
 case "${1:-start}" in
-    start)  start ;;
-    stop)   stop ;;
-    status) status ;;
-    *) echo "usage: $0 start|stop|status" >&2; exit 2 ;;
+start) start ;;
+stop) remove_tree || fail '解绑/删除失败'; echo 'usb-gadget: 已卸载' ;;
+status)
+    if complete; then echo "active UDC=$(value "$G/UDC")"
+    else echo inactive; exit 3; fi
+    ;;
+*) echo 'usage: usb-gadget.sh start|stop|status' >&2; exit 2 ;;
 esac
