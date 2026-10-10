@@ -130,7 +130,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 | `desktop/ufi-stream-push.sh` 等 | GPU 合成 → Venus 硬编 → 推流 |
 | `ufi-console.sh` | 有界串口访问（端口名会变，先 `id` 确认） |
 | `venus-test.sh` / `venus-transcode.sh` | Venus 硬编解码验证与转码 |
-| `wcn36xx-cfg-sweep.sh` 等 | WiFi 固件参数扫描 |
+| `wcn36xx-cfg-sweep.sh` | WiFi 固件参数扫描（`cfg_override`，补丁 0003） |
 | `cpu-freq-verify.sh` / `cpu-power-tradeoff.sh` | CPU 频率与功耗验证 |
 | `flash.sh`（仓库根） | 刷机（`fastboot-flash` 刷前比对 build.json 的 sha256） |
 

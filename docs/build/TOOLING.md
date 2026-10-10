@@ -14,7 +14,6 @@
 | `build-rootfs.sh` / `tools/build-rootfs-common.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
 | `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
 | `tools/build-board-set.sh` | 板型级构建：5 个功能组合的内核 + 模块树 + boot 镜像（表驱动，缺省只建未完成的） |
-| `tools/build-boot-images.sh` | 编译板级 DTS 并组装 boot 镜像（非 ufi103s 板出镜像用；语法与静态路径有效，7.2.9 未实机验证） |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
 
@@ -58,7 +57,7 @@
 |---|---|
 | `tools/verify-layout.sh` | 工作区布局与产物自检 |
 | `tools/venus-test.sh` / `venus-transcode.sh` | Venus 硬编解码验证与转码 |
-| `tools/wcn36xx-cfg-sweep.sh` 等 3 个 | WiFi 固件参数 / 速率扫描 |
+| `tools/wcn36xx-cfg-sweep.sh` | WiFi 固件参数扫描（用 `cfg_override`，见补丁 0003） |
 | `tools/cpu-freq-verify.sh` / `cpu-power-tradeoff.sh` | CPU 频率与功耗验证 |
 | `tools/ufi-led-state.sh`（+ `.service`、`.default`） | 三色 LED 状态指示，**机型通用**（见 `LED.md`） |
 

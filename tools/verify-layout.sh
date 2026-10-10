@@ -25,8 +25,12 @@ printf '== shell ==\n'
 # flash.sh 的旧子集且引用了不存在的路径；权威版本在仓库根）。
 # tools/build-gpu-variant.sh 已于 2026-10-11 删除（自我声明废弃，默认 DTS
 # 已不存在；GPU 板型由 tools/build-board-set.sh 构建）。
+# tools/build-boot-images.sh 已于 2026-10-11 删除（引用了已删除的 oc12.dts，
+# 实测必然失败；各板出镜像用 tools/package-boards.py）。
+# tools/wcn36xx-rate-sweep{,2}.sh 已于 2026-10-11 删除（依赖 7.2.9 内核里
+# 不存在的 fixed_rate / ra_start_rate 模块参数，会静默跑出误导结果）。
 bash -n "$BASE/build-rootfs.sh" "$BASE/flash.sh" \
-        "$BASE/tools/build-rootfs.sh" "$BASE/tools/build-boot-images.sh" \
+        "$BASE/tools/build-rootfs.sh" \
         "$BASE/tools/build-kernel-variant.sh" \
         "$BASE/tools/verify-layout.sh" "$BASE/tools/ufi-console.sh" \
         "$BASE/tools/usb-gadget.sh" "$BASE/tools/net-native/usb-share.sh"
