@@ -217,6 +217,9 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
 
 > 本节是操作记录，写的是当时的状态。`archive/` 在 9 月的记录里出现过，
 > 但已随 2026-10-07 的旧内核清理删除；不要按本节的旧路径去找文件。
+> 同理，下面提到的 `out/boot-*/` 与 `shared/rootfs/` 等路径，**产物已于
+> 2026-10-11 统一收进 `artifacts/`**（见 `artifacts/README.md`），
+> 那几条“保留”写的是当时的位置。
 > 同期存在的 `WORKSPACE-INDEX.txt`（重组前的状态索引）也已删除，
 > 其中仍有价值的结论已归入 `docs/ISSUES.md`、`docs/hardware/CPU-POWER.md`
 > 与 `docs/CHANGES.md`。
@@ -237,6 +240,20 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
   `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
   自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。
+- **失效脚本与可再生产物清理（2026-10-11）**：删掉三个已失效的脚本
+  （`tools/build-boot-images.sh` 引用不存在的 `oc12.dts`，实测 rc=1；
+  `tools/wcn36xx-rate-sweep{,2}.sh` 依赖 7.2.9 内核里不存在的模块参数，
+  会静默跑出误导结果），同时清掉约 **7.7 GB** 可再生产物：五棵内核构建树
+  （`build/variant-7.2.9-board-*`）、`build/{boards,migrate-7.2.9}` 中间态、
+  修复前的 rootfs 镜像与模块树快照（`out/usb-fix/pre-fix/`）、QEMU 冒烟临时目录、
+  与 tar 备份重复的 `out/history-rewrite/orig-git/`。
+  删除前核实：五棵树的产物都已在 `artifacts/`；`pre-fix/modules` 与
+  `artifacts/modules` 里相同的 3387 个 `.ko` 逐字节零差异（只少了修复新增的
+  35 个 nft 模块）；负向测试可从 `artifacts/` 的 max 镜像现做（实测守护
+  正确拒绝）。`verify-usb-sharing.py` 改为分层断言，构建树清掉后自动降级到
+  配置片段检查（已实测两条路径都通过）。
+  保留：`recovery/`（分区读回，不可再生）、`out/rollback/`（设备 p12 读回）、
+  `out/usb-fix/pre-fix/boot/`（77M，验收报告里那个修复前哈希对应的文件）。
 - **旧内核全部清退（2026-10-07，内核升到 7.2.9）**：6.18.49 与 7.1.13 的内核树、
   模块树、旧命名的 rootfs 与 boot 镜像、`build/variant-7.1.13-*`、以及历史归档
   `archive/`（含 `archive/superseded-20260914/`）都已删除，共释放约 30 GB。

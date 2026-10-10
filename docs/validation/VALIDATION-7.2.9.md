@@ -10,8 +10,10 @@
 已用同一素材在旧 7.1.13 复现，不能归因为本次内核升级。
 
 - 测试内核：`7.2.9-ufix0x-venus-4g-gpu-dirty`。
-- 原始 boot 文件：`artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img`。
-- 文件 SHA256：`5626c15b172b3c42ebb9425b6370f69343166b036f57610fc38765a896cfa035`。
+- **修复前**的 boot 文件当时由 `tools/build-board-set.sh` 产出；该文件已被 USB
+  修复后的重建版取代，现在 `artifacts/boot/ufi103s-ufi003/` 下的是新版本
+  （哈希见 `USB-FIX-7.2.9.md`）。下面这个哈希只作历史记录，用于辨认是哪一份。
+- 修复前文件 SHA256：`5626c15b172b3c42ebb9425b6370f69343166b036f57610fc38765a896cfa035`。
 - **两次通过 `fastboot boot` 内存启动**，临时覆盖 cmdline，未刷 boot/rootfs。
 - 使用设备原有 Debian 13 rootfs，新增配套模块目录；**不是新 max.ext4 的整机验收**。
 - 其它四个功能变体、七张新 rootfs 的实机矩阵、其它四块板均未测；此前 QEMU 7/7

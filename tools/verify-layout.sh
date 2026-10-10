@@ -195,7 +195,8 @@ for m in venus-core venus-dec venus-enc; do
   printf 'module:%s=present\n' "$m"
 done
 
-# 若变体构建树还在（未清理中间产物），再做一次解析后配置的强校验。
+# 构建树还在时（未清理中间产物）做一次解析后配置的强校验；
+# 构建树是可再生中间态，清掉后降级到片段检查（上面已断言片段内容）。
 VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-board-venus-4g-gpu"
 if [ -f "$VENUS_BUILD/.config" ]; then
   grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"

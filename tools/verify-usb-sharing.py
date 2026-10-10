@@ -42,14 +42,34 @@ def exact_asset(image, path, source):
 
 try:
     for variant in ('baseline','4g','venus','venus-4g','venus-4g-gpu'):
+        # 分层断言，与 tools/build-board-set.sh 的板型表一致：
+        #   1) 公共配置里必须有 USB 共享所需符号（所有变体都从它派生）；
+        #   2) 该变体的片段不得把符号关掉；
+        #   3) 构建树在时（未清理中间产物）再查解析后的完整配置。
+        # 构建树是可再生中间态，清掉后自动降级到 1+2，不会误报。
+        base_text = kver.KERNEL_BASE_CFG.read_text()
+        for symbol in ('NFT_CT', 'NFT_REJECT'):
+            check(re.search(rf'^CONFIG_{symbol}=m$', base_text, re.M),
+                  f'{kver.KERNEL_BASE_CFG}: CONFIG_{symbol}=m missing')
+        frags = [BASE/'source/configs/ufi103s-baseline.config']
+        if variant in ('venus', 'venus-4g', 'venus-4g-gpu'):
+            frags.append(BASE/'source/configs/ufi103s-venus.config')
+        if variant == 'venus-4g-gpu':
+            frags.append(BASE/'source/configs/ufi103s-gpu.config')
+        for frag in frags:
+            for symbol in ('NFT_CT', 'NFT_REJECT'):
+                check(not re.search(rf'^# CONFIG_{symbol} is not set$', frag.read_text(), re.M),
+                      f'{frag}: turns CONFIG_{symbol} off')
         cfg=BASE/f'build/variant-{KERNEL_VERSION}-board-{variant}/.config'
-        text=cfg.read_text()
-        for symbol in SYMBOLS:
-            check(re.search(rf'^CONFIG_{symbol}=[my]$',text,re.M),f'{cfg}: CONFIG_{symbol} missing')
+        if cfg.is_file():
+            text=cfg.read_text()
+            for symbol in SYMBOLS:
+                check(re.search(rf'^CONFIG_{symbol}=[my]$',text,re.M),f'{cfg}: CONFIG_{symbol} missing')
         suffix='' if variant=='baseline' else '-'+variant
         rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
         tree=kver.ARTIFACTS_MODULES/f'{rel}/lib/modules/{rel}/kernel'
-        for module in MODULES: check((tree/module).is_file(),f'{rel}: missing {module}')
+        for module in MODULES:
+            check((tree/module).is_file(), f'{rel}: missing {module}')
         print(f'kernel[{variant}]=USB_NFT_OK')
     images=[Path(p) for p in sys.argv[1:]] or [
         kver.ARTIFACTS_ROOTFS/f'ufi103s-{KERNEL_VERSION}-{flavor}.ext4'
