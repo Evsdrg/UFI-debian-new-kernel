@@ -245,13 +245,16 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   `tools/wcn36xx-rate-sweep{,2}.sh` 依赖 7.2.9 内核里不存在的模块参数，
   会静默跑出误导结果），同时清掉约 **7.7 GB** 可再生产物：五棵内核构建树
   （`build/variant-7.2.9-board-*`）、`build/{boards,migrate-7.2.9}` 中间态、
-  修复前的 rootfs 镜像与模块树快照（`out/usb-fix/pre-fix/`）、QEMU 冒烟临时目录、
-  与 tar 备份重复的 `out/history-rewrite/orig-git/`。
+  修复前的 rootfs 镜像与模块树快照（`out/usb-fix/pre-fix/`）、QEMU 冒烟临时目录。
   删除前核实：五棵树的产物都已在 `artifacts/`；`pre-fix/modules` 与
   `artifacts/modules` 里相同的 3387 个 `.ko` 逐字节零差异（只少了修复新增的
   35 个 nft 模块）；负向测试可从 `artifacts/` 的 max 镜像现做（实测守护
   正确拒绝）。`verify-usb-sharing.py` 改为分层断言，构建树清掉后自动降级到
   配置片段检查（已实测两条路径都通过）。
+  随后又删掉了 `out/history-rewrite/`（297M）：里面是历史重写前的**未脱敏**
+  tar 备份与替换规则文本，仓库已推送且改写结果在两个仓全对象层面复核干净
+  （主仓 499、分发仓 92 个 blob 全 0 命中），这些回退依据不再需要，留着反而是
+  明文凭据的副本。同批删掉从该 tar 解包出来的临时验证副本与改写用的克隆目录。
   保留：`recovery/`（分区读回，不可再生）、`out/rollback/`（设备 p12 读回）、
   `out/usb-fix/pre-fix/boot/`（77M，验收报告里那个修复前哈希对应的文件）。
 - **旧内核全部清退（2026-10-07，内核升到 7.2.9）**：6.18.49 与 7.1.13 的内核树、
