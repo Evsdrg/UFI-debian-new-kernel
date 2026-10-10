@@ -3,7 +3,8 @@
 > **2026-10-10 实机验收**：7.2.9 `venus-4g-gpu` 已两次 RAM 启动并验证回退，
 > 未正式刷写。WiFi/GPU/H.264/VP8/USB 直连等通过，但 **USB NAT 缺项、持续负载
 > 散热限制、MPEG-4 固件错误**尚未解决，不能称为全功能通过。
-> 见 [完整验收报告](VALIDATION-7.2.9.md)。
+> 见 [完整验收报告](VALIDATION-7.2.9.md)；后续根因核对与候选方案见
+> [问题源码研究](RESEARCH-ISSUES-7.2.9.md)（尚未修改实现）。
 
 面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
 Linux **7.2.9** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
