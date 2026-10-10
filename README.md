@@ -192,6 +192,17 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
 - 从 fastboot 也能直接进 EDL：`fastboot oem reboot-edl`。
 - 详见 `docs/hardware/FASTBOOT.md` 与 `recovery/` 下的备份与刷机记录。
 
+## 许可
+
+本项目按 **GPL-2.0-only** 提供：`LICENSE` 是 GPL-2.0 全文（与内核树
+`LICENSES/preferred/GPL-2.0` 正文逐字节一致），`NOTICE` 说明覆盖范围与
+**不分发**的内容。
+
+- 覆盖：`source/patches/` 的内核补丁、本项目自写的设备树/脚本/文档；
+  设备树带有内核惯用的 `SPDX-License-Identifier: GPL-2.0-only` 头。
+- **不覆盖也不包含**：Qualcomm 固件与每台机器唯一的校准值（NV/modem）。
+  那些从你自己的设备导出，按其原始条款使用。
+
 ## 历史
 
 > 本节是操作记录，写的是当时的状态。`archive/` 在 9 月的记录里出现过，
