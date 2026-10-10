@@ -205,7 +205,7 @@ x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套�
   内核构建树（`out/build-ufi003-*-os` + `build/variant-*`，3.8G）、boot 打包中间态
   （`out/` 与各板 `boot/` 下的 `kernel-*-dtb` 拼接物与 `-check` 解包目录，96M+）、
   6.18.48 时代的陈旧模块树与构建日志、以及被 9/14 版取代的
-  `build/…-venus-led-v3.ext4`（751M；其 LED 脚本内容与 git 提交 `1a75a2b` 逐字节
+  `build/…-venus-led-v3.ext4`（751M；其 LED 脚本内容与 git 提交 `e761f9b` 逐字节
   相同，可从仓库重建）。清理后**已实测可重建并启动**：重编 → 打包 → 刷入 →
   p12 逐字节校验 → 启动 → 功能验证全通过。
   删除前逐个核实过：rootfs 镜像都有同内容副本；12 个 `kernel-*-dtb` 都能从对应
