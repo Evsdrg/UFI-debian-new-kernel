@@ -1,0 +1,37 @@
+Project licensing notice
+========================
+
+This project is provided under:
+
+	SPDX-License-Identifier: GPL-2.0-only
+
+Being under the terms of the GNU General Public License version 2 only. The
+full licence text is in `LICENSE`; the canonical copy used by the Linux kernel
+tree is `LICENSES/preferred/GPL-2.0`.
+
+What the licence covers
+-----------------------
+
+- The kernel patches in `source/patches/` — GPL-2.0-only, matching the upstream
+  files they modify.
+- The device trees, build scripts and documentation written for this project —
+  GPL-2.0-only, except where a file states otherwise.
+- Device trees carry the kernel's usual header:
+  `SPDX-License-Identifier: GPL-2.0-only`.
+
+What the licence does NOT cover
+-------------------------------
+
+Qualcomm firmware and per-device calibration data are **not included** in this
+repository and are **not** covered by the above. Those files come from your own
+device and remain under their original terms. See the upstream OpenStick
+project's notice regarding Qualcomm firmware licensing before redistributing
+any of them.
+
+The upstream Linux kernel, U-Boot, Debian packages and other third-party
+components referenced by this project keep their own licences.
+
+Contributions
+-------------
+
+All contributions to this project are subject to the terms above.
