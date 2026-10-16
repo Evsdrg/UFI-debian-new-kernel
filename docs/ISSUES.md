@@ -261,8 +261,51 @@ NetworkManager/modemmanager 的 rootfs 测**实际**体积；`--mirror` 必须�
 
 ---
 
-# 尚未闭环的问题
+## 13. ⚠️ CMA 被 movable 分配借用，`CmaFree` 会假性见底
 
+**现象**：MPEG-4 固件 fatal 之后，`CmaFree` 跌到 **108 KB**（`CmaTotal` 32 MB），
+但 `/sys/kernel/debug/dma_buf/bufinfo` **为空**、`pgrep ffmpeg` **无进程**，
+看着像 venus 缓冲泄漏。
+
+**根因**：不是 venus 泄漏。`MemFree` 当时只有 26 MB，**内存压力下 movable
+pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
+
+**证据**：`sync; echo 3 > /proc/sys/vm/drop_caches` 后，`CmaFree`
+108 KB → **10 MB**，`MemFree` 同时 26 MB → 127 MB（2026-10-16 实测）。
+
+**修法**：吃 CMA 的负载（venus 编解码、GPU 推流）启动**前**先 `drop_caches`，
+并把 `MemFree`/`MemAvailable` 一起记录 —— 只看 `CmaFree` 会误判成泄漏。
+
+## 14. ⚠️ MPEG-4 固件 fatal 后 WiFi 会暂时掉到 MCS 0
+
+**现象**：MPEG-4 硬解触发固件 fatal 后，`tx bitrate` 一度掉到
+**13.5 Mbit/s MCS 0**（iperf3 实测约 2.4 Mbit/s），数分钟后自愈回
+**90 Mbit/s MCS 4**（约 49–53 Mbit/s）。同期 `rx bitrate` 始终正常。
+
+**排查**：补丁 0002 确认**已生效** —— 设备上 `wcn36xx.ko` 与
+`artifacts/modules/` 中对应文件**哈希一致**，源码树 `smd.c:56` 为
+`WCN36XX_CFG_VAL(MAX_MEDIUM_TIME, 20000)`。
+
+注意 `smd.c:104` 另有一个 `MAX_MEDIUM_TIME, 4096`，它属于
+`wcn3680_cfg_vals[]`（WCN3680），**不适用于本板的 WCN3620**，勿据此判断补丁未生效。
+
+**结论**：是 fatal 之后的**暂时劣化**，不是速率自适应卡死（MCS0 会恢复）。
+若在 fatal 后立刻测吞吐，数字不可信；**应等速率回到 MCS 4 再测**。
+
+## 15. ⚠️ xrdp 会话不会随 SSH 断开而回收
+
+**现象**：RDP 客户端断开后，设备侧 `loginctl list-sessions` 仍显示残留会话，
+`pgrep xterm` 可见残留终端（内含历史内容，**有明文口令风险**）。
+
+**修法**：用 `pgrep -x xterm` **按进程名精确杀**（`pgrep -x` 对超 15 字符
+进程名零匹配，这里 `xterm` 长度安全）。
+
+**禁止**：用 `loginctl terminate-session` 清理 —— 它会连带杀掉 console 会话，
+把正在用的 SSH 一起断掉（2026-10-16 踩过，SSH 中断后需重连）。
+
+---
+
+# 尚未闭环的问题
 这些是**已定位但未定案**的。记录的是当前证据边界，不是结论。
 
 ## A. Venus MPEG-4 硬解触发固件 fatal

@@ -163,6 +163,11 @@ dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 releas
 
 ## 验证
 
+**最新一轮实机验收**：[`docs/validation/VALIDATION-2026-10-16.md`](docs/validation/VALIDATION-2026-10-16.md)
+（2026-10-16，无串口，`fastboot boot` 内存启动 7.2.9；通过 22 项 / 已知限制 6 项 /
+失败 1 项为历史已知固件 bug）。USB 共享全链、USB 直连 180/151 Mbit/s、
+WiFi 49–53 Mbit/s、GPU FD307、H.264/VP8 编解码、xrdp+i3、推流与中途加入均通过。
+
 ```sh
 # 工作区布局与产物自检（默认校验 max 档镜像，可用 ROOTFS_IMAGE 换档）
 bash tools/verify-layout.sh

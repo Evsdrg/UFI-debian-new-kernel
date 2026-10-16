@@ -507,6 +507,11 @@ sh tools/check-repo.sh "$K"
 中止；限 800MHz 后完成 60s CPU / 90s 内存测试，峰值 75°C。持续 GPU 推流也触发
 80°C 保护，未完成长稳；不要宣称默认频率可无限持续满载。
 
+2026-10-16 复测（无串口、RAM 启动 7.2.9）：四核纯忙循环 45 秒峰值 **86°C**，
+schedutil 降频 1209→1094MHz，设备未中止；GPU 推流持续 **160 秒**峰值 **84°C**
+（约 110 秒到 80°C，起始温度 45°C 故比 10-10 的 82 秒更久）。
+**散热仍是限制项，长稳与满载不可宣称通过。**
+
 ---
 
 ## 7. 文档地图
@@ -529,6 +534,7 @@ sh tools/check-repo.sh "$K"
 | `docs/hardware/LED.md` | LED 跨型号适配 |
 | `docs/hardware/BLUETOOTH.md` | 蓝牙（含“BT 固件不用单独提供”这个易误判点） |
 | `docs/validation/VALIDATION-7.2.9.md` | 2026-10-10 无串口实机验收：修复前通过/失败项、回退与现场状态 |
+| `docs/validation/VALIDATION-2026-10-16.md` | **最新一轮** 7.2.9 实机验收：USB 全链、编解码、推流与散热数据 |
 | `docs/validation/USB-FIX-7.2.9.md` | USB 全链修复：NM/native 真实 NAT、gadget 生命周期、交付断言与保留风险 |
 | `boards/<家族>/<机型>/README.md` | 该板产物清单、实机状态、升级/回退流程 |
 | `artifacts/README.md` | **产物唯一存放位置**的结构、入库规则与路径派生约定 |
