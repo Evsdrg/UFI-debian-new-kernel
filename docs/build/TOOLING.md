@@ -11,7 +11,7 @@
 |---|---|
 | `source/kernel-version.env` | **内核版本单一事实来源**：升级内核只改这里 |
 | `tools/kver.sh` / `tools/kver.py` | 版本派生的 shell / Python 实现（其余脚本 source/import 它们） |
-| `build-rootfs.sh` / `tools/build-rootfs-common.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
+| `build-rootfs.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
 | `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
 | `tools/build-board-set.sh` | 板型级构建：5 个功能组合的内核 + 模块树 + boot 镜像（表驱动，缺省只建未完成的） |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
