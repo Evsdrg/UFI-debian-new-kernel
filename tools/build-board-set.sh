@@ -9,7 +9,7 @@
 #
 # 用法：tools/build-board-set.sh [板型名 ...]   缺省构建全部未完成的。
 #   可用板型（键 = DTS 后缀，空 = 基线）：
-#     "" 4g venus venus-4g venus-4g-gpu
+#     "" 4g venus venus-4g venus-4g-gpu minimal
 set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -21,6 +21,7 @@ DTS_PREFIX="msm8916-handsome-openstick-ufi103s"
 VENUS_FRAG="$BASE/source/configs/ufi103s-venus.config"
 GPU_FRAG="$BASE/source/configs/ufi103s-gpu.config"
 BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
+MINIMAL_FRAG="$BASE/source/configs/ufi103s-minimal.config"
 
 # 板型表：后缀 | 内核片段 | DTB
 # 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
@@ -30,13 +31,19 @@ BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
 #   venus         +硬件编解码，无 4G
 #   venus-4g      +硬件编解码 +4G
 #   venus-4g-gpu  +硬件编解码 +4G +GPU（max 配）
+#   minimal       WiFi + USB 网络共享 + zram，其余全裁（内存最大化；配 slim/micro）
 # CPU OC（三档 OPP + 85C 被动冷却）已全员化进 common dtsi，不再占名字。
+#
+# minimal 与 baseline 的差别在**内核配置**而非设备树：两者共用 WiFi-only 的
+# 基线 DTS，但 minimal 在 common 配置之上再叠 ufi103s-minimal.config，把
+# SCSI/MTD/ATA/其它 SoC 平台驱动/无关文件系统/蓝牙/多媒体等全部关掉。
 TYPES=(
   "|$BASE_FRAG|$DTS_PREFIX.dts"
   "4g|$BASE_FRAG|$DTS_PREFIX-4g.dts"
   "venus|$VENUS_FRAG|$DTS_PREFIX-venus.dts"
   "venus-4g|$VENUS_FRAG|$DTS_PREFIX-venus-4g.dts"
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
+  "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
 )
 
 WANT=("$@")

@@ -1,0 +1,15 @@
+{
+  "variant": "board-minimal-7.2.9",
+  "kernel_release": "7.2.9-ufix0x-minimal-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-board-minimal-7.2.9.img",
+  "boot_size": 5935104,
+  "kernel_size": 5932323,
+  "appended_dtb_offset": 5884216,
+  "appended_dtb_size": 50155,
+  "image_gz_sha256": "dbb76f2546b8f0296dece4f7de3ed805a2402564303ebb0c0e47f0c62580d452",
+  "dtb_sha256": "2a2b8501680fe38c10838bc8b959cb65d050efb3bb61ceb6d3e0155805a5bf98",
+  "boot_sha256": "6715aa44914fbad94020e9f758712a0dc7aaa0340798bc6c73472fb9d30f0f90",
+  "flash_status": "not flashed"
+}

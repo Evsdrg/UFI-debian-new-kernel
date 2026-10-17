@@ -317,6 +317,56 @@ pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
 
 ---
 
+## 16. 🚫 裁剪内核配置时 `QCOM_APCS_IPC=n` 会让设备硬挂死
+
+**现象**：minimal（最简功能）内核用 `fastboot boot` 内存启动后，主机再无任何
+USB 事件（无 RNDIS、无重启枚举），WiFi 不通，`panic=10` 也没有生效——
+**完全静默，只能物理断电**。而同一个内核在 **QEMU 里能正常启动到 login**。
+
+**根因**：`QCOM_CLK_APCS_MSM8916`（msm8916 的 CPU 时钟控制器，管 CPU 频率）
+`depends on QCOM_APCS_IPC`。片段里写了 `CONFIG_QCOM_APCS_IPC=n`，于是
+`QCOM_CLK_APCS_MSM8916` 的符号**整个消失**，内核在早期 CPU 频率初始化时挂死。
+挂死点在 panic handler 尚未就绪之前，所以连 `panic=` 都不起作用。
+
+**为何 QEMU 抓不到**：QEMU 的 `virt` 机器没有 msm8916 APCS 硬件，
+`QCOM_CLK_APCS_MSM8916` 本就不会 probe，所以缺了也无感。
+**“QEMU 冒烟 PASS”不能代替实机对平台驱动的覆盖。**
+
+**修法**：片段里改回 `CONFIG_QCOM_APCS_IPC=y`，并在片段中写明原因。
+
+**检出方法**（比逐个实机试快得多）：不要只看 `=n`，要看**符号是否还存在**。
+对比 baseline 与裁剪后的 `.config`：
+
+```sh
+# baseline=y 但 minimal 里 CONFIG_X 与 "# CONFIG_X is not set" 都不存在的项
+comm -23 <(grep -E '^CONFIG_[A-Z0-9_]+=y' baseline/.config | sort) \
+         <(grep -E '^CONFIG_[A-Z0-9_]+=y' minimal/.config | sort)
+```
+
+“符号消失”比“被设成 n”危险得多：它意味着某个 `depends on` 被破坏，
+上游（依赖者）也没了。先用这个方法筛一遍 msm8916 相关项，再上真机。
+
+---
+
+## 17. ⚠️ 裁剪 `INPUT_KEYBOARD` 会静默丢掉 DTS 的 Reset 按键
+
+**现象**：minimal 能正常启动、WiFi/USB/zram 均正常，但 `/proc/bus/input/devices`
+里只有 `pm8941_pwrkey`，DTS 里的 `gpio-keys`（Reset 键，`KEY_RESTART`）不枚举。
+没有任何报错——**只有主动去查输入设备才能发现**。
+
+**根因**：`CONFIG_KEYBOARD_GPIO` 位于 `drivers/input/keyboard/Kconfig` 的
+`if INPUT_KEYBOARD` 块内。为了“只留电源键”而把 `CONFIG_INPUT_KEYBOARD=n`，
+把 `gpio-keys` 的驱动一起切掉了；而 DTS 的两个按键节点分属两个子系统：
+`gpio-keys` 用 `KEYBOARD_GPIO`，`pm8941-pwrkey` 用 `INPUT_MISC`。只保后者不够。
+
+**修法**：`CONFIG_INPUT_KEYBOARD=y` + `CONFIG_KEYBOARD_GPIO=y`，
+其余键盘驱动（`KEYBOARD_ATKBD` / `KEYBOARD_GPIO_POLLED` 等）仍 `=n`。
+
+**教训**：裁剪时要按 **DTS 里 `status="okay"` 的每个节点**反查其驱动，
+而不是按驱动菜单目录枚举。按键节点分属不同 menuconfig 是常见陷阱。
+
+---
+
 # 尚未闭环的问题
 这些是**已定位但未定案**的。记录的是当前证据边界，不是结论。
 

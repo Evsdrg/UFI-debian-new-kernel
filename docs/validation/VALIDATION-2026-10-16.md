@@ -226,3 +226,67 @@ HTTPS 卡死；探测到路径 MTU 1492 为 PPPoE 典型值），并临时加过
 - 失败服务 0
 
 原始日志见 `out/no-wifi-20261016/`、`out/flash-20261016/`。
+
+---
+
+# 第四轮（2026-10-17）：minimal 变体（最简功能内核）
+
+目标：在 WiFi + USB 网络共享 + zram 三条链之外全部裁掉，把内核足迹压到最小。
+构建方式与板型表见 [`../build/BUILD-MATRIX.md`](../build/BUILD-MATRIX.md)。
+
+## 两次实机失败与根因（均由用户手动断电恢复）
+
+**首次：硬挂死，无任何输出**。`fastboot boot` 后主机再无 USB 事件、无重启、
+WiFi 不通。根因：片段里写了 `CONFIG_QCOM_APCS_IPC=n`，而
+`QCOM_CLK_APCS_MSM8916`（msm8916 CPU 时钟控制器）`depends on` 它，导致 CPU 时钟
+驱动整个符号消失，内核在早期 CPU 频率初始化时挂死。**QEMU 冒烟完全正常**——
+QEMU 没有 msm8916 APCS 硬件，掩盖了该缺陷。这是“QEMU 通过 ≠ 实机通过”的典型。
+
+**第二次：能启动，但丢了 Reset 按键**。`CONFIG_INPUT_KEYBOARD=n` 把
+`if INPUT_KEYBOARD` 内的 `CONFIG_KEYBOARD_GPIO`（DTS `gpio-keys` 的 Reset 键）
+一起切掉了，只剩 `pm8941_pwrkey`，无任何报错。
+
+两者均已修复（`QCOM_APCS_IPC=y`、`INPUT_KEYBOARD=y` + `KEYBOARD_GPIO=y`，
+其余键盘驱动仍关）。
+
+## 实机验收（fastboot boot，未写 boot 分区）
+
+| 项目 | 结果 |
+|---|---|
+| 启动 | ✅ 12–15 秒到 SSH（`7.2.9-ufix0x-minimal-dirty`） |
+| GPU / venus / 4G | 已裁，符合预期 |
+| **WiFi** | ✅ wcn36xx+mac80211+cfg80211 加载；`nmcli dev wifi connect` 成功，`192.0.2.102`，默认路由就位 |
+| **USB 共享** | ✅ gadget `active UDC=ci_hdrc.0`；`usb0=10.42.0.1/24`；隔堆客户端访问 LAN 服务，来源 = 设备 WiFi 地址（NAT 真实工作）；外网 HTTPS 200；DNS 正常 |
+| **zram** | ✅ `/dev/zram0` 350M，算法 **zstd** |
+| **状态灯** | ✅ 8 个 LED 全在（blue:wlan/green:wan/red:heartbeat/sim:*），亮度实测可写 |
+| **Reset 键** | ✅ `gpio-keys` event0（修复后） |
+| `pm8941_pwrkey` | ✅ event1 |
+| 失败服务 | ✅ 0 |
+| USB 大文件传输 | ✅ 32MB / 3.24s（≈10MB/s），两端 sha256 一致 |
+| 无 WiFi 时 | ✅ `usb0` 自动就位、`wlan0` DOWN——“到货即插即用”状态 |
+
+## 内存与体积（与 GPU 版实机对比）
+
+| 项 | minimal | venus-4g-gpu | 差 |
+|---|---:|---:|---:|
+| `MemTotal` | 484176 kB | 384632 kB | **+97 MB** |
+| `MemAvailable`（空载） | 382348 kB | 282536 kB | **+98 MB** |
+| boot 镜像 | 5,935,104 B | 8,003,584 B | −26% |
+| 解压内核 | 15,849,480 B | 21,723,144 B | −27% |
+| 模块树 `.ko` 数 | 460 | 696 | −34% |
+| `lsmod` 运行时模块 | 46 | — | |
+
+⚠️ **归因**：~97MB 的 `MemTotal` 增量来自 **DTS**（空板型 disabled
+mpss/mba/rmtfs/venus_mem 预留），在 baseline 变体上就已存在；内核配置裁剪的
+收益是镜像体积/rodata/模块数，**不是** MemTotal。两个维度要分开讲。
+
+## 已知残留限制
+
+- `CONFIG_RFKILL=n`：`rfkill list` 报 `/dev/rfkill` 不存在，但 WiFi 扫描/连接/
+  数据面实测均正常，不愿为一个小工具增加内建代码。若要 `rfkill` 命令行工具，
+  需把 `CONFIG_RFKILL` 改为 `=y`。
+- `kernel.sysrq=0` 的 sysctl 在 minimal 下报“parameter not found”（
+  `CONFIG_MAGIC_SYSRQ=n` 已裁），无害。
+- MPEG-4/GPU/4G/散热：minimal 不含这些链，不适用。
+
+原始日志见 `out/minimal-v2/`、`out/minimal-v3/`。

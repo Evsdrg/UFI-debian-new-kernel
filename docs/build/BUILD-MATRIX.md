@@ -42,10 +42,51 @@ rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产�
 | venus | +硬件编解码，无 4G | （备用） |
 | venus-4g | +硬件编解码 +4G | （备用） |
 | venus-4g-gpu | +硬件编解码 +4G +GPU | **max** |
+| minimal | **WiFi + USB 共享 + zram，其余全裁**（内存最大化） | slim / micro |
+
+**minimal 与其它板型的区别**：DTS 与空板型相同（同一个 WiFi-only 设备树），
+差异**全在内核配置**——在 common 配置之上再叠
+`source/configs/ufi103s-minimal.config`，关掉 SCSI/MTD/ATA/NVMe、其它 SoC 的
+pinctrl/clk/interconnect、无关文件系统（nfs/cifs/fuse/overlay…）、蓝牙、
+多媒体、大多数 USB HID 等。保留项严格限于：
+
+- **WiFi**：wcn36xx + mac80211/cfg80211 + WCNSS PIL/remoteproc 链
+- **USB 网络共享**：configfs + RNDIS + nftables（`NFT_CT`/`NFT_REJECT` 等）
+- **内存压缩**：zram + zsmalloc + zstd
+- **起不来就白搭**：eMMC（MMC_SDHCI_MSM）、ext4、pinctrl/clk/regulator/thermal
+  的 msm8916 部分、`QCOM_APCS_IPC`（见下）、状态灯（PWM→LEDS_LPG）、
+  `gpio-keys` Reset 键、`pm8941_pwrkey`
+
+**两处决不能被裁的依赖（2026-10-17 实机踩到）**：
+
+1. `QCOM_APCS_IPC`：它是 msm8916 的 APCS IPC mailbox 驱动，而
+   `QCOM_CLK_APCS_MSM8916`（msm8916 的 CPU 时钟控制器）`depends on` 它。
+   关掉会让 CPU 时钟驱动**整个符号消失**，内核在早期 CPU 频率初始化时
+   **硬挂死**——无 panic、无任何串口/USB 输出，只能物理断电。
+   ⚠️ **QEMU 冒烟抓不到**：QEMU 没有 msm8916 APCS 硬件，照样能启动到 login。
+2. `INPUT_KEYBOARD`：DTS 的 `gpio-keys`（"Reset" 键，`KEY_RESTART`）需要
+   `CONFIG_KEYBOARD_GPIO`，而它在 `if INPUT_KEYBOARD` 内。关掉会静默丢失
+   Reset 按键（只剩 `pm8941_pwrkey`），没有报错。
+
+**实机实测收益（2026-10-17，与 GPU 版对比）**：
+
+| 项 | minimal | venus-4g-gpu | 差 |
+|---|---:|---:|---:|
+| `MemTotal` | 484176 kB | 384632 kB | **+97 MB** |
+| `MemAvailable`（空载） | 382348 kB | 282536 kB | **+98 MB** |
+| boot 镜像 | 5.94 MB | 8.00 MB | −26% |
+| 解压内核 | 15.85 MB | 21.72 MB | −27% |
+| 模块树 `.ko` 数 | 460 | 696 | −34% |
+
+⚠️ 注意归因：**那 ~97 MB 来自 DTS**（空板型关掉 mpss/mba/rmtfs/venus_mem
+预留），已在 baseline 变体上存在；内核配置裁剪的收益是镜像体积 / rodata /
+模块数，**不是** MemTotal。minimal 的价值是在同样内存下把内核足迹压到最小。
+
+内存与体积实测详见 [`../validation/VALIDATION-2026-10-16.md`](../validation/VALIDATION-2026-10-16.md)。
 
 每板型独立内核 release 与模块树（vermagic 含 release，不可复用），
 boot 镜像 `boot-board-<板型>-7.2.9.img`。刷机配对：max↔venus-4g-gpu、
-basic↔4g、slim/micro↔空，boot 与 rootfs 必须成对。
+basic↔4g、slim/micro↔空或 minimal，boot 与 rootfs 必须成对。
 
 ## 三、USB 网络共享（所有档默认）
 
