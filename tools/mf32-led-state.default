@@ -1,9 +1,0 @@
-# MF32 LED 方案可调项（boards/thwc-mf32/LED-SCHEME.md）
-#LED_RED=red:status
-#LED_GREEN=green:status
-#LED_BLUE=blue:status
-#BAT_LEDS="bat:1 bat:2 bat:3 bat:4"
-#BATT_PSY=auto
-#LOW_PCT=15
-#CRIT_PCT=8
-#QUIET=0

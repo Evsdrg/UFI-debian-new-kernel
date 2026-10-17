@@ -44,7 +44,7 @@ nm|native（`max` 无 native 变体）。板无关——所有机型共用同一
 每棵模块树是一个 `<版本>-ufix0x<板型后缀>-dirty` 目录，内层结构与
 `/lib/modules/` 一致（`lib/modules/<release>/kernel/...`）。
 **模块树与内核必须成对**：vermagic 含 release 字符串，拿错树会让
-`modprobe` 静默失败（见 `AGENTS.md` §2.8）。
+`modprobe` 静默失败（见 `CONTRIBUTING.md` §2.8）。
 
 ### dtb/
 

@@ -21,13 +21,13 @@
 > `venus-4g-gpu` 两次 `fastboot boot`，并实测正常重启回退；未刷 boot/rootfs。
 > 后续USB修复已完成，NM/native的真实NAT已通过；持续负载散热与MPEG-4仍有
 > 限制，暂不正式刷入。见 [`USB-FIX-7.2.9.md`](../../../docs/validation/USB-FIX-7.2.9.md)。
-> 原始验收与回退日志位置见 [`VALIDATION-7.2.9.md`](../../../docs/validation/VALIDATION-7.2.9.md)。
+> 最新整机刷入验收见 [`VALIDATION-2026-10-16.md`](../../../docs/validation/VALIDATION-2026-10-16.md)；早期首轮验收记录（本地保留，不随仓库发布）。
 > 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 
 ## 产物
 
 `dts/` — 5 个功能组合；`boot/` — 对应 boot 镜像 + 每个镜像的 `build.json` +
-`board.dtb`。板型命名规则见 `AGENTS.md` §5.1：release =
+`board.dtb`。板型命名规则见 `CONTRIBUTING.md` §4.1：release =
 `<版本>-ufix0x<板型后缀>-dirty`，后缀只写"有的功能"。
 
 | boot 镜像 | DTS | 功能 | 配对模块树 |
@@ -96,7 +96,7 @@ scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
   ssh root@<设备> 'cd /lib/modules && tar xzf /tmp/m.tar.gz && depmod -a 7.2.9-ufix0x-venus-4g-gpu-dirty'
 
 # 2) 内存预演：不写 boot flash，但启动失败仍可能需要物理复位
-#    无可靠串口时，用 docs/validation/VALIDATION-7.2.9.md 中的临时 cmdline 与兜底措施。
+#    无可靠串口时，参考 CONTRIBUTING.md 的串口与 SysRq 注意事项。
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
 fastboot boot artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 #    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
@@ -140,7 +140,7 @@ fastboot continue
 
 **镜像不预置 Wi-Fi**（刻意的）。刷入后首次进系统走 USB RNDIS（插电脑即得
 `10.42.0.1` 并 DHCP），再用 `nmtui` / `nmcli` 配无线。原因见
-`../../../docs/ISSUES.md` 第 16 条。
+`../../../docs/ISSUES.md` 第 15 条。
 
 构建只需指定 root 口令（不传则镜像里 root 无口令）：
 

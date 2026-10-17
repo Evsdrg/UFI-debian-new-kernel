@@ -60,9 +60,9 @@ USB 共享全链、编解码、推流、xrdp+i3、无 WiFi 开箱即用均通过
 
 ```
 openstick/
-├── AGENTS.md            ★ 动手前必读：硬约束、平台限制、我们做过的改动
+├── CONTRIBUTING.md      ★ 动手前必读：硬约束、平台限制、常见坑
 ├── docs/                专题文档
-│   ├── CHANGES.md       改动清单（相对上游改了什么 + 本仓清理史）
+│   ├── CHANGES.md       改动清单（相对上游改了什么）
 │   ├── ISSUES.md        问题清单（已定案的坑 + 尚未闭环的问题）
 │   ├── build/           构建矩阵 / 精简档位 / 工具清单
 │   ├── hardware/        各硬件子系统的能力与踩坑
@@ -116,7 +116,7 @@ modem / NV。刷任何分区前**必须先有分区级读回备份**。进 fastb
 
 | 我想… | 看 |
 |---|---|
-| 在这个仓库里干活（硬约束、平台限制、改过什么） | [`AGENTS.md`](AGENTS.md) |
+| 在这个仓库里干活（硬约束、平台限制、改过什么） | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | 知道相对上游改了什么 | [`docs/CHANGES.md`](docs/CHANGES.md) |
 | 查某个坎是怎么过的 | [`docs/ISSUES.md`](docs/ISSUES.md) |
 | 选档位 / 看构建矩阵 | [`docs/build/`](docs/build/) |

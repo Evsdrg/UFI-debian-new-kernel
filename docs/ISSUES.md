@@ -4,7 +4,7 @@
 在 `docs/build/TOOLING.md` 的「缺口」一节；实机验收的未通过项在
 `docs/validation/`。
 
-平台的**硬约束**（违反会静默出错或变砖的那类）在 `AGENTS.md` §2 与 §3，
+平台的**硬约束**（违反会静默出错或变砖的那类）在 `CONTRIBUTING.md` §2 与 §3，
 本文件不重复，只记这些约束是**怎么被发现和修掉的**。
 
 ---
@@ -233,35 +233,7 @@ arch-test arm64      # 期望：arm64: ok
 
 ---
 
---
-
----
-
-## 12. 为什么不换 AOSC OS（调研结论，已弃案）
-
-做过完整调研与实测，**结论：能跑，但不划算**，维持 Debian 主线。
-
-- **AOSC OS arm64 确实能跑**：官方一级架构，`aoscbootstrap` 实测产出 1.6 GB
-  rootfs，用**我们自编译的 7.x 内核**在 QEMU（4×A53 / 376 MB）里成功启动到
-  `aosc login:`，0 错误、53 个 systemd 单元、无 OOM。
-- **Afterglow（AOSC OS/Retro）不适合本设备**：它是给 32 位老机器的，目标硬件是
-  ARMv4/ARMv6/ARMv7hf/i486/Loongson 2F/PowerPC G3-G5，**arm64 在它的仓库里只有
-  2 个包**（i486 有 3700 个）。"更适合我们"的印象与事实相反。
-- **体积是硬伤**：AOSC 只装了 32 个包的最小系统就 **1590 MB**（Debian 精简档
-  239 MB），因为它的包**不拆分**运行时/文档/locale，无法只装需要的部分。
-  装齐网络+4G+蓝牙约 2.0–2.5 GB，逼近 3.3 GB 分区上限。
-- 它自带的内核安装后 565 MB，而我们整棵模块树 26 MB。
-
-**保留价值**：它也是我们自编译内核的**验证对手** —— 能在我们的内核上跑起来，
-反过来印证了内核（含 msm8916 支持）没有偏离通用 arm64 行为。
-
-若将来要重启这条线：用 `aoscbootstrap --include` 直接产出带
-NetworkManager/modemmanager 的 rootfs 测**实际**体积；`--mirror` 必须带
-`/debs` 后缀（默认值不带，照默认跑会 404 panic）；补 `bsp-qcom` component。
-
----
-
-## 13. ⚠️ CMA 被 movable 分配借用，`CmaFree` 会假性见底
+## 12. ⚠️ CMA 被 movable 分配借用，`CmaFree` 会假性见底
 
 **现象**：MPEG-4 固件 fatal 之后，`CmaFree` 跌到 **108 KB**（`CmaTotal` 32 MB），
 但 `/sys/kernel/debug/dma_buf/bufinfo` **为空**、`pgrep ffmpeg` **无进程**，
@@ -276,7 +248,7 @@ pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
 **修法**：吃 CMA 的负载（venus 编解码、GPU 推流）启动**前**先 `drop_caches`，
 并把 `MemFree`/`MemAvailable` 一起记录 —— 只看 `CmaFree` 会误判成泄漏。
 
-## 14. ⚠️ MPEG-4 固件 fatal 后 WiFi 会暂时掉到 MCS 0
+## 13. ⚠️ MPEG-4 固件 fatal 后 WiFi 会暂时掉到 MCS 0
 
 **现象**：MPEG-4 硬解触发固件 fatal 后，`tx bitrate` 一度掉到
 **13.5 Mbit/s MCS 0**（iperf3 实测约 2.4 Mbit/s），数分钟后自愈回
@@ -292,7 +264,7 @@ pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
 **结论**：是 fatal 之后的**暂时劣化**，不是速率自适应卡死（MCS0 会恢复）。
 若在 fatal 后立刻测吞吐，数字不可信；**应等速率回到 MCS 4 再测**。
 
-## 15. ⚠️ xrdp 会话不会随 SSH 断开而回收
+## 14. ⚠️ xrdp 会话不会随 SSH 断开而回收
 
 **现象**：RDP 客户端断开后，设备侧 `loginctl list-sessions` 仍显示残留会话，
 `pgrep xterm` 可见残留终端（内含历史内容，**有明文口令风险**）。
@@ -305,7 +277,7 @@ pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
 
 ---
 
-## 16. ⚠️ 凭据文件里的裸反斜杠转义会让镜像静默失联
+## 15. ⚠️ 凭据文件里的裸反斜杠转义会让镜像静默失联
 
 **现象**：7 张 rootfs 镜像的预置 Wi-Fi `psk=` 变成了
 `            <真实口令>`（**11 个前导空格 + 真口令**），而设备在用的是 `<真实口令>`。

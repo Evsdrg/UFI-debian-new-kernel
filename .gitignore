@@ -67,3 +67,16 @@ modules.builtin.modinfo
 # 嵌套的分发仓，自带 git，不进本仓
 /ufi00x-mainline/
 .local-creds
+.wifi-creds
+
+# ==== 仅本地保留、不随仓库发布的文档与资产 ====
+# 内部作业手册（贡献者请读 CONTRIBUTING.md）
+/AGENTS.md
+# 已被后续验收取代的首轮验证记录
+/docs/validation/VALIDATION-7.2.9.md
+# 内部清理史与内部调研（公开的 CHANGES.md / ISSUES.md 只留公开部分）
+/CLEANUP-HISTORY.md
+/ISSUES-LOCAL.md
+# MF32（未 bring-up 的第三方板，无产物、无硬件，内部逆向资料）
+/boards/thwc-mf32/
+/tools/mf32-*
