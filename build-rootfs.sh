@@ -20,12 +20,13 @@
 #   EXTRA_FIRMWARE_DIR=<dir> 变体固件叠加（如 ufi103s-venus 的 venus.mbn）
 #   EXTRA_PKGS=<pkg,...>     变体额外软件包（如 ffmpeg,v4l-utils）
 #   ROOTFS_DESKTOP=0|1       是否装桌面/xrdp（默认 1）
-#   ROOTFS_WIFI_SSID / ROOTFS_WIFI_PSK
-#                            预置 Wi-Fi。**不传则镜像不带任何网络配置**，
-#                            刷到无屏幕的棒子上会直接失联 —— 给别人刷机时务必传。
-#                            本机可从 .local-creds（已 gitignore）读取，见 tools/lib-creds.sh。
 #   ROOTFS_ROOT_PASSWORD     设备 root 口令。不传则镜像里 root 无口令（只能串口/
 #                            共享网络登录），给别人刷机时务必传。
+#
+# 镜像**不预置任何 Wi-Fi 凭据**（这是刻意的）：刷到无屏棒子上后，先靠 USB RNDIS
+# 共享进系统（插电脑就自动开出 10.42.0.1 并 DHCP），再用 nmtui/nmcli 配无线。
+# 历史背景见 docs/ISSUES.md 第 16 条（预置 PSK 曾因裸反斜杠转义静默写错，
+# 导致刷完即失联）。
 #   TMPDIR=<大盘上的目录>    mmdebstrap 的临时目录。若落在小容量 tmpfs（本机
 #                            /tmp 是 11G tmpfs）上，装桌面包时会 "No space left
 #                            on device" 而失败。
@@ -281,6 +282,23 @@ fi
 # nm 档：NetworkManager（nmtui/nmcli，中文界面，方便上手）。
 # native 档：systemd-networkd + wpa_supplicant@wlan0 + dnsmasq + nftables
 # （USB 共享两档都是网关 10.42.0.1/24；当年的坑清单见 NETWORK.md）。
+#
+# 镜像**不预置 Wi-Fi**：wlan0 配好了但没有任何 network{}，开机后用户自己配。
+# 首次进系统的入口是 USB RNDIS（插电脑即得 10.42.0.1）。
+# 凭据值的空白守卫：root 口令若带前导/尾随空白，`chpasswd` 会把空白也算进
+# 口令，而构建与登录都不报“值错了”，很容易在无屏设备上把自己锁在外面。
+_ws_guard() { # $1=值 $2=变量名
+    [[ -n "$1" ]] || return 0
+    if [[ "$1" == [[:space:]]* || "$1" == *[[:space:]] ]]; then
+        {
+            echo "错误：$2 含前导或尾随空白，拒绝构建。"
+            echo "      常见原因：凭据文件里用了裸反斜杠转义（'\\ '）被 shell 展成空格。"
+            echo "      正确写法：$2='你的值'（单引号包住，不用裸反斜杠）。"
+        } >&2
+        exit 1
+    fi
+}
+_ws_guard "${ROOTFS_ROOT_PASSWORD:-}" ROOTFS_ROOT_PASSWORD
 if [[ "$ROOTFS_NET" == nm ]]; then
 mkdir -p "$STAGE/etc/NetworkManager/system-connections" \
          "$STAGE/etc/NetworkManager/conf.d"
@@ -310,35 +328,8 @@ EOF
 install -D -m 644 "$WORKDIR/tools/nm-connections/20-usb-managed.conf" \
     "$STAGE/etc/NetworkManager/conf.d/20-usb-managed.conf"
 
-# 预置 Wi-Fi 连接（keyfile 格式）。变量由环境提供；未提供则镜像不带预置 Wi-Fi，
-# 用户可用 nmtui / nmcli 自己配。
-if [[ -n "${ROOTFS_WIFI_SSID:-}" && -n "${ROOTFS_WIFI_PSK:-}" ]]; then
-    _nm_wifi="$STAGE/etc/NetworkManager/system-connections/openstick-wifi.nmconnection"
-    cat > "$_nm_wifi" <<EOF
-[connection]
-id=openstick-wifi
-type=wifi
-autoconnect=true
-autoconnect-priority=10
-
-[wifi]
-mode=infrastructure
-ssid=${ROOTFS_WIFI_SSID}
-
-[wifi-security]
-key-mgmt=wpa-psk
-psk=${ROOTFS_WIFI_PSK}
-
-[ipv4]
-method=auto
-
-[ipv6]
-method=auto
-addr-gen-mode=stable-privacy
-EOF
-    # NM 要求连接文件对其它用户不可读
-    chmod 600 "$_nm_wifi"
-fi
+# 不预置任何 Wi-Fi 连接文件（见文件头）。首次进系统靠 USB RNDIS，
+# 之后用 nmtui/nmcli 自己配无线。
 
 else
 # ---------------- native（非 NM）网络栈 ----------------
@@ -355,20 +346,14 @@ if [[ "$ROOTFS_4G" == 1 ]]; then
     install -D -m 644 "$NETDIR/25-wwan0.network" "$STAGE/etc/systemd/network/25-wwan0.network"
 fi
 
-# Wi-Fi 凭据（构建时预置；未提供则配置在位但不含网络，用户手改 conf）
+# Wi-Fi：配置在位但**不带任何 network{}**（不预置凭据），用户首次进系统后
+# 用 wpa_cli / nmtui 自己添加。
 WPA_CONF="$STAGE/etc/wpa_supplicant/wpa_supplicant-wlan0.conf"
 {
     echo "# 由镜像构建脚本写入：native 档 wpa_supplicant 配置"
     echo "country=CN"
     echo "ctrl_interface=DIR=/run/wpa_supplicant GROUP=netdev"
     echo "update_config=1"
-    if [[ -n "${ROOTFS_WIFI_SSID:-}" && -n "${ROOTFS_WIFI_PSK:-}" ]]; then
-        echo "network={"
-        echo "    ssid=\"${ROOTFS_WIFI_SSID}\""
-        echo "    psk=\"${ROOTFS_WIFI_PSK}\""
-        echo "    key_mgmt=WPA-PSK"
-        echo "}"
-    fi
 } > "$WPA_CONF"
 chmod 600 "$WPA_CONF"
 

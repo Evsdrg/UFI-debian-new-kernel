@@ -120,9 +120,10 @@ update-locale LANG=en_US.UTF-8  # 或 zh_TW.UTF-8 等
 |---|---|
 | `/etc/NetworkManager/NetworkManager.conf` | keyfile 后端 |
 | `/etc/NetworkManager/conf.d/10-openstick.conf` | 设备/连接策略（DHCP 超时 30s） |
-| `/etc/NetworkManager/system-connections/` | Wi-Fi 连接（keyfile，权限 600） |
+| `/etc/NetworkManager/system-connections/` | 连接（keyfile，权限 600；**只有 USB 共享，不含 Wi-Fi**） |
 | `/etc/default/locale` | 默认语言 |
 | `/etc/locale.gen` | 要生成的 locale 列表 |
 
-构建脚本里的相关变量：`ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK`（预置 Wi-Fi，
-不设则镜像不带预置网络，用户用 nmtui 自己配）。
+构建脚本**不预置 Wi-Fi**（历史上曾用 `ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK`，
+因静默写错会导致刷完失联而移除，见 `docs/ISSUES.md` 第 16 条）。
+刷入后的首次进系统靠 USB RNDIS 共享，再用 `nmtui` / `nmcli` 配无线。

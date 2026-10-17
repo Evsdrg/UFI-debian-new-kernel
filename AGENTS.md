@@ -78,12 +78,14 @@ p12/p14 的逐字节副本，`out/rollback/` 有升级前的 boot 整分区读�
 | 来源 | 说明 |
 |---|---|
 | `.local-creds` | 仓库根，**已 gitignore**；本机台架值都写在这里 |
-| 环境变量 | 同名校验，优先级最高（`DEV` / `PW` / `SUDO_PW` / `ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK` / `ROOTFS_ROOT_PASSWORD`） |
+| 环境变量 | 同名校验，优先级最高（`DEV` / `PW` / `SUDO_PW` / `ROOTFS_ROOT_PASSWORD`） |
 
 取值统一走 `tools/lib-creds.sh` 的 `cred` / `cred_opt`；格式模板见
 `.local-creds.example`。使用方：`flash.sh`（`DEV`/`PW`）、`tools/ufi-console.sh`
-与 `tools/qemu-smoke.sh`（`SUDO_PW`）、`tools/build-matrix.sh`（Wi-Fi 与 root 口令，
+与 `tools/qemu-smoke.sh`（`SUDO_PW`）、`tools/build-matrix.sh`（root 口令，
 转给 `build-rootfs.sh`）。
+
+镜像**不预置 Wi-Fi**，所以凭据文件里没有 SSID/PSK 这两项（§3.6）。
 
 - **未提交**：Wi-Fi PSK 与设备 root 口令只在构建 rootfs 时经文件传入镜像
   （`$STAGE/root/.root-password`，用完立即删除，不进命令行/日志）。
@@ -211,12 +213,18 @@ GL 报 `FD307`（freedreno）。若退回 llvmpipe 说明 GPU 没起来。
 
 不显式设 `ext4` 就只产出目录树，**没有可刷的 `.ext4` 镜像**。
 
-### 3.6 构建 rootfs 必须传 WiFi 凭据
+### 3.6 镜像**不预置 Wi-Fi**，首次进系统靠 USB RNDIS
 
-`ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK` 不传，镜像里就没有任何网络配置，
-刷到这种**无屏幕的棒子**上会直接失联、只能拆下来重刷。
-构建完应核对镜像里的
-`/etc/NetworkManager/system-connections/*.nmconnection` 与设备现用配置一致。
+刷出去的镜像里**没有任何 Wi-Fi 凭据**（刻意的）。无屏棒子插到电脑上后，
+靠 USB RNDIS 共享拿到 `10.42.0.1` 进系统（见 §6 与 `USB-FIX-7.2.9.md`），
+然后用 `nmtui` / `nmcli` 配无线。
+
+历史上曾经预置过 SSID/PSK，但凭据文件里写成裸反斜杠转义（`\ \ … 口令`）时
+shell 会把 `\ ` 展成空格，得到“11 个空格 + 真口令”**静默写进镜像**，
+开机连不上 AP。与其依赖“记得把值写对”，不如不预置（详见 `docs/ISSUES.md` 第 16 条）。
+
+`build-rootfs.sh` 在“网络”一节开头仍有 `_ws_guard`：**参与构建的凭据值**
+（现在只剩 `ROOTFS_ROOT_PASSWORD`）含前导/尾随空白就**直接拒绝构建**。
 
 ### 3.7 中文 locale 会打乱某些 grep
 

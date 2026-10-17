@@ -247,9 +247,9 @@ GL 退回 llvmpipe，**只能重启**。`rmmod venus` 同理（会挂死内核�
 # 1) 编 GPU 板型内核（含 venus），产出对应 boot 镜像
 tools/build-board-set.sh venus-4g-gpu
 
-# 2) 构建带桌面的 rootfs（DESKTOP 默认 1）
+# 2) 构建带桌面的 rootfs（DESKTOP 默认 1；镜像不预置 Wi-Fi）
 MMDEBSTRAP_FORMAT=ext4 ROOTFS_PATH=/path/to/rootfs.ext4 \
-  ROOTFS_WIFI_SSID=... ROOTFS_WIFI_PSK=... \
+  ROOTFS_ROOT_PASSWORD='<设备 root 口令>' \
   bash build-rootfs.sh
 
 # 3) 刷 boot + rootfs
@@ -258,6 +258,8 @@ fastboot -S 200M flash rootfs /path/to/rootfs.ext4
 fastboot reboot
 # 4) 首次开机后（镜像已带 x-systemd.growfs，无需手工 resize）
 
-# 5) 主机连 RDP
+# 5) 首次进系统走 USB RNDIS（插电脑即得 10.42.0.1），再用 nmtui/nmcli 配无线
+
+# 6) 主机连 RDP
 xfreerdp /v:<IP> /u:root /p:<pw> /size:1280x800 /cert:ignore /sec:tls
 ```

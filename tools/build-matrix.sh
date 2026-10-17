@@ -6,8 +6,8 @@
 #   artifacts/modules/<ver>-ufix0x-4g-dirty              basic
 #   artifacts/modules/<ver>-ufix0x-venus-4g-gpu-dirty    max
 #
-# Wi-Fi 预置：从环境读 ROOTFS_WIFI_SSID/ROOTFS_WIFI_PSK（不传则镜像不带
-# 凭据，刷到无屏棒子上要靠 USB 网络共享进系统配网）。
+# 镜像不预置 Wi-Fi（见 build-rootfs.sh 文件头）：刷到无屏棒子上后先靠 USB RNDIS
+# 共享进系统（插电脑就自动开出 10.42.0.1 并 DHCP），再用 nmtui/nmcli 配无线。
 #
 # 用法：tools/build-matrix.sh [max basic slim micro basic-native slim-native micro-native]
 set -uo pipefail
@@ -16,10 +16,7 @@ BASE="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$BASE"
 . tools/kver.sh
 . tools/lib-creds.sh
-# Wi-Fi 预置与 root 口令：环境变量 > .local-creds。未提供时不报错
-# （镜像就不带预置网络；刷到无屏棒子上要靠 USB 共享进系统配网）。
-ROOTFS_WIFI_SSID="$(cred_opt ROOTFS_WIFI_SSID)"
-ROOTFS_WIFI_PSK="$(cred_opt ROOTFS_WIFI_PSK)"
+# root 口令：环境变量 > .local-creds。未提供时不报错（镜像里 root 无口令）。
 ROOTFS_ROOT_PASSWORD="$(cred_opt ROOTFS_ROOT_PASSWORD)"
 
 # 配对（板型级命名 + 正向功能后缀，见 tools/build-board-set.sh）：
@@ -78,8 +75,6 @@ for t in "${TARGETS[@]}"; do
     ROOTFS_NET="$net" \
     ROOTFS_DESKTOP="$DESKTOP" \
     ROOTFS_PATH="$OUTROOT/ufi103s-$KERNEL_VERSION-$t.ext4" \
-    ROOTFS_WIFI_SSID="${ROOTFS_WIFI_SSID:-}" \
-    ROOTFS_WIFI_PSK="${ROOTFS_WIFI_PSK:-}" \
     ROOTFS_ROOT_PASSWORD="${ROOTFS_ROOT_PASSWORD:-}" \
     bash build-rootfs.sh
     rc=$?

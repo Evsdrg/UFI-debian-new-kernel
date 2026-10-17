@@ -3,6 +3,11 @@
 # 脚本按“环境变量 > 本文件”的顺序取值（见 tools/lib-creds.sh）。
 # 只填你实际用到的项；未填的项保持空即可，脚本会给出提示。
 # 值必须用引号包住，否则含 @ / < > 等字符时会被 shell 误解析。
+#
+# 不要用裸反斜杠转义空格（如 SUDO_PW=\ \ 1234）：shell 会把 `\ ` 展成空格，
+# 得到“前后带空白的值”，写进镜像或用于登录时都会失败，而报错信息看不出
+# 是值里多了空格。一律写成 KEY='真实值'。
+# （build-rootfs.sh 已加守卫，发现前后空白会直接拒绝构建。）
 
 # 设备 SSH 目标（DHCP 地址会变，用前先 ping 确认；例：'root@192.0.2.10'）
 DEV=''
@@ -13,9 +18,9 @@ PW=''
 # 本机 sudo 口令（tools/qemu-smoke.sh、tools/ufi-console.sh 用）
 SUDO_PW=''
 
-# 构建 rootfs 时要预置的 Wi-Fi（不填则镜像不带预置网络）
-ROOTFS_WIFI_SSID=''
-ROOTFS_WIFI_PSK=''
-
 # 要写进镜像的设备 root 口令（build-rootfs.sh 用；通常是 PW 的同一个值）
 ROOTFS_ROOT_PASSWORD=''
+
+# 注意：镜像**不预置 Wi-Fi 凭据**（刻意的，不用在这里填 SSID/PSK）。
+# 刷到设备后先靠 USB RNDIS 共享进系统，再用 nmtui/nmcli 配无线。
+# 原因见 docs/ISSUES.md 第 16 条。

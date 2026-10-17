@@ -59,8 +59,8 @@ NetworkManager 或 networkd、zram swap、LED 状态服务、fstab 的
 ## 用法
 
 ```sh
-# 全矩阵 7 个镜像（档位 × 网络栈；Wi-Fi 凭据从环境读，否则镜像不带凭据）
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
+# 全矩阵 7 个镜像（档位 × 网络栈）。镜像不预置 Wi-Fi（见上）。
+bash tools/build-matrix.sh
 
 # 只建其中几个
 bash tools/build-matrix.sh max basic-native
@@ -74,7 +74,6 @@ EXTRA_FIRMWARE_DIR=$PWD/artifacts/firmware/ufi103s-venus \
 ROOTFS_PATH=$PWD/artifacts/rootfs/ufi103s-7.2.9-max.ext4 \
 EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
 ROOTFS_FLAVOR=max ROOTFS_NET=nm \
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' \
 bash build-rootfs.sh
 
 # 想进一步收掉文件的 padding（分发用），加 ROOTFS_SHRINK=1

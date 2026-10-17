@@ -138,10 +138,15 @@ fastboot continue
 
 体积、四个正交开关、精简档位的取舍见 `../../../docs/build/TRIMMING.md`；矩阵定义见 `../../../docs/build/BUILD-MATRIX.md`。
 
-**构建时必须传 Wi-Fi 凭据**，否则镜像里没有预置连接，刷完即失联：
+**镜像不预置 Wi-Fi**（刻意的）。刷入后首次进系统走 USB RNDIS（插电脑即得
+`10.42.0.1` 并 DHCP），再用 `nmtui` / `nmcli` 配无线。原因见
+`../../../docs/ISSUES.md` 第 16 条。
+
+构建只需指定 root 口令（不传则镜像里 root 无口令）：
 
 ```sh
-ROOTFS_WIFI_SSID='<ssid>' ROOTFS_WIFI_PSK='<psk>' bash tools/build-matrix.sh
+# 口令从 .local-creds 的 ROOTFS_ROOT_PASSWORD 自动取，无需显式传
+bash tools/build-matrix.sh
 ```
 
 两个易踩点：`MMDEBSTRAP_FORMAT=ext4` 不写的话只产出目录树（脚本默认

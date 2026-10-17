@@ -35,6 +35,10 @@ def stat(image, path):
     check(re.search(r'^Inode:',s,re.M),f'{image.name}: missing {path}')
     return s
 
+def exists(image, path):
+    p=subprocess.run(['debugfs','-R','stat '+path,str(image)],capture_output=True,check=False)
+    return re.search(r'^Inode:',p.stdout.decode(errors='replace'),re.M) is not None
+
 def exact_asset(image, path, source):
     stat(image,path)
     data=debugfs(image,'cat '+path)
@@ -112,6 +116,19 @@ try:
             exact_asset(image,connection,BASE/'tools/nm-connections/usb-share.nmconnection')
             check('Mode:  0600' in stat(image,connection),f'{image.name}: unsafe keyfile mode')
             check(b'firewall-backend=nftables' in debugfs(image,'cat /etc/NetworkManager/NetworkManager.conf'),f'{image.name}: backend not pinned')
+        # 交付镜像**不得含预置 Wi-Fi 凭据**（见 build-rootfs.sh 文件头）。
+        # 无屏棒子的首入路径是 USB RNDIS；预置 PSK 历史上因裸反斜杠转义
+        # 静默写错（11 个空格+口令）导致刷完即失联，所以直接不要预置。
+        # 见 docs/ISSUES.md 第 16 条。
+        stale='/etc/NetworkManager/system-connections/openstick-wifi.nmconnection'
+        check(not exists(image,stale), f'{image.name}: ships a preset Wi-Fi profile ({stale})')
+        wifi_conf='/etc/wpa_supplicant/wpa_supplicant-wlan0.conf'
+        if exists(image,wifi_conf):
+            text=debugfs(image,'cat '+wifi_conf).decode('utf-8',errors='replace')
+            for line in text.splitlines():
+                stripped=line.strip()
+                check(not stripped.startswith(('network=','ssid=','psk=')),
+                      f'{image.name}: wpa_supplicant conf ships preset Wi-Fi credentials: {stripped!r}')
         print(f'rootfs[{image.name}]=USB_DELIVERY_OK')
 except (RuntimeError, OSError) as e:
     print('USB_CHECK_FAILED: '+str(e),file=sys.stderr)
