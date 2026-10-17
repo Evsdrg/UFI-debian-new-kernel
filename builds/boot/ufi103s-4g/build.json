@@ -1,0 +1,13 @@
+{
+  "board": "ufi103s-4g",
+  "contents": "Android legacy boot image (header v0, page 2048): kernel + appended DTB only. wcn36xx.ko sits beside the image, not inside it, and loads only on the vermagic below.",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "kernel_release": "7.2.9-ufix0x-4g-dirty",
+  "vermagic": "7.2.9-ufix0x-4g-dirty SMP preempt mod_unload aarch64",
+  "status": "packaged from the 7.2.9 ufi103s board set; this exact image has not been flashed. The WiFi patch was measured on the author's ufi103s (WCN3620) on 6.18.49; this package is not that retest.",
+  "generated_utc": "2026-10-17T09:36:42Z",
+  "files": {
+    "wcn36xx.ko": "126909b05d4f860c54b73dcf7e69887c316cb6285f48b9ebdcba2078e5f9940e",
+    "boot-board-4g-7.2.9.img": "9409c7bb9dfc4cccb4edf93ed57b1d77c1588226e3324612271cbbecc795398d"
+  }
+}

@@ -12,8 +12,9 @@ Debian 13」差在哪里。每项都指向权威定义处。
 
 ### 1.1 补丁：4 个，均在 `source/patches/`
 
-与分发仓 `patches/` **逐字节一致**，在 pristine 7.2.9 上按序干净套用
-（无 fuzz、无 reject），反向套用也干净。
+在 `source/patches/`，在 pristine 7.2.9 上按序干净套用
+（无 fuzz、无 reject），反向套用也干净。分发镜像（`builds/`）由同一份源码与
+补丁编出，`tools/dist/gen-manifest.sh` 把哈希写进各自的 `build.json`。
 
 | 补丁 | 作用 | 上游状态 |
 |---|---|---|

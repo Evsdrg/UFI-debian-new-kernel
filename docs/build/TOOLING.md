@@ -61,11 +61,12 @@
 | `tools/cpu-freq-verify.sh` / `cpu-power-tradeoff.sh` | CPU 频率与功耗验证 |
 | `tools/ufi-led-state.sh`（+ `.service`、`.default`） | 三色 LED 状态指示，**机型通用**（见 `LED.md`） |
 
-### 在分发仓（不在本工作区，属正常分工）
+### 分发侧工具（`tools/dist/`，面向其他机主）
 
-`ufi00x-mainline/tools/`：`check-repo.sh`（自检）、
+`tools/dist/`：`check-repo.sh`（自检）、
 `gen-manifest.sh`（哈希清单）、`install-module.sh`（模块安装/回滚）、
 `wifi-tx-test.sh`（吞吐测试）、`dump-nv.sh`（NV 导出）。
+对应说明在 `docs/dist/`，可分发的镜像集在 `builds/`。
 
 ## 缺口（尚未存在）
 

@@ -1,0 +1,1 @@
+Booted in RAM on hardware 2026-10-17 (fastboot boot, boot partition NOT written): WiFi association, USB RNDIS sharing with real NAT egress, zram zstd swap, 8 LEDs, gpio-keys Reset button and 32 MB USB transfer all verified. NOT flashed to flash, so first-boot-from-flash is unverified for this exact image.

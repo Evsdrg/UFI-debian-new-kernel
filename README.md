@@ -72,15 +72,16 @@ openstick/
 │   ├── ISSUES.md        问题清单（已定案的坑 + 尚未闭环的问题）
 │   ├── build/           构建矩阵 / 精简档位 / 工具清单
 │   ├── hardware/        各硬件子系统的能力与踩坑
-│   └── validation/      实机验收报告
+│   ├── validation/      实机验收报告
+│   └── dist/            对机主分发：测试、备份、回报、重编
 ├── boards/              各机型设备树源码（只放 DTS）
 ├── source/              共享源码：内核树、补丁、配置、共享 dtsi
 │   └── kernel-version.env  ★ 内核版本单一事实来源（升级只改这里）
-├── artifacts/           ★ 所有产物（boot / rootfs / modules / dtb / firmware）
-├── tools/               构建与验证脚本
+├── artifacts/           ★ 构建产物（boot / rootfs / modules / dtb / firmware）
+├── builds/              ★ 可分发镜像集（7.2.9 boot + wcn36xx.ko，入库）
+├── tools/               构建与验证脚本（tools/dist/ 是分发侧工具）
 ├── recovery/            分区读回与刷机证据（不可再生，勿删）
 ├── edl-tools/           EDL / Miko 刷机工具链
-├── ufi00x-mainline/     分发仓（独立 git，父仓 .gitignore 排除）
 └── build/ out/          构建中间态与验证记录（不入库）
 ```
 
@@ -128,3 +129,5 @@ modem / NV。刷任何分区前**必须先有分区级读回备份**。进 fastb
 | 选档位 / 看构建矩阵 | [`docs/build/`](docs/build/) |
 | 调某个硬件子系统 | [`docs/hardware/`](docs/hardware/) |
 | 看实机验收数据 | [`docs/validation/`](docs/validation/) |
+| 给别的机主测 / 备份 / 回报 / 重编 | [`docs/dist/`](docs/dist/README.md) |
+| 拿现成的可刷镜像 | [`builds/`](builds/README.md) |

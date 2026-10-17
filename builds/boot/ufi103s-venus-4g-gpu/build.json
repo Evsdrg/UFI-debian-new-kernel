@@ -1,0 +1,13 @@
+{
+  "board": "ufi103s-venus-4g-gpu",
+  "contents": "Android legacy boot image (header v0, page 2048): kernel + appended DTB only. wcn36xx.ko sits beside the image, not inside it, and loads only on the vermagic below.",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "kernel_release": "7.2.9-ufix0x-venus-4g-gpu-dirty",
+  "vermagic": "7.2.9-ufix0x-venus-4g-gpu-dirty SMP preempt mod_unload aarch64",
+  "status": "Flashed to the author's unit (mmcblk0p12) on 2026-10-16 and booted from flash: boot partition head equals this image's sha256, first boot came up with USB RNDIS auto-enabled and no preset Wi-Fi profile. This is one unit with the author's rootfs — it does not qualify any other unit, nor the other five variants.",
+  "generated_utc": "2026-10-17T09:36:42Z",
+  "files": {
+    "wcn36xx.ko": "25c16e745c75709d6f126fb50cf6524128fc4ea444197f8c3f210151b3f0a8f4",
+    "boot-board-venus-4g-gpu-7.2.9.img": "11f975b280b357f96d06f72c490284a66c6ca0ebeeb0368778044e61e654bb51"
+  }
+}

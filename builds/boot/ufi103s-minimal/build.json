@@ -1,0 +1,13 @@
+{
+  "board": "ufi103s-minimal",
+  "contents": "Android legacy boot image (header v0, page 2048): kernel + appended DTB only. wcn36xx.ko sits beside the image, not inside it, and loads only on the vermagic below.",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "kernel_release": "7.2.9-ufix0x-minimal-dirty",
+  "vermagic": "7.2.9-ufix0x-minimal-dirty SMP preempt mod_unload aarch64",
+  "status": "Booted in RAM on hardware 2026-10-17 (fastboot boot, boot partition NOT written): WiFi association, USB RNDIS sharing with real NAT egress, zram zstd swap, 8 LEDs, gpio-keys Reset button and 32 MB USB transfer all verified. NOT flashed to flash, so first-boot-from-flash is unverified for this exact image.",
+  "generated_utc": "2026-10-17T09:36:42Z",
+  "files": {
+    "wcn36xx.ko": "8339c98cd5345a6a3195988ef257d30c2bc973dc8d90c63b373b33e06cecbcee",
+    "boot-board-minimal-7.2.9.img": "6715aa44914fbad94020e9f758712a0dc7aaa0340798bc6c73472fb9d30f0f90"
+  }
+}

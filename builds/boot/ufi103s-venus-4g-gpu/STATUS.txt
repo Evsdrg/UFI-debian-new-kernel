@@ -1,0 +1,1 @@
+Flashed to the author's unit (mmcblk0p12) on 2026-10-16 and booted from flash: boot partition head equals this image's sha256, first boot came up with USB RNDIS auto-enabled and no preset Wi-Fi profile. This is one unit with the author's rootfs — it does not qualify any other unit, nor the other five variants.

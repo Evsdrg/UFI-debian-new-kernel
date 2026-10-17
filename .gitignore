@@ -64,7 +64,8 @@ modules.builtin
 modules.builtin.modinfo
 .wifi-creds
 
-# 嵌套的分发仓，自带 git，不进本仓
+# 嵌套的分发仓已并入主仓（builds/ + docs/dist/ + tools/dist/），
+# 旧目录仅作本地备份，不进本仓
 /ufi00x-mainline/
 .local-creds
 .wifi-creds
@@ -86,3 +87,7 @@ modules.builtin.modinfo
 # debs/ 是当年调试 rootfs 启动时手工攒的增量包（kmod/udev/regdb），
 # 已沉淀为 build-rootfs.sh 的正式实现，脚本不再引用
 /tools/debs/
+
+# ==== 分发镜像例外（必须放最后：gitignore 后匹配者胜，要压过上面的 *.ko）====
+# builds/ 下的 *.img 与 wcn36xx.ko 是交付内容本身，必须入库。
+!/builds/boot/**
