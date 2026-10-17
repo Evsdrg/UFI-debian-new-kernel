@@ -123,7 +123,14 @@ bash build-rootfs.sh
 不要只看有没有到 login。
 
 7.2.9 起配对关系是：max ↔ `…-venus-4g-gpu-dirty`，basic ↔ `…-4g-dirty`，
-slim / micro ↔ `…-dirty`（基线）。`tools/build-matrix.sh` 内置这张表。
+slim / micro ↔ `…-dirty`（基线）或 `…-minimal-dirty`（最简功能内核，内存最大化）。
+`tools/build-matrix.sh` 内置这张表。
+
+**何时选 minimal**：slim / micro 档位不跑 GPU、不跑硬件编解码、不跑 4G，
+而 `minimal` 内核正是把这三大链从**内核配置**里裁掉（不只是设备树里 disabled），
+换来更小的内核镜像与模块树。两者配对但不相依赖：slim/micro 也可以配基线内核，
+只是占用更多 flash。实测数据见
+[`../build/BUILD-MATRIX.md`](../build/BUILD-MATRIX.md) 第二节。
 
 ## 必须显式声明的包（否则镜像不可启动）
 

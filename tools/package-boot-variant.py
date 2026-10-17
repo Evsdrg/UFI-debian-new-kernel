@@ -131,6 +131,10 @@ def main() -> int:
         "image_gz_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
         "dtb_sha256": hashlib.sha256(dtb.read_bytes()).hexdigest(),
         "boot_sha256": hashlib.sha256(data).hexdigest(),
+        # 刷入状态由板 README 人工维护；这里只写“未刷”默认值。
+        # 已刷入的镜像需在板 README 与验证报告中记录事实——打包脚本
+        # 无法知道镜像是否被 fastboot flash 过，而每次重编都会重写本文件，
+        # 所以不要指望这个字段保留历史。
         "flash_status": "not flashed",
     }
     (out / f"{variant}-build.json").write_text(json.dumps(meta, indent=2) + "\n")

@@ -17,10 +17,15 @@
 当前 **7.2.9**，release 令牌 `KERNEL_LOCALVERSION=-ufix0x`（均来自
 `source/kernel-version.env`）。
 
-> **boot 分区仍是 7.1.13，7.2.9 已做 RAM 实机预演**：2026-10-10 对
-> `venus-4g-gpu` 两次 `fastboot boot`，并实测正常重启回退；未刷 boot/rootfs。
-> 后续USB修复已完成，NM/native的真实NAT已通过；持续负载散热与MPEG-4仍有
-> 限制，暂不正式刷入。见 [`USB-FIX-7.2.9.md`](../../../docs/validation/USB-FIX-7.2.9.md)。
+> **刷入状态（2026-10-17）**：boot 分区（p12）与 rootfs（p14）**均已刷为 7.2.9**——
+> boot = `boot-board-venus-4g-gpu-7.2.9.img`（p12 前 8003584 字节与镜像 sha256 一致），
+> rootfs = max 档（不含任何 WiFi 凭据）。设备从闪存启动
+> `7.2.9-ufix0x-venus-4g-gpu-dirty`，开机自动开 USB RNDIS。
+> `minimal` 变体于同日 `fastboot boot` 内存验证（未刷）。
+> 历史：2026-10-10 之前 p12 曾是 7.1.13，仅做过 RAM 预演。回退副本在
+> `out/flash-20261016/`（`p12-before-7.2.9.img`、`p14-before-7.2.9.img.gz`）。
+> 持续负载散热与 MPEG-4 仍有
+> 限制。见 [`USB-FIX-7.2.9.md`](../../../docs/validation/USB-FIX-7.2.9.md)。
 > 最新整机刷入验收见 [`VALIDATION-2026-10-16.md`](../../../docs/validation/VALIDATION-2026-10-16.md)；早期首轮验收记录（本地保留，不随仓库发布）。
 > 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 

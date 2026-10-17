@@ -11,5 +11,5 @@
   "image_gz_sha256": "a22d2d4a79aa5bebad3e203013ba7570aa437c542c1bce8f86feb39e1264f385",
   "dtb_sha256": "2bcf27a04910eb53a66e53bdd687179b744aba898a2742013fc4bf60dfb62598",
   "boot_sha256": "11f975b280b357f96d06f72c490284a66c6ca0ebeeb0368778044e61e654bb51",
-  "flash_status": "not flashed"
+  "flash_status": "flashed to mmcblk0p12 on 2026-10-16; partition head matches boot_sha256"
 }

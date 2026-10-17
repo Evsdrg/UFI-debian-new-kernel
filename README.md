@@ -26,7 +26,7 @@ SP970 / UZ801**。每型有专属设备树标识（`compatible` 各不相同，`
 
 | 机型 | WiFi | 设备树 | 7.2.9 产物 | 状态 |
 |---|---|---|---|---|
-| **UFI103s / UFI003** | WCN3620 | 5 个功能组合 | 5 个 boot + 7 张 rootfs | 主力开发板，已整机刷入验收 |
+| **UFI103s / UFI003** | WCN3620 | 5 个功能组合 + minimal | 6 个 boot + 7 张 rootfs | 主力开发板，已整机刷入验收 |
 | UFI001b | WCN3660b | 1 | 仅 DTB | 未出 7.2.9 镜像，无对应硬件 |
 | UFI001c | WCN3660b | 1 | 仅 DTB | 同上 |
 | SP970 | WCN3660b | 1 | 仅 DTB | 同上 |
@@ -35,6 +35,8 @@ SP970 / UZ801**。每型有专属设备树标识（`compatible` 各不相同，`
 后四块板 DTS 引脚定义继承自上游已验证项目，但本工作区没有对应硬件，因此只
 产出 DTB、不出可刷镜像。UFI103s 的 5 个功能组合（WiFi/BT only、+4G、+Venus、
 +Venus+4G、+Venus+4G+GPU）与档位配对见 [`docs/build/BUILD-MATRIX.md`](docs/build/BUILD-MATRIX.md)。
+另有 **`minimal`** 变体：设备树同 WiFi-only 基线，但**内核配置**再裁一档，
+只留 WiFi + USB 共享 + zram，供 slim / micro 档位（内存最大化）使用。
 
 ## 能力一览
 
@@ -46,12 +48,16 @@ SP970 / UZ801**。每型有专属设备树标识（`compatible` 各不相同，`
 - **推流**：GPU 合成桌面 → Venus 硬编 → MPEG-TS/UDP，实测 1280×736 约 26–28 fps。见 [`docs/hardware/GPU-STREAMING.md`](docs/hardware/GPU-STREAMING.md)
 - **USB 网络共享**：设备插 PC 即作 NAT 网关（`10.42.0.1/24`），NM 与 native 双路径均实测出网
 - **LED / 蓝牙 / CPU 调频**：跨型号通用脚本；详见 [`docs/hardware/`](docs/hardware/)
+- **minimal 内核**：裁到只剩 WiFi / USB 共享 / zram，boot 镜像 −26%、模块 −34%
+  （`MemTotal` 的 +97 MB 来自设备树，非内核配置）。见 [`docs/build/BUILD-MATRIX.md`](docs/build/BUILD-MATRIX.md)
 
 ## 当前状态
 
-**最新实机验收（2026-10-16）**：7.2.9 已整机刷入 UFI103s，验证通过 22 项、
+**最新实机验收（2026-10-16，第四轮补 minimal 于 10-17）**：7.2.9 已整机刷入
+UFI103s，验证通过 22 项、
 已知限制 6 项、失败 1 项（Venus MPEG-4 固件 bug，7.1.13 同样复现，非回归）。
-USB 共享全链、编解码、推流、xrdp+i3、无 WiFi 开箱即用均通过。
+USB 共享全链、编解码、推流、xrdp+i3、无 WiFi 开箱即用均通过；
+`minimal` 变体 RAM 验证（WiFi/USB 共享 NAT/zram/LED/Reset 键）通过。
 **散热仍是限制项**（满载约 45–160 秒触 80°C 保护），不能宣称长稳满载。
 
 完整数据与保留风险见 [`docs/validation/VALIDATION-2026-10-16.md`](docs/validation/VALIDATION-2026-10-16.md)。
