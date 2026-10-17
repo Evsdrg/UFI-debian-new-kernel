@@ -265,6 +265,17 @@ fastboot reboot
 
 **刷任何东西之前先用 Miko 做整片 eMMC 全量备份**，这是硬要求。
 
+## root 定位与镜像校验
+
+- **cmdline 里的 `root=` 必须与设备 p14 的实际 PARTUUID 一致。** 本项目构建的
+  7.2.9 boot 镜像统一写 `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`，
+  它只对**本工程构建的 rootfs** 成立；刷别处的根文件系统要在 fastboot 时改 cmdline。
+  每张 boot 镜像的实际 cmdline 记录在同目录的 `board-*-build.json` 里。
+- **刷前必比 `build.json` 的 sha256。** `flash.sh fastboot-flash` 会自动比对
+  同目录 `build.json`，不一致就拒绝刷入（防刷错变体）。`fastboot-rootfs` 是
+  不校验的旧接口，别用。
+- 只能动 `boot`（p12）与 `rootfs`（p14）；不动 GPT、aboot、modem、NV。
+
 ## 实测记录
 
 - 2026-09-14，本机 6.18.49-ufi003-venus-dirty：

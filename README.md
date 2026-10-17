@@ -1,274 +1,124 @@
-# OpenStick 工作区
+# OpenStick
 
-> **2026-10-10 实机验收与修复**：7.2.9 `venus-4g-gpu` 已RAM启动并验证回退，
-> 未正式刷写。**USB NAT已完成修复，NM/native共享路径均实测出网**；持续负载
-> 散热限制、MPEG-4固件错误仍未解决，不能称为全功能通过。
-> 见 [USB修复回归](docs/validation/USB-FIX-7.2.9.md)、[原验收报告](docs/validation/VALIDATION-7.2.9.md)；
-> 根因核对与踩坑记录见 [问题清单](docs/ISSUES.md)，改动面见 [改动清单](docs/CHANGES.md)。
+面向 **MSM8916（高通 410）USB 4G 上网棒** 的 Debian 13 (trixie) arm64 系统与
+自编译 Linux 内核（当前 **7.2.9**）。把一根几十块钱的上网棒，做成一台能跑
+Debian 的完整小电脑：带 GPU 硬件渲染、Venus 硬编解码、桌面与远程桌面、
+USB 网络共享，并保留 4G 与 WiFi。
 
-面向 **MSM8916 高通 410 USB 棒** 的 Debian 13 (trixie) arm64 + 自编译
-Linux **7.2.9** 工程。目标机型：Handsome OpenStick **UFI103s / UFI003 /
-UFI001b / UFI001c / SP970 / UZ801**。
+目标机型是 Handsome OpenStick 家族：**UFI103s / UFI003 / UFI001b / UFI001c /
+SP970 / UZ801**。每型有专属设备树标识（`compatible` 各不相同，`model` 写明型号），
+不靠共用字符串区分。
 
-每个机型有**专属的设备树标识**（`compatible` 各不相同，`model` 写明具体型号），
-不靠共用字符串区分。详见各板 README。
+## 它是什么
 
-> **内核版本单一事实来源**：`source/kernel-version.env`。所有脚本从它派生
-> 路径与 release 字符串，升级内核只改这一个文件。当前是 **7.2.9**，且**只保留
-> 这一套**：6.18.49 与 7.1.13 的内核树、模块树、rootfs、boot 镜像都已于
-> 2026-10-07 清理，回退靠 `recovery/` 与 `out/rollback/` 里的分区读回
-> （见 `AGENTS.md` §1.2），不再靠并列的旧内核树。
+| | |
+|---|---|
+| **硬件** | MSM8916（4× Cortex-A53）、376 MB 内存 / 32 MB CMA、Adreno 306 GPU（render-only）、Venus 1.8 编解码 |
+| **系统** | Debian 13 arm64，默认简体中文（`zh_CN.UTF-8`），NetworkManager 管网络 |
+| **内核** | 自编译 Linux 7.2.9 + 4 个本地补丁（3 个 WiFi 上行速率/诊断 + 1 个 Venus 编码修复） |
+| **产物** | 各板 boot 镜像（内核 + 追加 DTB）＋ 共享 rootfs（max/basic/slim/micro 四档 × NM/native 双网络栈 = 7 张） |
 
-> **旧文档已作废**：本工作区早期（9 月 2 日）的 README 把目标设备写成
-> IPQ4019 + ath10k + 内核 5.15，那是拆机前的误判；实机是 MSM8916 + wcn36xx。
-> 那份错误文档已随 2026-10-07 的历史归档清理移除（结论本身不变）。
+根文件系统**不预置任何 WiFi 凭据**：设备插到电脑上会自动作为 USB 网卡（RNDIS）
+出现，电脑拿到 `10.42.0.x` 即可登录管理；配无线用 `nmtui` / `nmcli`。
+这样无屏设备开箱即可用，也避免凭据被静默写坏后刷完失联。
 
-> **先读哪个**：`AGENTS.md` 是给在这个仓库里干活的人/agent 看的——硬约束、
-> 平台限制、以及我们相对上游做过的所有改动；下面这些专题文档讲的是具体怎么做。
-> 违反 `AGENTS.md` 里的约束往往不会立刻报错，而是静默出错或把设备变砖。
+## 支持的机型
 
-## 目录结构
+| 机型 | WiFi | 设备树 | 7.2.9 产物 | 状态 |
+|---|---|---|---|---|
+| **UFI103s / UFI003** | WCN3620 | 5 个功能组合 | 5 个 boot + 7 张 rootfs | 主力开发板，已整机刷入验收 |
+| UFI001b | WCN3660b | 1 | 仅 DTB | 未出 7.2.9 镜像，无对应硬件 |
+| UFI001c | WCN3660b | 1 | 仅 DTB | 同上 |
+| SP970 | WCN3660b | 1 | 仅 DTB | 同上 |
+| UZ801 | WCN3660b | 1 | 仅 DTB | 同上 |
+
+后四块板 DTS 引脚定义继承自上游已验证项目，但本工作区没有对应硬件，因此只
+产出 DTB、不出可刷镜像。UFI103s 的 5 个功能组合（WiFi/BT only、+4G、+Venus、
++Venus+4G、+Venus+4G+GPU）与档位配对见 [`docs/build/BUILD-MATRIX.md`](docs/build/BUILD-MATRIX.md)。
+
+## 能力一览
+
+- **WiFi**：wcn36xx，上行速率经补丁修复（6 → 45–50 Mbit/s）。详见 [`docs/hardware/NETWORK.md`](docs/hardware/NETWORK.md)
+- **4G**：ModemManager + 蜂窝数据链（驱动与控制通道已验证；SIM 业务待实机）
+- **GPU**：Adreno 306 render-only，freedreno `FD307`，非 llvmpipe。详见 [`docs/hardware/DESKTOP.md`](docs/hardware/DESKTOP.md)
+- **硬编解码**：Venus H.264 / VP8 硬解、H.264 硬编（宽高须 32 对齐）。实测见 [`docs/hardware/VIDEO-CODEC.md`](docs/hardware/VIDEO-CODEC.md)
+- **桌面 / 远程桌面**：i3 + xrdp，客户端用 `/sec:tls`
+- **推流**：GPU 合成桌面 → Venus 硬编 → MPEG-TS/UDP，实测 1280×736 约 26–28 fps。见 [`docs/hardware/GPU-STREAMING.md`](docs/hardware/GPU-STREAMING.md)
+- **USB 网络共享**：设备插 PC 即作 NAT 网关（`10.42.0.1/24`），NM 与 native 双路径均实测出网
+- **LED / 蓝牙 / CPU 调频**：跨型号通用脚本；详见 [`docs/hardware/`](docs/hardware/)
+
+## 当前状态
+
+**最新实机验收（2026-10-16）**：7.2.9 已整机刷入 UFI103s，验证通过 22 项、
+已知限制 6 项、失败 1 项（Venus MPEG-4 固件 bug，7.1.13 同样复现，非回归）。
+USB 共享全链、编解码、推流、xrdp+i3、无 WiFi 开箱即用均通过。
+**散热仍是限制项**（满载约 45–160 秒触 80°C 保护），不能宣称长稳满载。
+
+完整数据与保留风险见 [`docs/validation/VALIDATION-2026-10-16.md`](docs/validation/VALIDATION-2026-10-16.md)。
+
+## 仓库结构
 
 ```
 openstick/
-├── README.md              本文件（结构与整体状态）
-├── AGENTS.md              ★ 给 agent 的作业须知：硬约束、平台限制、我们做过的改动
-├── docs/                  专题文档（按主题分组）
-│   ├── CHANGES.md         改动清单：相对上游改了什么
-│   ├── ISSUES.md          问题清单：已定案的踩坑 + 尚未闭环的问题
-│   ├── build/             构建矩阵、精简档位、工具清单
-│   │   ├── BUILD-MATRIX.md    设备 × 档位 × 网络栈矩阵与实施顺序
-│   │   ├── TRIMMING.md        系统精简：max/basic/slim/micro 四档 × nm|native、QEMU 冒烟测试
-│   │   └── TOOLING.md         工具清单与缺口
-│   ├── hardware/          硬件能力与踩坑
-│   │   ├── CPU-POWER.md       CPU 频率/电压/散热（含降压为何不可行）
-│   │   ├── DESKTOP.md         桌面 / xrdp / GPU 硬件渲染（含实测与踩坑）
-│   │   ├── GPU-STREAMING.md   GPU 渲染桌面 + Venus 推流（已端到端跑通，含实测与踩坑）
-│   │   ├── VIDEO-CODEC.md     编解码实测数据
-│   │   ├── NETWORK.md         网络（NetworkManager）与中文说明
-│   │   ├── BLUETOOTH.md       蓝牙（内核侧就绪、装 bluez 即用，含实测）
-│   │   ├── LED.md             LED 跨型号适配说明
-│   │   └── FASTBOOT.md        fastboot 刷机（含实测数据与两个坑）
-│   └── validation/        实机验收报告（2026-10-10）
-│       ├── VALIDATION-7.2.9.md   无串口 RAM 预演：通过项与阻塞项
-│       └── USB-FIX-7.2.9.md      USB 共享全链修复与回归
-├── boards/                各机型设备树，按硬件家族分组（只放源码，不放产物）
-│   ├── README.md          家族划分依据（含 DTS 逐字节 diff 表）
-│   ├── ufi00x/            ufi103s-ufi003 / ufi001b / ufi001c
-│   ├── thwc-mf32/         MF32（LED / 电源键方案，固件尚未 bring-up）
-│   ├── sp970/
-│   └── uz801/
-│       └── <机型>/dts/    该板的 DTS
-├── source/                共享源码
-│   ├── kernel-version.env ★ 内核版本单一事实来源（升级只改这里）
-│   ├── linux-7.2.9/       当前内核树（2.0G，一份，所有机型共用）
-│   ├── patches/           内核补丁（权威，与分发仓逐字节一致）
-│   ├── configs/           内核配置与片段（common-7.2.9-os.config + 变体片段）
-│   └── dts/common/        共享 dtsi
-├── artifacts/             ★ 所有产物集中在这里（唯一位置，详见其 README）
-│   ├── boot/<机型>/       boot 镜像 + 构建中间态（kernel-*-dtb、empty-ramdisk）
-│   │                      同目录的 *-build.json 入库，记录内核 release 与各哈希
-│   ├── rootfs/            rootfs 镜像（ufi103s-7.2.9-<档>.ext4）
-│   ├── modules/           内核模块树（7.2.9-ufix0x-*，五个板型各一棵）
-│   ├── dtb/               各机型的裸板 DTB（非 ufi103s 板当前只有这个）
-│   └── firmware/          固件集（common / ufi103s-venus / board-overrides，构建输入）
-├── tools/                 构建与验证脚本
-│   ├── kver.sh / kver.py  ★ 版本派生的 shell / Python 实现（artifacts 路径也在这里派）
-│   └── desktop/           桌面与推流脚本
-├── upstream/              上游参考树（HandsomeMod 等，只读参考）
-├── edl-tools/             EDL / Miko 刷机工具链
-├── recovery/              备份、原始分区读回、刷机证据（不可替代）
-├── ufi00x-mainline/       分发仓（自带 git，父仓 .gitignore 排除）
-└── build/ out/            构建中间态与验证记录
+├── AGENTS.md            ★ 动手前必读：硬约束、平台限制、我们做过的改动
+├── docs/                专题文档
+│   ├── CHANGES.md       改动清单（相对上游改了什么 + 本仓清理史）
+│   ├── ISSUES.md        问题清单（已定案的坑 + 尚未闭环的问题）
+│   ├── build/           构建矩阵 / 精简档位 / 工具清单
+│   ├── hardware/        各硬件子系统的能力与踩坑
+│   └── validation/      实机验收报告
+├── boards/              各机型设备树源码（只放 DTS）
+├── source/              共享源码：内核树、补丁、配置、共享 dtsi
+│   └── kernel-version.env  ★ 内核版本单一事实来源（升级只改这里）
+├── artifacts/           ★ 所有产物（boot / rootfs / modules / dtb / firmware）
+├── tools/               构建与验证脚本
+├── recovery/            分区读回与刷机证据（不可再生，勿删）
+├── edl-tools/           EDL / Miko 刷机工具链
+├── ufi00x-mainline/     分发仓（独立 git，父仓 .gitignore 排除）
+└── build/ out/          构建中间态与验证记录（不入库）
 ```
 
-**内部分工**：`boards/` 放**源码**（每板不同的 DTS），`source/` 放**共享源码**，
-`artifacts/` 放**全部产物**（不再散落到 `boards/` 或 `shared/`）。
-刷机包 = 某板的 boot 镜像 + 共享 rootfs。
+分工原则：`boards/` 放**源码**（每板不同的 DTS），`source/` 放**共享源码**，
+`artifacts/` 放**全部产物**。脚本不拼 `artifacts/...` 字面路径，一律用
+`tools/kver.sh` / `kver.py` 派生的变量（详见 [`artifacts/README.md`](artifacts/README.md)）。
 
-> 2026-10-11 之前产物曾分放在 `shared/{rootfs,modules,firmware}` 与
-> `boards/<家族>/<机型>/boot/` 两处；现已全部收进 `artifacts/`。
-> 脚本不要自己拼 `artifacts/...`，一律用 `tools/kver.sh` / `kver.py` 派生的变量。
+## 开始使用
 
-## 各机型状态
-
-| 机型 | 家族 | WiFi | DTS | 7.2.9 boot 镜像 | 实机验证 |
-|---|---|---|---|---|---|
-| UFI103s / UFI003 | ufi00x | WCN3620 | 5 个功能组合 | 5 个 | 仅 GPU 组合做过 7.2.9 RAM 验收，有阻塞项 |
-| UFI001b | ufi00x | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
-| UFI001c | ufi00x | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
-| SP970 | sp970 | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
-| UZ801 | uz801 | WCN3660b | 1 | 无 | 无 7.2.y 产物 |
-
-后四块板目前**只有 DTS，没有 7.2.y 的 boot 镜像**：它们 6.18.49 时代的产物
-（只做过离线校验，从未刷入实机）已随 2026-10-07 的清理移除。要给它们出
-7.2.9 镜像，需跑 `tools/package-boards.py`（按 `boards/<家族>/<机型>/dts/`
-逐板编译 DTB 并组装，输出到 `artifacts/boot/<机型>/`）。它们的 DTS 引脚定义
-继承自上游已验证项目，但本工作区没有对应硬件。
-
-### UFI103s 的 5 个功能组合
-
-2026-09-16 起，9 个实验变体（含 `oc12`、`venus-oc-100`、`venus-oc-burst`）
-收敛为 5 个功能组合；CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共
-dtsi，不再占名字。每个组合一棵独立模块树（vermagic 含 release，不可混用）。
-
-| DTS | 功能 | 对应 rootfs 档位 |
-|---|---|---|
-| `msm8916-handsome-openstick-ufi103s.dts` | WiFi/BT，4G 链与 venus 全关 | slim / micro |
-| `…-ufi103s-4g.dts` | +4G | basic |
-| `…-ufi103s-venus.dts` | +Venus 硬编解码，无 4G | （备用） |
-| `…-ufi103s-venus-4g.dts` | +Venus +4G | （备用） |
-| `…-ufi103s-venus-4g-gpu.dts` | +Venus +4G +GPU | max |
-
-矩阵与配对规则的完整说明在 `docs/build/BUILD-MATRIX.md`。
-
-## 关键事实
-
-- **内核共享、DTB 不共享**：`Image.gz` 所有机型同一份，板间差异只在追加的
-  DTB。所以不要跨机型复用 boot 镜像。
-- **root 定位**：`artifacts/boot/ufi103s-ufi003/*-build.json` 记录每张
-  boot 镜像的 cmdline，7.2.9 这批统一为
-  `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。**这个 PARTUUID 只对
-  本工程构建的 rootfs 成立**，刷别处的根文件系统要在 fastboot 时改 cmdline。
-- **WiFi 上行速率**：核心修复是 `MAX_MEDIUM_TIME` 6000→20000（见
-  `source/patches/0002`），6.18.49 上实测 6 → 44–50 Mbit/s；2026-10-10
-  在 7.2.9 GPU 组合复测上行 49.24、下行 62.76 Mbit/s（非重新做补丁前后 A/B）。
-  响应非单调，详见分发仓 `docs/wifi-tx-throughput.md`。
-- **监管域**：镜像内已用 `update-alternatives` 固定为 upstream
-  `regulatory.db`（含 `country CN`）。
-- **网络栈是 NetworkManager**（不是早期的 networkd + wpa_supplicant）：用户可用
-  `nmtui`/`nmcli` 交互配网，改网络不用重启。详见 `docs/hardware/NETWORK.md`。
-- **系统默认简体中文**（`zh_CN.UTF-8`）：`nmcli`、`apt`、`man` 都有中文输出。
-  注意 `network-manager-l10n`（NM 汉化）与 `man-db`（man 命令本身）必须显式
-  安装，前者只是 NM 的 Recommends。详见 `docs/hardware/NETWORK.md`。
-- **LED 脚本机型通用**：五机型的三颗状态灯语义一致、sysfs 名字一致，脚本按名字
-  发现（失败时按颜色兜底），不需要按型号分支。详见 `docs/hardware/LED.md`。
-- **桌面与远程桌面**：镜像默认带 i3 + xrdp（`ROOTFS_DESKTOP=1`），主机可用
-  `xfreerdp`/`remmina` 连 3389。见 `docs/hardware/DESKTOP.md`。
-- **桌面可实时推流**：GPU 合成桌面 → Venus 硬编 → MPEG-TS/UDP → 对端窗口全屏播放，
-  已端到端跑通（1280x736@30，实测 26–28fps，延迟约 1 秒）。设备端
-  `tools/desktop/ufi-stream-push.sh`，接收端 `ufi-stream-play.sh`。见
-  `docs/hardware/GPU-STREAMING.md`。
-- **GPU 可用但只出 render 节点**：Adreno 306 在主线是 a3xx 家族，设备无显示
-  面板，所以用 `separate_gpu_kms=1` 走 render-only，得到 `/dev/dri/renderD128`
-  与 freedreno（`FD307`）。**注意**：只有 `venus-4g-gpu` 这个板型的模块树里有
-  `msm.ko`/`drm.ko`；拿纯 venus 板型的树去构建 rootfs，开机会静默退回 llvmpipe。
-- **固件**：`artifacts/firmware/common/` 与 `ufi103s-venus/` 的差别只有多一个
-  `qcom/venus-1.8/venus.mbn`（该固件也提供 Adreno 所需的 `a300_*.fw`）。
-- **补丁只有一套**：`source/patches/` 与分发仓 `ufi00x-mainline/patches/`
-  逐字节一致，共 **4 个**（3 个 wcn36xx + 1 个 venus）。原 `0004`
-  （venus hfi_parser payload size）随 7.2.9 退场——上游已含该修复，再套会报
-  `Reversed (or previously applied) patch detected`，依据与记录见同目录的
-  `venus-backport-provenance.txt`。
-
-## 验证
-
-**最新一轮实机验收**：[`docs/validation/VALIDATION-2026-10-16.md`](docs/validation/VALIDATION-2026-10-16.md)
-（2026-10-16，无串口，`fastboot boot` 内存启动 7.2.9；通过 22 项 / 已知限制 6 项 /
-失败 1 项为历史已知固件 bug）。USB 共享全链、USB 直连 180/151 Mbit/s、
-WiFi 49–53 Mbit/s、GPU FD307、H.264/VP8 编解码、xrdp+i3、推流与中途加入均通过。
+**构建**（内核 + 模块 + rootfs 全链）：
 
 ```sh
-# 工作区布局与产物自检（默认校验 max 档镜像，可用 ROOTFS_IMAGE 换档）
-bash tools/verify-layout.sh
-ROOTFS_IMAGE=artifacts/rootfs/ufi103s-7.2.9-slim.ext4 bash tools/verify-layout.sh
+# 五个板型的内核、模块树与 boot 镜像（表驱动，缺省只建未完成的）
+bash tools/build-board-set.sh
 
-# 分发仓自检（补丁可应用性、哈希、文档链接）
-cd ufi00x-mainline
-K=$(cd .. && . source/kernel-version.env && echo "$PWD/source/linux-$KERNEL_VERSION")
-sh tools/check-repo.sh "$K"
+# 7 张 rootfs（四档 × 双栈）
+bash tools/build-matrix.sh
+
+# 布局与产物自检（应 exit 0）
+bash tools/verify-layout.sh
 ```
 
-`tools/verify-layout.sh` 现在应当全过（exit 0）。它默认校验 `max` 档镜像
-（7.2.9 起 `ROOTFS_BASE` 指向它——它是功能最全的一张），覆盖：内核源码与配置、
-共享模块树、rootfs 内容（chrony/rmtfs/rmtfs_mem）、**NetworkManager 已装且
-networkd/wpa_supplicant 已移除**、**zh_CN locale 已生成**、**fstab 带
-x-systemd.growfs**、LED 脚本与 unit、各板 boot 状态、Venus 三件套配套。
+**刷机**：只能动 `boot`（p12）与 `rootfs`（p14）两个分区，不动 GPT / aboot /
+modem / NV。刷任何分区前**必须先有分区级读回备份**。进 fastboot 用
+`systemctl reboot --reboot-argument=bootloader`。完整流程、镜像校验与回退见
+[`docs/hardware/FASTBOOT.md`](docs/hardware/FASTBOOT.md)。
 
-> 历史：重组前它会在最后一项报 `ufi-led-state.sh=MISSING`，因为当时
-> `artifacts/rootfs/` 里几张镜像新旧不一（旧镜像没装 LED）。现在两张镜像都是
-> 同一轮构建出来的（NetworkManager + 中文 + 通用 LED + growfs），这个不一致
-> 已经消除。
-
-## 刷机前必读
-
-- **必须先做整片 eMMC 全量备份**（Miko 全盘 dump），再动手刷任何分区。
-  注意这条目前**无法脚本化**：Miko 是 Windows GUI 工具，仓库里能依赖的是
-  `recovery/backups/` 的分区级读回。动手前先确认目标分区有对应副本
-  （见 `AGENTS.md` §1.2）。
-- 只能操作已确认的 `boot`（p12）与 `rootfs`（p14）分区；不动 GPT、aboot、modem、NV。
-- **两条刷机路径**：
-  - **fastboot**（推荐，速度最快）：在设备 Linux 里
-    `systemctl reboot --reboot-argument=bootloader` 进 LK fastboot，然后
-    `flash.sh fastboot-flash boot|rootfs <img>`。机制与完整流程见 `docs/hardware/FASTBOOT.md`
-    （已实机验证；注意必须用 `--reboot-argument=`，写成位置参数会报错）。
-  - **EDL/9008**：按住 reset 按钮（或把 reset 触点与地短接）后插入电脑，用 Miko
-    全片读写。这是任何情况下都能用的兜底路径。
-- 从 fastboot 也能直接进 EDL：`fastboot oem reboot-edl`。
-- 详见 `docs/hardware/FASTBOOT.md` 与 `recovery/` 下的备份与刷机记录。
+**首次进系统**：设备插电脑 → 自动出现 USB 网卡并拿到 `10.42.0.x` →
+`ssh root@10.42.0.1` 登录 → `nmtui` 配无线。
 
 ## 许可
 
-本项目按 **GPL-2.0-only** 提供：`LICENSE` 是 GPL-2.0 全文（与内核树
-`LICENSES/preferred/GPL-2.0` 正文逐字节一致），`NOTICE` 说明覆盖范围与
-**不分发**的内容。
+**GPL-2.0-only**。`LICENSE` 是 GPL-2.0 全文（与内核树 `LICENSES/preferred/GPL-2.0`
+正文逐字节一致），`NOTICE` 说明覆盖范围。覆盖范围：`source/patches/` 的内核补丁、
+本项目自写的设备树 / 脚本 / 文档。**不覆盖也不包含** Qualcomm 固件与每台机器唯一
+的校准值（NV/modem）——那些从你自己的设备导出，按其原始条款使用。
 
-- 覆盖：`source/patches/` 的内核补丁、本项目自写的设备树/脚本/文档；
-  设备树带有内核惯用的 `SPDX-License-Identifier: GPL-2.0-only` 头。
-- **不覆盖也不包含**：Qualcomm 固件与每台机器唯一的校准值（NV/modem）。
-  那些从你自己的设备导出，按其原始条款使用。
+## 文档索引
 
-## 历史
-
-> 本节是操作记录，写的是当时的状态。`archive/` 在 9 月的记录里出现过，
-> 但已随 2026-10-07 的旧内核清理删除；不要按本节的旧路径去找文件。
-> 同理，下面提到的 `out/boot-*/` 与 `shared/rootfs/` 等路径，**产物已于
-> 2026-10-11 统一收进 `artifacts/`**（见 `artifacts/README.md`），
-> 那几条“保留”写的是当时的位置。
-> 同期存在的 `WORKSPACE-INDEX.txt`（重组前的状态索引）也已删除，
-> 其中仍有价值的结论已归入 `docs/ISSUES.md`、`docs/hardware/CPU-POWER.md`
-> 与 `docs/CHANGES.md`。
-
-- **中间产物已清理（2026-09-14）**：删掉了约 **9 GB** 可再生产物——
-  `out/` 下 4 个与当时的 `shared/rootfs`（现 `artifacts/rootfs/`）、`archive/` 重复的 rootfs 镜像（3.0G）、
-  内核构建树（`out/build-ufi003-*-os` + `build/variant-*`，3.8G）、boot 打包中间态
-  （`out/` 与各板 `boot/` 下的 `kernel-*-dtb` 拼接物与 `-check` 解包目录，96M+）、
-  6.18.48 时代的陈旧模块树与构建日志、以及被 9/14 版取代的
-  `build/…-venus-led-v3.ext4`（751M；其 LED 脚本内容与 git 提交 `e761f9b` 逐字节
-  相同，可从仓库重建）。清理后**已实测可重建并启动**：重编 → 打包 → 刷入 →
-  p12 逐字节校验 → 启动 → 功能验证全通过。
-  删除前逐个核实过：rootfs 镜像都有同内容副本；12 个 `kernel-*-dtb` 都能从对应
-  `.img` 的内核载荷反解出来（逐字节相同）；另删了 1 个无对应产物的孤儿
-  `kernel-venus-oc16-dtb`。
-  保留：`out/rollback/`（设备 p12 读回）、`out/boot-*/` 与各板 `boot/` 的 `.img`
-  产物（文档引用）、`artifacts/`、`boards/`、`recovery/`。
-  同时归档了陈旧的 `tools/flash.sh`（根 `flash.sh` 的功能子集，引用失效路径）到
-  `archive/superseded-20260914/tools/`，并让 `verify-layout.sh` 在构建树被清掉后
-  自动降级为片段静态检查（不再依赖 `build/variant-*/.config`）。
-- **失效脚本与可再生产物清理（2026-10-11）**：删掉三个已失效的脚本
-  （`tools/build-boot-images.sh` 引用不存在的 `oc12.dts`，实测 rc=1；
-  `tools/wcn36xx-rate-sweep{,2}.sh` 依赖 7.2.9 内核里不存在的模块参数，
-  会静默跑出误导结果），同时清掉约 **7.7 GB** 可再生产物：五棵内核构建树
-  （`build/variant-7.2.9-board-*`）、`build/{boards,migrate-7.2.9}` 中间态、
-  修复前的 rootfs 镜像与模块树快照（`out/usb-fix/pre-fix/`）、QEMU 冒烟临时目录。
-  删除前核实：五棵树的产物都已在 `artifacts/`；`pre-fix/modules` 与
-  `artifacts/modules` 里相同的 3387 个 `.ko` 逐字节零差异（只少了修复新增的
-  35 个 nft 模块）；负向测试可从 `artifacts/` 的 max 镜像现做（实测守护
-  正确拒绝）。`verify-usb-sharing.py` 改为分层断言，构建树清掉后自动降级到
-  配置片段检查（已实测两条路径都通过）。
-  随后又删掉了 `out/history-rewrite/`（297M）：里面是历史重写前的**未脱敏**
-  tar 备份与替换规则文本，仓库已推送且改写结果在两个仓全对象层面复核干净
-  （主仓 499、分发仓 92 个 blob 全 0 命中），这些回退依据不再需要，留着反而是
-  明文凭据的副本。同批删掉从该 tar 解包出来的临时验证副本与改写用的克隆目录。
-  保留：`recovery/`（分区读回，不可再生）、`out/rollback/`（设备 p12 读回）、
-  `out/usb-fix/pre-fix/boot/`（77M，验收报告里那个修复前哈希对应的文件）。
-- **旧内核全部清退（2026-10-07，内核升到 7.2.9）**：6.18.49 与 7.1.13 的内核树、
-  模块树、旧命名的 rootfs 与 boot 镜像、`build/variant-7.1.13-*`、以及历史归档
-  `archive/`（含 `archive/superseded-20260914/`）都已删除，共释放约 30 GB。
-  内核回退**不再靠并列的旧内核树**，靠 `recovery/` 与 `out/rollback/` 的分区读回。
-  7.2.9 全链重建后跑过 QEMU 冒烟：**7 个 rootfs 全过**。
-- **旧工作区已删除**：重组前的 `/opt/helloworld/103s/` 已于 2026-09-14 清理。
-  删前做过逐文件核对：本仓是它的**完整超集**——`recovery/` 备份、rootfs 镜像、
-  内核树、上游克隆都有同内容副本；它那 4666 个“独有”文件里 4650 个是 `build/`
-  下可再生目标文件，其余是本仓已更新过的同名脚本/文档；两个仓的提交历史同源，
-  无独有提交。
+| 我想… | 看 |
+|---|---|
+| 在这个仓库里干活（硬约束、平台限制、改过什么） | [`AGENTS.md`](AGENTS.md) |
+| 知道相对上游改了什么 | [`docs/CHANGES.md`](docs/CHANGES.md) |
+| 查某个坎是怎么过的 | [`docs/ISSUES.md`](docs/ISSUES.md) |
+| 选档位 / 看构建矩阵 | [`docs/build/`](docs/build/) |
+| 调某个硬件子系统 | [`docs/hardware/`](docs/hardware/) |
+| 看实机验收数据 | [`docs/validation/`](docs/validation/) |

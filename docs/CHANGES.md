@@ -92,7 +92,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 | debconf | 固化 `DEBIAN_FRONTEND=noninteractive`，并把 `debconf/frontend` 设为 Noninteractive（否则每次 apt 刷三行回退警告） |
 | 串口 | `serial-getty@ttyMSM0` |
 | 桌面（`max`） | xrdp + xorgxrdp + i3 + 中文字体 + 托盘/截图配件栈 |
-| 凭据 | **镜像里不含仓库凭据**；Wi-Fi 与 root 口令由环境变量/`.local-creds` 在构建时传入（口令经文件写入，用完即删） |
+| 凭据 | **镜像不含任何预置 Wi-Fi**（2026-10-16 起；原因见 `docs/ISSUES.md` 第 16 条），首次进系统靠 USB RNDIS。root 口令可选传入（经文件写入、用完即删），不传则 root 无口令。**仓库里不含任何真实凭据** |
 | 软件包 | 显式加 `systemd-sysv`（只是 `systemd` 的 Recommends；缺它时精简档镜像没有 `/sbin/init`，系统落到 `/bin/sh` 起不来） |
 
 ### 2.3 USB 网络共享（所有档默认）
@@ -109,7 +109,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
   `nat.nft` 限定 USB 来源。
 - 全局 `dnsmasq.service` 被 mask，避免与共享口实例抢端口。
 
-详见 `tools/net-native/README.md` 与 `docs/validation/7.2.9.md`。
+详见 `tools/net-native/README.md` 与 `docs/validation/USB-FIX-7.2.9.md`。
 
 ---
 
@@ -156,3 +156,51 @@ Debian 13」差在哪里。每项都指向权威定义处。
   Windows/macOS 兼容性
 
 全片 eMMC 备份的脚本化（`docs/build/TOOLING.md` 的「缺口」）仍是最大缺口。
+
+---
+
+## 六、工作区的清理史
+
+仓库自身（不是相对上游的代码改动）历次清理过什么、删前怎么核实、保留了什么，
+记在这里。这些记录的共同前提：**只删可再生产物，不可再生的分区读回一律保留**。
+
+### 2026-10-07 旧内核全部清退（升到 7.2.9）
+
+6.18.49 与 7.1.13 的内核树、模块树、旧命名的 rootfs 与 boot 镜像、
+`build/variant-7.1.13-*`、以及历史归档 `archive/`（含 `archive/superseded-20260914/`）
+全部删除，共释放约 **30 GB**。内核回退**不再靠并列的旧内核树**，靠 `recovery/`
+与 `out/rollback/` 的分区读回。7.2.9 全链重建后跑过 QEMU 冒烟：**7 个 rootfs 全过**。
+此前（2026-09-14）还删过约 9 GB 中间产物（重复 rootfs、内核构建树、boot 打包
+中间态），删前逐个核实可重建并实测启动通过。
+
+### 2026-10-11 失效脚本与可再生产物清理
+
+删除三个已失效的脚本：`tools/build-boot-images.sh`（引用不存在的 `oc12.dts`，
+实测 rc=1）、`tools/wcn36xx-rate-sweep{,2}.sh`（依赖 7.2.9 内核里不存在的模块参数，
+会静默跑出误导结果）。同时清掉约 **7.7 GB** 可再生产物：五棵内核构建树
+（`build/variant-7.2.9-board-*`）、`build/{boards,migrate-7.2.9}` 中间态、
+修复前的 rootfs 镜像与模块树快照（`out/usb-fix/pre-fix/`）、QEMU 冒烟临时目录。
+删除前核实：五棵树的产物都已在 `artifacts/`；`pre-fix/modules` 与
+`artifacts/modules` 里相同的 3387 个 `.ko` 逐字节零差异（只少了修复新增的
+35 个 nft 模块）；负向测试可从 `artifacts/` 的 max 镜像现做（实测守护正确拒绝）。
+
+随后又删掉 `out/history-rewrite/`（297M）：里面是历史重写前的**未脱敏** tar 备份
+与替换规则文本。仓库已推送且改写结果在两个仓全对象层面复核干净（主仓 499、
+分发仓 92 个 blob 全 0 命中），这些回退依据不再需要，留着反而是明文凭据的副本。
+
+### 2026-10-11 产物统一收进 `artifacts/`
+
+此前产物分放在 `shared/{rootfs,modules,firmware}` 与 `boards/<家族>/<机型>/boot/`
+两处，现全部收进 `artifacts/`（`boards/` 只留源码 DTS）。
+
+### 2026-09-14 旧工作区删除
+
+重组前的 `/opt/helloworld/103s/` 已清理。删前逐文件核对：本仓是它的**完整超集**
+——`recovery/` 备份、rootfs 镜像、内核树、上游克隆都有同内容副本；它那 4666 个
+“独有”文件里 4650 个是 `build/` 下可再生目标文件，其余是本仓已更新过的同名脚本/文档。
+
+### 保留清单（每次都一样）
+
+- `recovery/`（分区读回，不可再生）
+- `out/rollback/`（设备 p12 读回）
+- `artifacts/`（当前产物）
