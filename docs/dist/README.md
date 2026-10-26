@@ -2,9 +2,10 @@
 
 ## 这一目录是什么
 
-主仓库**不跟踪**可刷镜像（`*.img` / `*.ext4` / 模块树，见根 `.gitignore` 与
-`artifacts/README.md`），但**跟踪**一份可直接分发的 7.2.9 boot 镜像集与配套
-`wcn36xx.ko`——它们放在根目录的 [`builds/`](../../builds/README.md)。
+主仓库的 `artifacts/` **不跟踪**可刷镜像（`*.img` / `*.ext4` / 模块树，
+见根 `.gitignore` 与 `artifacts/README.md`），但根目录
+[`builds/`](../../builds/README.md) **跟踪**一份可直接分发的 7.2.9 boot 镜像集
+与配套 `wcn36xx.ko`——那是全仓唯一入库的二进制产物，因为它们本身就是交付内容。
 
 本目录（`docs/dist/`）放**面向其他机主**的说明：怎么测、怎么备份、怎么回报数据、
 怎么自己重编，以及产物的可信度边界。工具在 [`tools/dist/`](../../tools/dist/)：

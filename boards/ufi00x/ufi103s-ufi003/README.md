@@ -25,8 +25,8 @@
 > 历史：2026-10-10 之前 p12 曾是 7.1.13，仅做过 RAM 预演。回退副本在
 > `out/flash-20261016/`（`p12-before-7.2.9.img`、`p14-before-7.2.9.img.gz`）。
 > 持续负载散热与 MPEG-4 仍有
-> 限制。见 [`USB-FIX-7.2.9.md`](../../../docs/validation/USB-FIX-7.2.9.md)。
-> 最新整机刷入验收见 [`VALIDATION-2026-10-16.md`](../../../docs/validation/VALIDATION-2026-10-16.md)；早期首轮验收记录（本地保留，不随仓库发布）。
+> 限制。见 [`2026-10-10-usb-fix.md`](../../../docs/validation/2026-10-10-usb-fix.md)。
+> 最新整机刷入验收见 [`2026-10-16-validation.md`](../../../docs/validation/2026-10-16-validation.md)；早期首轮验收记录（本地保留，不随仓库发布）。
 > 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
 
 ## 产物
@@ -59,7 +59,10 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 ## 实机状态
 
-### 7.1.13（2026-09-14 实测，仍在 boot 分区的默认启动版）
+### 7.1.13（历史：2026-09-14 实测）
+
+> 当时它是 boot 分区的默认启动版；现已被 7.2.9 取代（见上「内核版本」）。
+> 以下为当时记录，保留作对照。
 
 - 启动 ✅：`uname -r` = `7.1.13-ufi003-venus-dirty`，型号与 compatible 正确；
   开机日志 0 error（仅一条 PSCI `failed to set PC mode` 固件报告，6.18 时期就有）。
@@ -85,9 +88,10 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 - 满频压力、持续推流 ⚠️：80°C 测试保护中止；800MHz 限频校验通过，之后已恢复。
 - MPEG-4 硬解 ❌：两版内核同样触发 Venus 固件 fatal；只能重启恢复，不卸载模块。
 - 当前 DTS 的 CPU OPP 为 200/400/800/998.4/1094.4/**1152/1209.6 MHz**。
-- 其它 4 个变体及 7 个新 rootfs 的实机矩阵未测；正式 flash 未执行。
+- 后续：2026-10-16 已整机刷入 boot + max rootfs 并验收；2026-10-17 `minimal`
+  变体 RAM 验证通过。最新范围见 `../../../docs/validation/2026-10-16-validation.md`。
 
-## 升级到 7.2.9（RAM 预演已执行，正式刷入暂缓）
+## 升级 / 刷入与回退
 
 改动只在 boot 分区，rootfs 不必重刷（模块以新增目录方式装入，旧目录保留）。
 但 **7.2.9 与 7.1.13 的 vermagic 不同**，所以第 1 步必须先把新模块推上设备，
@@ -105,9 +109,9 @@ scp /tmp/m.tar.gz root@<设备>:/tmp/ && \
 ssh root@<设备> 'systemctl reboot --reboot-argument=bootloader'
 fastboot boot artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 #    启动后 uname -r 即为 7.2.9；验完直接重进 fastboot 即可，flash 未被改动
-#    预演失败也不会影响设备——boot 分区上仍是 7.1.13
+#    预演失败也不改 boot 分区（但若早期硬挂死，仍需物理断电恢复）
 
-# 3) 正式刷入（当前暂停；先解决验收报告中的阻塞项）
+# 3) 正式刷入（2026-10-16 已执行并验收，见上「内核版本」）
 bash flash.sh fastboot-flash boot \
   artifacts/boot/ufi103s-ufi003/boot-board-venus-4g-gpu-7.2.9.img
 fastboot continue

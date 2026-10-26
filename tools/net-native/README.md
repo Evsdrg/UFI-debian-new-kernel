@@ -26,5 +26,5 @@
 | `native-net.service` | `/etc/systemd/system/`，监督前台 dnsmasq |
 
 回归：`python3 tools/test-usb-sharing.py`、`python3 tools/verify-usb-sharing.py`。
-实机证据与范围见仓库根 `USB-FIX-7.2.9.md`；QEMU 无真实 USB gadget，不能替代 NAT 验收。
+实机证据与范围见 `../../docs/validation/2026-10-10-usb-fix.md`；QEMU 无真实 USB gadget，不能替代 NAT 验收。
 `mm-connect.sh` 的实际蜂窝拨号/DHCP行为仍需有 SIM 后单独验证。

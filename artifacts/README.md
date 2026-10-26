@@ -26,12 +26,12 @@ artifacts/
 
 | 文件 | 入库 | 说明 |
 |---|---|---|
-| `boot-board-<板型>-<版本>.img` | ❌ | 可刷产物。`<板型>` 是功能组合（`baseline`/`4g`/`venus`/`venus-4g`/`venus-4g-gpu`） |
+| `boot-board-<板型>-<版本>.img` | ❌ | 可刷产物。`<板型>` 是功能组合（`baseline`/`4g`/`venus`/`venus-4g`/`venus-4g-gpu`/`minimal`） |
 | `board-<板型>-<版本>-build.json` | ✅ | **产物元数据**：内核 release、cmdline、镜像与 DTB 的 sha256、`flash_status`。`flash.sh` 刷前比对它 |
 | `kernel-board-<板型>-<版本>-dtb` | ❌ | `Image.gz` + DTB 的拼接中间态，可从内核镜像与 DTS 重建 |
 | `empty-ramdisk` | ❌ | 空的 initramfs（legacy boot image 需要这个字段） |
 
-只有 ufi103s 的五个功能组合有 7.2.9 镜像；其它机型的裸 DTB 在 `artifacts/dtb/`。
+只有 ufi103s 有 7.2.9 镜像：五个功能组合 + `minimal`（最简功能内核）；其它机型的裸 DTB 在 `artifacts/dtb/`。
 
 ### rootfs/
 
@@ -71,8 +71,12 @@ nm|native（`max` 无 native 变体）。板无关——所有机型共用同一
 - ✅ 入库：`*-build.json`（产物元数据）、`artifacts/dtb/*.dtb`、本 README
 - ❌ 排除：`*.img`、`*.ext4`、模块树、固件、`kernel-*-dtb`、`empty-ramdisk`
 
-所以克隆仓库后**能拿到设备树与构建记录，但拿不到可刷镜像**——
-镜像需要本机构建（见顶层 `README.md` 的构建命令）。
+所以本目录（`artifacts/`）在克隆后是**没有可刷镜像**的，需要本机构建
+（见顶层 `README.md` 的构建命令）。
+
+> 例外：根目录 [`builds/`](../builds/README.md) 是**分发用镜像集**，那 6 个
+> 7.2.9 boot 镜像与配套 `wcn36xx.ko` 是入库的（它们本身就是交付内容）。
+> 想直接刷机而不构建，用 `builds/`，不是本目录。
 
 ## 清理与重建
 

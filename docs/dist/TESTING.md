@@ -1,109 +1,100 @@
-# Testing guide
+# 测试指南
 
-Two ways to test, depending on how much you are willing to do to your device.
+有两种测试方式，取决于你愿意对设备做多大改动。
 
-**Option A** replaces one kernel module on a system that already boots. No
-partition is written, no bootloader is touched, and reverting is one command.
-Start here.
+**方案 A** 在一个已经能启动的系统上替换一个内核模块。不写任何分区、不碰
+bootloader，回滚也只是一条命令。**从这里开始。**
 
-**Option B** flashes a boot image from `builds/`. Only do this if Option A is not
-possible for you, and read [the flashing warning](../../builds/README.md)
-first — in particular, the WiFi calibration blob in the rootfs was dumped from a
-different physical unit.
+**方案 B** 刷入 `builds/` 里的 boot 镜像。只有在方案 A 不可行时才考虑，
+而且先读[`刷机警告`](../../builds/README.md)——特别是：rootfs 里的 WiFi 校准
+blob 是从**另一台实体设备**导出的。
 
-Either way, the question being answered is the same: **does raising
-`MAX_MEDIUM_TIME` restore the transmit rate on this radio?**
+两种方式回答的是同一个问题：**把 `MAX_MEDIUM_TIME` 调大，能否让这块网卡的
+发射速率恢复正常？**
 
-## What we need from you
+## 我们需要你提供什么
 
-The single most valuable result is a **before/after pair on the same device, same
-AP, same position**. If you can only do "after", say so — it is still useful,
-just less conclusive.
+最有价值的结果是**同一台设备、同一个 AP、同一个位置的前后对照**。
+如果你只能给"之后"的数据，请注明——它仍然有用，只是说服力弱一些。
 
-Please report:
+请回报：
 
-1. Board name (`ufi001b`, `sp970`, ...) and the `wifi_chip=` line from the test.
-2. The complete output block from `tools/dist/wifi-tx-test.sh` for each state.
-3. For Option A, the numbers **before** the module swap and **after**.
-4. Your default `MAX_MEDIUM_TIME` value if the driver sources are available to
-   you (see below), otherwise just the driver version.
+1. 板型（`ufi001b`、`sp970`……）以及测试输出里的 `wifi_chip=` 那一行。
+2. 每种状态下 `tools/dist/wifi-tx-test.sh` 的完整输出块。
+3. 方案 A 需要**换模块前**与**换模块后**的两组数字。
+4. 如果你拿得到驱动源码，请给出你默认的 `MAX_MEDIUM_TIME` 值（见下）；
+   否则给出驱动版本即可。
 
-Paste it into an issue. The output is already key=value lines so it needs no
-reformatting.
+贴到 issue 里即可。输出本身就是 key=value 行，不需要再排版。
 
-## Quick check: which value does your driver use?
+## 快速自查：你的驱动用的是哪个值？
 
-If you have the kernel sources, or the built module, this tells you whether your
-tree is already fixed:
+如果你有内核源码或编出来的模块，可以这样判断你的树是否已修复：
 
 ```sh
 grep -n MAX_MEDIUM_TIME drivers/net/wireless/ath/wcn36xx/smd.c
 ```
 
-The two tables are the WCN3620/WCN3660B one and the WCN3680 one:
+里面有两张表：WCN3620/WCN3660B 一张，WCN3680 一张。
 
-| What you see | Meaning |
+| 你看到的 | 含义 |
 |---|---|
-| `MAX_MEDIUM_TIME, 6000` in the first table | unfixed — this is the bug |
-| `MAX_MEDIUM_TIME, 20000` in the first table | fix already applied |
-| `MAX_MEDIUM_TIME, 4096` in the second table | WCN3680 table, unrelated |
+| 第一张表里 `MAX_MEDIUM_TIME, 6000` | 未修复——这就是那个 bug |
+| 第一张表里 `MAX_MEDIUM_TIME, 20000` | 修复已应用 |
+| 第二张表里 `MAX_MEDIUM_TIME, 4096` | WCN3680 的表，与本问题无关 |
 
-## Option A — swap the module, no flashing
+## 方案 A —— 换模块，不刷机
 
-You need: an existing working system on the stick, its matching kernel sources
-(or just the ability to build one module), and a second machine with `iperf3`
-for the measurement.
+你需要：棒子上一个能正常工作的系统、与之匹配的内核源码（或能单独编出一个
+模块的环境），以及另一台装了 `iperf3` 的机器做测量对端。
 
-### 1. Measure the "before" state
+### 1. 先测"之前"的状态
 
-On the peer machine:
+对端机器上：
 
 ```sh
 iperf3 -s
 ```
 
-On the stick, copy `tools/dist/wifi-tx-test.sh` over and run it:
+棒子上，把 `tools/dist/wifi-tx-test.sh` 拷过去运行：
 
 ```sh
-./wifi-tx-test.sh <peer-ip> 10
+./wifi-tx-test.sh <对端IP> 10
 ```
 
-Keep that output.
+保留这份输出。
 
-### 2. Build and install the fixed module
+### 2. 编译并安装修复后的模块
 
-Apply the fix to your kernel tree and rebuild just the driver. Two things to
-know, both learned the hard way:
+把修复打到你的内核树上，重新编译驱动。两件事必须注意，都是踩过的坑：
 
-- Build with `make modules` on the whole tree. A directory target such as
-  `make drivers/net/wireless/ath/wcn36xx/` only runs `checksyscalls` and will
-  not relink the module.
-- Do not use `make M=<dir>` when building with `O=`; it writes objects into the
-  *source* tree.
+- 用整棵树的 `make modules`。目录目标（例如
+  `make drivers/net/wireless/ath/wcn36xx/`）只跑 `checksyscalls`，**不会重新链接**模块。
+- 用 `O=` 构建时不要加 `make M=<dir>`；它会把对象文件写进**源码树**。
 
 ```sh
-cd linux-<your-version>
+cd linux-<你的版本>
 git am /source/patches/0001-*.patch /source/patches/0002-*.patch
-make <your existing defconfig target>       # keep your current config
+make <你现有的 defconfig 目标>       # 保持当前配置
 make modules
 ```
 
-Or, if you only want to try the value without committing to the patch, apply
-`0003` instead and set it at load time — it adds a `cfg_override` parameter:
+或者，如果你只是想先试这个值、还不想正式打补丁，可以只打 `0003`，
+在加载时传参——它提供了 `cfg_override` 参数：
 
 ```sh
-# after applying 0003 only
+# 只打了 0003 的情况下
 modprobe wcn36xx cfg_override="9=20000"
 ```
 
-Note that `cfg_override` only takes effect at module load: the firmware latches
-its configuration when the MAC starts, so a `modprobe` cycle (or a link
-down/up) is required after changing it. The same is true of the patched default.
+注意 `cfg_override` 只在模块加载时生效：固件在 MAC 启动时锁存配置，
+所以改值后需要重新 `modprobe`（或让链路 down/up 一次）。
+打了补丁的默认值同理。
 
-### 3. Install it
+### 3. 安装
 
-The module is at `drivers/net/wireless/ath/wcn36xx/wcn36xx.ko` in the build tree.
-Replace the installed copy and rebuild the module index:
+模块在构建树的 `drivers/net/wireless/ath/wcn36xx/wcn36xx.ko`。
+替换系统里那份并重建模块索引：
 
 ```sh
 cp wcn36xx.ko /usr/lib/modules/$(uname -r)/kernel/drivers/net/wireless/ath/wcn36xx/
@@ -111,78 +102,73 @@ depmod -a
 reboot
 ```
 
-Keep the module you replaced — reverting is copying it back and rebooting.
+保留被替换的原模块——回滚就是把它拷回去再重启。
 
-The module only loads if its `vermagic` matches your running kernel exactly.
-Check both with `modinfo -F vermagic wcn36xx` before and after.
+模块只有在 `vermagic` 与运行中的内核完全一致时才会加载。
+替换前后都用 `modinfo -F vermagic wcn36xx` 核对。
 
-### 4. Measure the "after" state
+### 4. 测"之后"的状态
 
-Same command as step 1. Upload should move from roughly 5-8 Mbit/s to roughly
-40-50 Mbit/s, and `rate_during_upload` from `MCS 0` to `MCS 4` or better.
-Download should not change.
+与第 1 步相同的命令。上行应从约 5–8 Mbit/s 升到约 40–50 Mbit/s，
+`rate_during_upload` 应从 `MCS 0` 变为 `MCS 4` 或更高。下行应基本不变。
 
-If it does not improve, that is a valid and interesting result — please report it
-with the test output. It would mean the WCN3660B behaves differently from the
-WCN3620 this fix was found on, which is exactly the case we are trying to detect.
+如果没有改善，这也是一个有效且有意思的结果——请连测试输出一起回报。
+那意味着 WCN3660B 的行为与我们发现此修复的 WCN3620 不同，
+而这正是我们想确认的情况。
 
-### Reverting
+### 回滚
 
 ```sh
-cp <your backup>/wcn36xx.ko /usr/lib/modules/$(uname -r)/kernel/drivers/net/wireless/ath/wcn36xx/
+cp <你的备份>/wcn36xx.ko /usr/lib/modules/$(uname -r)/kernel/drivers/net/wireless/ath/wcn36xx/
 depmod -a
 reboot
 ```
 
-## Option B — flash a boot image
+## 方案 B —— 刷 boot 镜像
 
-Only if Option A is impossible. Flashing writes to the boot chain, and part of
-what is on that eMMC is per-device data that no image can recreate, so:
+只在方案 A 不可行时使用。刷机会写引导链，而 eMMC 上有一部分数据是
+**每台设备独有、任何镜像都无法重建**的，所以：
 
-### 0. Take a full backup first — this is required, not advisory
+### 0. 先做整片备份——这是硬性要求，不是建议
 
-Read [backup-and-restore.md](backup-and-restore.md) and follow it. In short: use
-Miko to read the whole eMMC to a single image (~3.9 GB) before writing anything.
-The `modemst1` / `modemst2` / `fsg` / `fsc` partitions hold this unit's modem
-calibration; overwrite them and 4G is gone permanently, with no recovery from any
-image we could supply. **Do not skip this, and do not skip verifying the backup
-file's size before flashing.**
+读 [backup-and-restore.md](backup-and-restore.md) 并照做。简单说：在写任何东西
+之前，用 Miko 把整个 eMMC 读成一个镜像（约 3.9 GB）。
+`modemst1` / `modemst2` / `fsg` / `fsc` 这几个分区存的是**这台设备**的 modem
+校准数据；覆盖掉，4G 就永久失效，任何我们能提供的镜像都救不回来。
+**不要跳过这一步，也不要跳过刷前对备份文件大小的核对。**
 
-Then, before flashing:
+刷之前还要：
 
-1. Check the `build.json` next to the image in `builds/boot/<variant>/`.
-   The `status` field states exactly what has and has not been verified, and
-   the `cmdline` is a PARTUUID for one rootfs. Do not assume more than it says.
-2. Export your own WiFi calibration as well:
-   `tools/dist/dump-nv.sh` saves `WCNSS_qcom_wlan_nv.bin` from your unit. The one in
-   the shipped rootfs came from a different device and may give you no WiFi.
-   (This is separate from the eMMC backup and is a much smaller file, but it is
-   the WiFi equivalent of the same problem.)
-3. Note that the WiFi fix is **not** in any boot image — it is a kernel module,
-   so a boot flash alone will not change your upload speed. See
-   [../../builds/README.md](../../builds/README.md).
+1. 看 `builds/boot/<variant>/` 里镜像旁边的 `build.json`。
+   `status` 字段写明了这份产物到底验证到哪一步，`cmdline` 里是某个 rootfs
+   的 PARTUUID。**不要超出它所说的范围去假设。**
+2. 同时导出你自己的 WiFi 校准：
+   `tools/dist/dump-nv.sh` 会保存你这台的 `WCNSS_qcom_wlan_nv.bin`。
+   随镜像的 rootfs 里那份来自别的设备，可能让你根本没有 WiFi。
+   （这与 eMMC 备份是两件事，文件小得多，但属于同一类"每台不同"的问题。）
+3. 注意 WiFi 修复**不在**任何 boot 镜像里——它是内核模块，
+   只刷 boot 不会改变你的上行速率。见[分发产物说明](../../builds/README.md)。
 
-## Interpreting the numbers
+## 怎么看这些数字
 
-Some context for judging a result:
+判断结果时的参考：
 
-| Observation | Reading |
+| 观察到的现象 | 解读 |
 |---|---|
-| upload ~5-8 Mbit/s, tx `MCS 0` | unfixed behaviour |
-| upload ~40-50 Mbit/s, tx `MCS 4`-`MCS 5` | fix working |
-| upload fine but download broken | regression, report immediately |
-| both directions slow | unrelated to this bug (AP, interference, distance) |
-| `upload_retrans` high (hundreds) | link problem, treat the rate as unreliable |
+| 上行 ~5–8 Mbit/s，tx `MCS 0` | 未修复的表现 |
+| 上行 ~40–50 Mbit/s，tx `MCS 4`–`MCS 5` | 修复生效 |
+| 上行正常但下行异常 | 回归，请立即回报 |
+| 双向都慢 | 与本 bug 无关（AP、干扰、距离） |
+| `upload_retrans` 很高（数百） | 链路问题，这个速率不可信 |
 
-Signal strength matters: at -25 to -40 dBm expect the numbers above. Beyond
-about -65 dBm the radio will not hold MCS4 regardless of this fix, so note your
-`signal_dbm`.
+信号强度很重要：-25 到 -40 dBm 时可以期待上面那些数字。
+低于约 -65 dBm 时，无论是否打这个补丁都稳不住 MCS4，
+所以请记下你的 `signal_dbm`。
 
-## A note on what "fixed" means here
+## 这里说的"修复"到底是什么意思
 
-The change raises a firmware configuration value. We measured that this value
-makes the rate adaptation hold a high MCS on a WCN3620, and that the response is
-not monotonic — 8000 and 16000 fall back to MCS0 while 10000, 12000 and 20000
-work. We do not have the firmware source, so the exact mechanism is not known;
-what is known is the measured behaviour and its reproducibility. Results from
-other radios are what would turn that into a general fix.
+这个改动调大的是一个固件配置值。我们实测到：在 WCN3620 上，这个值能让
+速率自适应稳定在高 MCS，而且**响应不是单调的**——8000 和 16000 会掉回 MCS0，
+10000、12000、20000 则正常。我们没有固件源码，具体机制未知；
+已知的是可复现的实测行为。来自其它网卡的结果，才能把它从"这台机器上有效"
+变成"通用修复"。

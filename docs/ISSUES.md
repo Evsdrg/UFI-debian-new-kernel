@@ -160,7 +160,7 @@ country CN: DFS-FCC，ch12/13 变为可用（world 域下是 "no IR"），ch14 �
 
 ## 9. USB 共享：NetworkManager "激活成功"不等于 NAT 成功
 
-完整记录见 `docs/validation/USB-FIX-7.2.9.md`（含修复范围、实机回归与交付断言）。
+完整记录见 `docs/validation/2026-10-10-usb-fix.md`（含修复范围、实机回归与交付断言）。
 这里只留最反直觉、以后最难重新推导出来的几点。
 
 **NM 的防火墙执行是 fire-and-forget。** 在 NetworkManager 1.52.1 源码里：
@@ -297,7 +297,7 @@ pageblock 借用了 CMA 区域**，CMA 空闲页因此不可见。
 2. `build-rootfs.sh` 在“网络”一节开头加 `_ws_guard`：凭据值含前导/尾随空白
    就**直接拒绝构建**（错误信息指向裸反斜杠这个常见原因）。两档共用。
 3. `.local-creds.example` 补上这条写法警告。
-4. 重编 max 档并整机刷入验证（详见 `VALIDATION-2026-10-16.md`）。
+4. 重编 max 档并整机刷入验证（详见 `2026-10-16-validation.md`）。
 
 随后**从结构上移除这个问题类别**（同日）：镜像改为**完全不预置 Wi-Fi**。
 理由是这类缺陷的本质不是“值写错了”，而是**凭据会被静默写进镜像**：
@@ -454,9 +454,13 @@ comm -23 <(grep -E '^CONFIG_[A-Z0-9_]+=y' baseline/.config | sort) \
 
 ## C. 尚未实机验收的范围
 
-验收报告里逐项写了范围界，这里汇总成一句：**只有 UFI103s 的
-`venus-4g-gpu` 变体在 7.2.9 上跑过真机**（且是 RAM 启动、设备原 rootfs）。
-其余四个功能变体、七张新 rootfs 的整机矩阵、四块 WCN3660B 板、SIM 业务、
-Windows/macOS RNDIS、长稳与掉电，**均未验收**。
+验收报告里逐项写了范围界，这里按当前事实汇总：
+
+- **已在真机验证**：UFI103s 的 `venus-4g-gpu` 变体在 7.2.9 上**整机刷入**
+  （boot + max rootfs，2026-10-16，含无 WiFi 开箱即用）；
+  `minimal` 变体 **RAM 启动**验证（2026-10-17，WiFi/USB 共享/zram/LED/Reset 键）。
+- **仍未验收**：其余四个功能变体的硬件启动、除 max 外六张 rootfs 的整机矩阵、
+  四块 WCN3660B 板、SIM 业务、Windows/macOS RNDIS、长稳与掉电。
+  `minimal` 尚未从闪存做首启验收。
 
 ---

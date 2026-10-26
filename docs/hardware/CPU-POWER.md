@@ -85,7 +85,8 @@ mux+分频器，输出 = parent×2/(N+1)。**DTS 的 OPP 只能选表里已有�
 - 所以**不要宣称默认频率可无限持续满载**；持续负载要先定温度/帧率合同，
   或改善散热。
 
-细节见 `docs/validation/7.2.9.md` 的散热一节。
+细节见 [`../validation/2026-10-16-validation.md`](../validation/2026-10-16-validation.md) 的散热章节与
+[`2026-10-10-usb-fix.md`](../validation/2026-10-10-usb-fix.md) 附录。
 
 ## 五、GPU 频率不可控
 

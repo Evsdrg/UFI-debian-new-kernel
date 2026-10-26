@@ -110,7 +110,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
   `nat.nft` 限定 USB 来源。
 - 全局 `dnsmasq.service` 被 mask，避免与共享口实例抢端口。
 
-详见 `tools/net-native/README.md` 与 `docs/validation/USB-FIX-7.2.9.md`。
+详见 `tools/net-native/README.md` 与 `docs/validation/2026-10-10-usb-fix.md`。
 
 ---
 
@@ -120,7 +120,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 |---|---|
 | `kver.sh` / `kver.py` / `source/kernel-version.env` | **版本单一事实来源**；其余脚本从它派生路径与 release |
 | `lib-creds.sh` | 凭据统一入口（环境变量 > `.local-creds`），**仓库里无任何默认口令** |
-| `build-board-set.sh` | 板型级构建（5 个功能组合，表驱动） |
+| `build-board-set.sh` | 板型级构建（5 个功能组合 + minimal，表驱动） |
 | `build-matrix.sh` | 7 个 rootfs 全矩阵 |
 | `build-kernel-variant.sh` / `package-boot-variant.py` | 内核变体与 boot 打包（Android legacy header v0、page 2048、appended DTB） |
 | `usb-gadget.sh` / `net-native/*` | USB 网络共享（见上） |

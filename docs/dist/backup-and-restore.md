@@ -1,54 +1,48 @@
-# Backup and restore (mandatory before flashing)
+# 备份与恢复（刷机前必做）
 
-> **中文摘要 / Chinese summary**
-> 在刷任何分区之前,**必须**先用 Miko 做一次整片 eMMC 全量备份。备份会得到一个完整的
-> `img`(本机型约 **3.9 GB**),把它解包还能得到各分区的独立镜像。之所以不可跳过:
-> `modemst1` / `modemst2` / `fsg` / `fsc` 这四个分区存的是**这台设备独有的 modem
-> 校准数据**,一旦被覆盖就再也无法恢复——任何我们提供的镜像都救不回来,4G 会永久失效。
-> 全量镜像里包含 GPT,所以它是完整的还原点。
+刷任何分区之前，**必须**先用 Miko 做一次整片 eMMC 全量备份。备份会得到一个
+完整的 `img`（本机型约 **3.9 GB**），把它解包还能得到各分区的独立镜像。
+之所以不可跳过：`modemst1` / `modemst2` / `fsg` / `fsc` 这四个分区存的是
+**这台设备独有的 modem 校准数据**，一旦被覆盖就再也无法恢复——任何我们提供
+的镜像都救不回来，4G 会永久失效。全量镜像里包含 GPT，所以它是完整的还原点。
 
-Flashing writes to the boot chain. The reason a backup is required rather than
-merely recommended is in the "Why this is not optional" section below — briefly,
-part of what is on that eMMC cannot be recreated from any image we could ever
-give you.
+刷机会写引导链。之所以说备份是"必须"而不是"建议"，原因就在下面这节——
+简单说：eMMC 上有一部分内容，是我们（或任何人）都无法用镜像重新给你的。
 
-## Why this is not optional
+## 为什么不可跳过
 
-These sticks carry per-device data that is not part of any downloadable firmware:
+这些棒子带有**每台设备独有**的数据，不属于任何可下载的固件：
 
-| Partition | Size | What it holds |
+| 分区 | 大小 | 内容 |
 |---|---|---|
-| `modemst1` | 2 MiB | per-device modem NV / calibration |
-| `modemst2` | 2 MiB | second copy of the above |
-| `fsg` | 2 MiB | per-device modem configuration |
-| `fsc` | 1 KiB | modem file-system cache counters |
-| `devinfo` | 1 MiB | bootloader state |
+| `modemst1` | 2 MiB | 每台设备的 modem NV / 校准 |
+| `modemst2` | 2 MiB | 上述内容的第二份拷贝 |
+| `fsg` | 2 MiB | 每台设备的 modem 配置 |
+| `fsc` | 1 KiB | modem 文件系统缓存计数 |
+| `devinfo` | 1 MiB | bootloader 状态 |
 
-`modemst1`/`modemst2`/`fsg`/`fsc` are written at manufacture and are specific to
-that radio. Overwrite them and the 4G modem stops working; **no image in this
-repository (or anywhere else) can regenerate them**. The only way back is a
-backup taken before you touched anything.
+`modemst1`/`modemst2`/`fsg`/`fsc` 是出厂时写入的，与那块射频绑定。
+覆盖掉，4G modem 就停止工作；**本仓（或任何地方）没有任何镜像能重新生成它们**。
+唯一的退路是在你动手之前做的备份。
 
-The boot chain (`sbl1`, `rpm`, `tz`, `hyp`, `aboot`) and the partition table
-itself are also worth having, and a full-disk image captures all of it.
+引导链（`sbl1`、`rpm`、`tz`、`hyp`、`aboot`）和分区表本身同样值得保留，
+整盘镜像会把它们全部装下。
 
-## What Miko produces
+## Miko 会产出什么
 
-Miko's backup reads the **entire eMMC** and writes a single raw image. Extracting
-that image yields the individual partitions, so one backup gives you both:
+Miko 的备份读取**整个 eMMC**，写成一个原始镜像。解开这个镜像能得到各个分区，
+所以一次备份给你两样东西：
 
-- a complete restore point (the raw image includes the GPT, so restoring it
-  restores the partition table too), and
-- per-partition images if you only need to put one partition back.
+- 一个完整的还原点（原始镜像含 GPT，恢复它也就恢复了分区表）；
+- 以及各分区的独立镜像，当你只需要还原某一个分区时用。
 
-**Size to expect: 3,909,091,328 bytes (3.64 GiB)** for this eMMC. Have at least
-~4 GB free, on a disk that is not the one you are about to write to. Do not
-interrupt the read.
+**预期大小：3,909,091,328 字节（3.64 GiB）**（本机型 eMMC）。
+准备至少约 4 GB 空间，且不要放在你正要写入的那块盘上。读取过程不要中断。
 
-## Partition layout for reference
+## 分区布局（参考）
 
-Read from a device running the OpenStick-family layout, for sanity-checking your
-backup and for understanding what a restore covers:
+从一台运行 OpenStick 家族布局的设备上读出，用于核对你的备份、
+以及理解一次恢复覆盖了什么：
 
 ```
 partition        offset        length        size
@@ -70,88 +64,78 @@ rootfs           0x14200000    0xd4dfbe00  3406 MiB
 total disk       0xe9000000  7,634,944 sectors  3.64 GiB
 ```
 
-If your GPT does not match this, your device is on a different layout — take the
-backup anyway (that is the point), but tell us, because our images assume this
-one and `rootfs` is referenced by partition label in the kernel command line.
+如果你的 GPT 与此不符，说明你的设备是另一种布局——照样先备份（这正是备份的
+意义），但请告诉我们，因为我们的镜像假设的是上面这种布局。
 
-## Procedure
+## 操作步骤
 
-### 0. Get the device into EDL (9008)
+### 0. 让设备进入 EDL（9008）
 
-**Hold the reset button down, then plug the stick into the computer.** Keep
-holding it while the USB connection is made, then release.
+**按住 reset 键不放，然后把棒子插到电脑上。** 在 USB 接通过程中保持按住，
+之后再松开。
 
-If your board has no button but exposes a reset pad ("reset 触点" on the
-OpenStick boards), short that pad to ground instead of pressing — the two are
-the same thing electrically, since the reset button itself just connects that
-point to ground.
+如果你的板子没有按键但有 reset 触点（OpenStick 板上标注的"reset 触点"），
+用短接触点到地的方式代替——电气上两者等价，因为 reset 键本身就是把那个点
+接到地。
 
-The order matters: the boot ROM samples the reset line while it is starting up,
-so reset has to be held **before** power arrives on USB, not after. If the device
-boots normally into an OS instead, unplug it and try again.
+**顺序很重要**：boot ROM 在启动时采样 reset 线，所以 reset 必须在 USB 供电
+**之前**就按住，而不是之后。如果设备正常进了系统，拔掉重试。
 
-Confirm it worked before starting: the device must enumerate as USB `05c6:9008`.
+开始前先确认成功：设备必须枚举为 USB `05c6:9008`。
 
-- Windows: it appears in Device Manager as `Qualcomm HS-USB QDLoader 9008`
-- Linux: `lsusb | grep 9008`
+- Windows：设备管理器里出现 `Qualcomm HS-USB QDLoader 9008`
+- Linux：`lsusb | grep 9008`
 
-EDL is USB-only; no serial port is involved at this stage.
+EDL 只走 USB，这一阶段不涉及串口。
 
-### 1. Use Miko's backup/read function
+### 1. 用 Miko 的备份/读取功能
 
-Do not use the flashing functions yet. Miko's readback writes the whole eMMC to
-one image file; pick a location with ~4 GB free.
+先不要用刷写功能。Miko 的读回会把整个 eMMC 写成一个镜像文件；
+选一个还有约 4 GB 空间的位置。
 
-**Loader note.** Public Firehose loaders do **not** work on these sticks — the
-device enters Sahara but rejects them (`END OF IMAGE ... status: 1` was observed
-with the loader OpenStick's own package specifies). Miko ships a working
-MSM8916 loader and uses it automatically, so **use Miko for EDL on these
-devices** rather than a generic `edl`/`qdl` invocation. The working loader is
-`loader/MSM8916` inside the Miko package, SHA256
-`081b5fa07a28fd9702a54980a149fd4430e3686eb82e530181571c3f73bc0771`.
+**Loader 说明**：公开的 Firehose loader 在这些棒子上**不工作**——设备能进
+Sahara 但会拒绝它们（用 OpenStick 官方包指定的 loader 实测出现
+`END OF IMAGE ... status: 1`）。Miko 自带可用的 MSM8916 loader 并自动使用，
+所以**这类设备的 EDL 请用 Miko**，而不是通用的 `edl`/`qdl` 调用。
+可用的 loader 是 Miko 包里的 `loader/MSM8916`，SHA256
+`081b5fa07a28fd9702a54980a149fd4430e3686eb82e530181571c3f73bc0771`。
 
-### 2. Verify the backup before going further
+### 2. 继续之前先校验备份
 
-Check the file exists, is **not** a suspiciously round number or zero, and is
-close to 3.64 GiB:
+确认文件存在、大小**不是可疑的整数或 0**，并接近 3.64 GiB：
 
 ```sh
-ls -l backup.img                 # expect ~3,909,091,328 bytes
-sha256sum backup.img > backup.img.sha256   # keep this next to the image
+ls -l backup.img                 # 预期约 3,909,091,328 字节
+sha256sum backup.img > backup.img.sha256   # 与镜像放在一起保存
 ```
 
-A truncated readback is worse than none, because it looks like a backup. If the
-size is off, redo it.
+被截断的读比比没有备份更糟，因为它看起来像备份。大小不对就重做。
 
-If you are not going to flash right away, leave EDL first — use Miko's
-reboot/reset action, or simply unplug the stick and plug it back in without
-holding reset. EDL is entered by the boot ROM at power-on, so it does not persist
-on its own.
+如果你不打算马上刷机，先退出 EDL——用 Miko 的 reboot/reset 动作，
+或者直接拔掉重插（这次不要按 reset）。EDL 是 boot ROM 上电时进入的，
+不会自己一直保持。
 
-### 3. Then, and only then, flash
+### 3. 然后，且只有在此时，才刷机
 
-See [../../builds/README.md](../../builds/README.md) for what each image is, and note
-that the WiFi fix is delivered by a **kernel module in the rootfs**, not by a
-boot image. Option A in [TESTING.md](TESTING.md) needs no flashing at all and is
-the recommended route — consider it before touching partitions.
+各镜像是什么见[分发产物说明](../../builds/README.md)。注意 WiFi 修复是由
+**rootfs 里的内核模块**提供的，不在 boot 镜像里。
+[TESTING.md](TESTING.md) 里的方案 A 完全不需要刷机，是推荐路径——
+在动分区之前先考虑它。
 
-## Restoring
+## 恢复
 
-**Whole device:** write the raw image back in EDL mode, the same way it was read.
-This restores the partition table and every partition including the modem data.
+**整台设备**：在 EDL 下把原始镜像写回去，方式与读取时相同。
+这会恢复分区表和每一个分区，包括 modem 数据。
 
-**Single partition:** extract the partition from the backup image and write only
-that. Useful after a bad `boot` or `rootfs` flash when the rest is known good.
+**单个分区**：从备份镜像里解出那个分区，只写它。
+适用于 `boot` 或 `rootfs` 刷坏、而其余部分已知完好的情况。
 
-After restoring, the device returns to exactly the state it was in when the
-backup was taken — so if you had already flashed an OpenStick package before
-backing up, that is what you get back, not the stock Android state.
+恢复后，设备回到备份那一刻的状态——如果你是在刷过某个 OpenStick 包之后
+才备份的，那恢复出来的就是那个状态，而不是原厂 Android。
 
-## Keeping the backup safe
+## 妥善保存备份
 
-- Store it somewhere other than the device and other than the machine you flash
-  from.
-- Keep `backup.img.sha256` with it.
-- For a fleet of test devices, label each backup with the device's serial
-  (`androidboot.serialno`, visible in `/proc/cmdline`) so images cannot be
-  restored to the wrong unit.
+- 不要只存在设备上，也不要只存在你用来刷机的那台电脑上。
+- 把 `backup.img.sha256` 与它放在一起。
+- 有多台测试设备时，给每份备份标上设备序列号
+  （`androidboot.serialno`，见 `/proc/cmdline`），避免把镜像恢复错机器。

@@ -82,7 +82,7 @@ pinctrl/clk/interconnect、无关文件系统（nfs/cifs/fuse/overlay…）、�
 预留），已在 baseline 变体上存在；内核配置裁剪的收益是镜像体积 / rodata /
 模块数，**不是** MemTotal。minimal 的价值是在同样内存下把内核足迹压到最小。
 
-内存与体积实测详见 [`../validation/VALIDATION-2026-10-16.md`](../validation/VALIDATION-2026-10-16.md)。
+内存与体积实测详见 [`../validation/2026-10-16-validation.md`](../validation/2026-10-16-validation.md)。
 
 每板型独立内核 release 与模块树（vermagic 含 release，不可复用），
 boot 镜像 `boot-board-<板型>-7.2.9.img`。刷机配对：max↔venus-4g-gpu、
@@ -92,7 +92,7 @@ basic↔4g、slim/micro↔空或 minimal，boot 与 rootfs 必须成对。
 
 设备插 PC = USB 网卡 + NAT 网关，网关地址 **10.42.0.1/24**（NM shared 模式默认值，
 两套网络栈保持一致）。完整实现与实机回归见
-[`../validation/USB-FIX-7.2.9.md`](../validation/USB-FIX-7.2.9.md)。
+[`../validation/2026-10-10-usb-fix.md`](../validation/2026-10-10-usb-fix.md)。
 
 - **内核**（所有档共用）：`CONFIG_USB_CONFIGFS=y` + `CONFIG_USB_F_RNDIS=y` +
   nftables 族（`CONFIG_NFT_CT` / `CONFIG_NFT_REJECT` 等）。缺这些时 NM 会显示
@@ -150,6 +150,6 @@ build-rootfs.sh 自动装入镜像）：
 | 5 ✓ | F1 i3 预配置资产（i3-config/i3status.conf/scrot） | QEMU 到 i3 会话 + RDP 截图 |
 | 6 ✓ | 7 个 ufi103s rootfs 全量构建 + 冒烟 | 7/7 QEMU 到 login、0 非预期 FAILED |
 | 7 ✓ | 内核升到 7.2.9，全链重建（5 板型内核/boot + 7 rootfs） | build-board-set + build-matrix + smoke-all 全过 |
-| 8 ✓ | 7.2.9 RAM 预演与 USB 修复（GPU 变体两次 `fastboot boot`，NM/native 真实 NAT 通过） | 实机，见 `../validation/USB-FIX-7.2.9.md` |
-| 9 ✓ | 7.2.9 整机刷入（max + boot），无 Wi-Fi 开箱即用验收 | 实机，见 `../validation/VALIDATION-2026-10-16.md` |
+| 8 ✓ | 7.2.9 RAM 预演与 USB 修复（GPU 变体两次 `fastboot boot`，NM/native 真实 NAT 通过） | 实机，见 `../validation/2026-10-10-usb-fix.md` |
+| 9 ✓ | 7.2.9 整机刷入（max + boot），无 Wi-Fi 开箱即用验收 | 实机，见 `../validation/2026-10-16-validation.md` |
 | 10 | 其余变体 / 新 rootfs 的实机矩阵；SIM 业务；Windows/macOS 兼容性 | 实机 |
