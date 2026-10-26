@@ -29,7 +29,7 @@ i3 加一个 xterm 和 i3status 总共只占几十兆，而完整桌面环境光
 | `xterm` / `x11-utils` | 终端与调试工具 |
 | `fonts-wqy-microhei` | 中文（5MB；`fonts-noto-cjk` 要 91MB，内存和磁盘都不划算） |
 
-### 配件栈（2026-09-15 增补，F1 档）
+### 配件栈（max 档）
 
 i3 的"插件"全是外挂进程（经 IPC/i3bar 集成）。选择原则：**常驻内存 ≤ 35MB
 合计、对 RDP 会话有真实收益、Debian trixie 官方源可得**。
@@ -40,7 +40,7 @@ i3 的"插件"全是外挂进程（经 IPC/i3bar 集成）。选择原则：**�
 | `autotiling` | 按窗口尺寸自动切分屏方向（dwm 手感，i3 体验最大短板的补丁） | 常驻 ~15MB（python3-i3ipc） |
 | `dunst` | 通知守护进程（GUI 应用普遍需要） | 常驻 ~5MB |
 | `maim` + `slop` | 区域截图（选框），与 scrot（全屏）互补 | 常驻 0 |
-| `network-manager-gnome` | nm-applet 网络托盘图标（F1 NM 档） | 常驻 ~10MB + GTK 依赖 ~40MB 盘 |
+| `network-manager-gnome` | nm-applet 网络托盘图标（max NM 档） | 常驻 ~10MB + GTK 依赖 ~40MB 盘 |
 | `cbatticon` | 电量托盘图标（MF32 用；UFI 无电池自动不显示） | 常驻 ~2MB |
 
 **刻意不装**：`picom`（合成器——RDP 下纯耗带宽无收益）、`feh`/壁纸（同因，
@@ -144,7 +144,7 @@ options msm separate_gpu_kms=1
 ```
 
 `tools/build-board-set.sh venus-4g-gpu` 会校验这一点（KMS 若被启用就直接报错退出）。
-（旧的 `tools/build-gpu-variant.sh` 已废弃删除，校验逻辑已并入 board-set。）
+
 
 ### 另一个坑：不能只换模块，必须换内核
 

@@ -96,7 +96,6 @@ bash build-rootfs.sh
 体积大头来自 **mesa → libLLVM**：连一个只做 3D 渲染的 render 节点都要拖进
 一百多 MB 的 LLVM。若将来要做 GPU 分区镜像，这是首先要解决的依赖。
 
-（这些单项数字是 7.1.13 那轮对照测出来的，7.2.9 上结构不变、数值差在 MB 级。）
 
 内核侧本已精简：单棵模块树 26MB，最大子系统（`drivers/net`）仅 2.4MB，
 可压缩空间远小于固件与 mesa。
@@ -116,11 +115,9 @@ bash build-rootfs.sh
 ## 模块树必须与内核配对（不是精简缺陷，是使用前提）
 
 `MODULE_TREE` 的 release 必须与要刷的那个 boot 镜像的内核 release **一致**，
-否则开机 `modprobe` 找不到模块。实测踩到：给 tiny 传了 baseline 树
-（`7.1.13-ufi003-dirty`）而设备/测试内核是 venus+gpu 变体
-（`7.1.13-ufi003-venus-dirty`），结果 QEMU 里 `zram-setup.service` FAILED；
-换成配对的 gpu 树后 0 FAILED。**QEMU 冒烟的通过标准应包含"无 FAILED 单元"**，
-不要只看有没有到 login。
+否则开机 `modprobe` 找不到模块。曾出现过模块树与测试内核不配套、
+QEMU 中 `zram-setup.service` 失败的情况；换成配对模块树后恢复正常。
+**QEMU 冒烟的通过标准应包含"无 FAILED 单元"**，不要只看有没有到 login。
 
 7.2.9 起配对关系是：max ↔ `…-venus-4g-gpu-dirty`，basic ↔ `…-4g-dirty`，
 slim / micro ↔ `…-dirty`（基线）或 `…-minimal-dirty`（最简功能内核，内存最大化）。
@@ -182,10 +179,10 @@ QEMU 里没有高通硬件，所以下列失败是**正常的**，不要当成�
 
 ## 实机状态
 
-**2026-10-07（内核 7.2.9）**：7 个 rootfs 全量重建，`tools/smoke-all.sh`
-**7/7 QEMU 冒烟通过**（0 非预期 FAILED）。但**尚未刷入真机**：设备只能从运行中的
-系统进 fastboot，刷 rootfs 失败需物理复位，这一步应在操作者在场时进行。
-7.1.13 那批（2026-09-16）同样只做到冒烟，随旧内核一并清理。
+**当前验证状态**：七张 rootfs 均通过 QEMU 冒烟；max 档已随
+`venus-4g-gpu` 内核在 UFI103s 上整机刷入验收，minimal 内核已通过内存启动验证。
+其余档位与变体的整机组合尚未完整覆盖，详见
+[`../validation/README.md`](../validation/README.md)。
 
 刷机命令与回退方式见 `boards/ufi00x/ufi103s-ufi003/README.md`。
 **刷机时 boot.img 与 rootfs 必须按档位成对**（见上"模块树必须与内核配对"）。

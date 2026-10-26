@@ -1,7 +1,7 @@
 # 分发产物
 
 本目录存放**可直接刷入的 boot 镜像**与配套的 `wcn36xx.ko`，以及它们的元数据。
-只含 Linux **7.2.9**，没有任何 6.18.49 / 7.1.13 的产物。
+只含 Linux **7.2.9** 产物。
 
 ```
 builds/boot/<variant>/    一个 boot 镜像 + 同 vermagic 的 wcn36xx.ko + build.json
@@ -71,10 +71,10 @@ venus 的模块说成基线内核的模块。但它们的安装方式不同：
 
 镜像的 `root=` 有两种写法，看各自 `build.json` 的 `cmdline`：
 
-- **UFI103s 的六个镜像**：`root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。
-  那是作者机器 GPT 里 p14 的 GUID，不是可移植的 `PARTLABEL=rootfs`。换机器要改。
-- **MF601SL 的镜像**：`root=/dev/mmcblk0p14`。设备节点与 GPT 内容无关，同一型号
-  直接可启。
+- **本目录的 UFI103s 镜像**：`root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。
+  那是作者机器 GPT 里 p14 的 GUID，换机器要改。
+- **其它板型**：以各自 `build.json` 的 `cmdline` 为准；MF601SL 当前使用
+  `root=/dev/mmcblk0p14`，不依赖 GPT UUID。
 
 刷之前先读 `build.json` 里的 `cmdline`，那是该镜像的实际值。
 
@@ -82,7 +82,7 @@ venus 的模块说成基线内核的模块。但它们的安装方式不同：
 
 - 不含 rootfs。为某台机器构建的 rootfs 会带上那台机器的 WiFi 校准数据。
 - 不含固件与校准 blob。
-- 不含 6.18.49 / 7.1.13 产物。
+- 不含旧内核产物。
 - 不含四块 WCN3660B 板的 boot 镜像。
 
 `tools/dist/gen-manifest.sh` 会从目录里的文件重写每个 `build.json`（哈希、

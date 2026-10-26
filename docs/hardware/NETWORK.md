@@ -124,6 +124,5 @@ update-locale LANG=en_US.UTF-8  # 或 zh_TW.UTF-8 等
 | `/etc/default/locale` | 默认语言 |
 | `/etc/locale.gen` | 要生成的 locale 列表 |
 
-构建脚本**不预置 Wi-Fi**（历史上曾用 `ROOTFS_WIFI_SSID` / `ROOTFS_WIFI_PSK`，
-因静默写错会导致刷完失联而移除，见 `docs/ISSUES.md` 第 15 条）。
+构建脚本**不预置 Wi-Fi**，避免凭据写错后刷完失联（见 `docs/ISSUES.md` 第 15 条）。
 刷入后的首次进系统靠 USB RNDIS 共享，再用 `nmtui` / `nmcli` 配无线。

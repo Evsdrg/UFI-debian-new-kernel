@@ -49,10 +49,9 @@ vermagic 与 cmdline，`check-repo.sh` 会比对。`status` 字段说明该产�
   分发设备树源码——它们已在主仓 `boards/` 与 `source/dts/`。
 - **[OpenStick](https://github.com/OpenStick/OpenStick)** — MSM8916 棒子的逆向与
   mainline 移植工程。参考修订 `4be50db`（2022-05-27）。它的刷机包会重写分区表
-  与 bootloader，所以经过它的棒子有已知分区布局——这也是 rootfs 用 PARTUUID
-  而非绝对偏移的原因。
-- 产物内核：**Linux 7.2.9**。WiFi 修复是针对 mainline `wcn36xx` 的补丁；
-  6.18.49 不是本仓的分发基线。
+  与 bootloader，所以经过它的棒子有已知分区布局。实际启动参数仍以
+  各镜像 `build.json` 的 `cmdline` 为准，不能假定所有机器的 GPT 都相同。
+- 产物内核：**Linux 7.2.9**。WiFi 修复是针对 mainline `wcn36xx` 的补丁。
 
 ## 自己重编一个产物
 

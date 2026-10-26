@@ -1,8 +1,6 @@
 # artifacts/ — 产物唯一存放位置
 
-**本目录是构建产物的唯一位置。** 2026-10-11 之前产物分放在
-`shared/{rootfs,modules,firmware}` 与 `boards/<家族>/<机型>/boot/` 两处，
-现已全部收进这里。新增产物请放进对应子目录，不要再散落到别处。
+**本目录是构建产物的唯一位置。** 新增产物请放进对应子目录，不要散落到别处。
 
 脚本**不要自己拼 `artifacts/...` 字面路径** —— 一律用
 `tools/kver.sh`（shell）或 `tools/kver.py`（Python）派生的变量，
@@ -13,7 +11,7 @@
 ```
 artifacts/
 ├── boot/<机型>/          boot 镜像 + 打包中间态 + 产物元数据
-├── rootfs/               rootfs 镜像（板无关）
+├── rootfs/               rootfs 镜像（按目标内核 release 配套）
 ├── modules/              内核模块树（每板型一棵，release 名区分）
 ├── dtb/                  各机型的裸板 DTB
 └── firmware/             固件集（构建输入，不可再生）
@@ -31,12 +29,14 @@ artifacts/
 | `kernel-board-<板型>-<版本>-dtb` | ❌ | `Image.gz` + DTB 的拼接中间态，可从内核镜像与 DTS 重建 |
 | `empty-ramdisk` | ❌ | 空的 initramfs（legacy boot image 需要这个字段） |
 
-只有 ufi103s 有 7.2.9 镜像：五个功能组合 + `minimal`（最简功能内核）；其它机型的裸 DTB 在 `artifacts/dtb/`。
+UFI103s 有六个 7.2.9 boot 变体（五个功能组合 + `minimal`）；
+MF601SL 有独立板级镜像。其它四块 UFI 家族板目前只有裸 DTB。
 
 ### rootfs/
 
 `ufi103s-<版本>-<档>.ext4`，七张：`max`/`basic`/`slim`/`micro` ×
-nm|native（`max` 无 native 变体）。板无关——所有机型共用同一张。
+nm|native（`max` 无 native 变体）。用户态软件基本通用，但镜像内的模块树
+必须与目标内核 release 配对；MF601SL 使用自己的配套 rootfs。
 档位含义见 `docs/build/TRIMMING.md`。
 
 ### modules/

@@ -41,17 +41,18 @@ boot 镜像**。
 
 ## 关键共性
 
-1. **内核是共享的**。`Image.gz` 所有机型共用；机型差异只体现在追加的 DTB 上。
-   所以 `artifacts/boot/<机型>/` 里的 boot 镜像 = 同一内核 + 各自 DTB。
-2. **所有机型共用同一个 dtsi**：`source/dts/common/msm8916-handsome-openstick-common.dtsi`。
-   每个机型的 `.dts` 都 `#include` 它，只在其上覆盖引脚差异。
-3. **rootfs 是板无关的**，统一放在 `artifacts/rootfs/`。刷机包 = 本板 boot 镜像 +
-   共享 rootfs，见顶层 `README.md` 与 `artifacts/README.md`。
-4. **LED 脚本也是板无关的**。五机型的三颗状态灯在设备树里语义一致
-   （`WLAN`/蓝、`WAN`/绿、`HEARTBEAT`/红），sysfs 名字都是 `blue:wlan`、
-   `green:wan`、`red:heartbeat`，只有 GPIO 编号不同——而那由各自的 DTB 承担。
-   所以脚本按名字发现灯即可，不需要按型号分支。详见 `../docs/hardware/LED.md`。
-5. **网络配置也板无关**：统一由 NetworkManager 管理，见 `../docs/hardware/NETWORK.md`。
+1. **同一板型的各变体共享内核构建基础，机型差异主要由追加的 DTB 表达。**
+   不同板型可以有独立配置和模块树；不要跨板型复用 boot 镜像或模块。
+2. **UFI 家族共用 `source/dts/common/msm8916-handsome-openstick-common.dtsi`**，
+   各机型在其上覆盖引脚差异。MF601SL 使用独立的板级 DTS，不套用这个 dtsi。
+3. **rootfs 的用户态软件基本通用，但模块树必须与内核 release 配对。**
+   UFI 的 rootfs 不能直接替代 MF601SL 的配套 rootfs；vermagic 不同会导致
+   模块无法加载。详见 `artifacts/README.md` 与各板级 README。
+4. **UFI 五机型的 LED 脚本可共用**：它们的三颗灯语义一致
+   （`WLAN`/蓝、`WAN`/绿、`HEARTBEAT`/红），GPIO 差异由 DTB 承担。
+   MF601SL 是每功能红绿双灯，使用独立的灯名映射。详见 `../docs/hardware/LED.md`。
+5. **网络配置框架基本通用**，UFI 默认由 NetworkManager 管理，
+   见 `../docs/hardware/NETWORK.md`；具体板型仍需验证 modem、SIM 与 USB 角色。
 
 ## 引脚布局的来源
 
@@ -62,7 +63,8 @@ boot 镜像**。
 ## 新增机型时
 
 1. 先在 `boards/<家族>/<机型>/dts/` 放 DTS，在 `source/dts/common/` 里复用 dtsi。
-2. 用 `tools/package-boards.py` 生成 boot 镜像到 `artifacts/boot/<机型>/`
-   （它会读 `build.json` 里的 cmdline）。
+2. 按板型在 `tools/build-board-set.sh` 的板型表中登记内核片段、DTS、板目录和
+   `root=` 写法，再生成 boot 镜像与配套模块树。
 3. 在 `tools/verify-layout.sh` 的机型列表里登记，否则布局校验不会覆盖到它。
-4. 不要假设 DTB 一致就直接复用别的机型的 boot 镜像——先跑 diff 确认。
+4. 不要假设 DTB 接近就直接复用别的机型的 boot 镜像——先核对配置、compatible
+   和关键引脚，再做实机验证。

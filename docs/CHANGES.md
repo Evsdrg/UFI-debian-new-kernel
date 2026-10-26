@@ -45,7 +45,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 
 ### 1.3 内核配置
 
-`source/configs/`：`common-7.2.9-os.config`（主配置，自 7.1.13 迁移）+ 变体片段
+`source/configs/`：`common-7.2.9-os.config`（主配置）+ 变体片段
 （`ufi103s-venus.config`、`ufi103s-gpu.config`、`kernel-size.config`）。
 
 相对 Debian 默认配置的实质改动：

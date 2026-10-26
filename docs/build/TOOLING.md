@@ -13,15 +13,12 @@
 | `tools/kver.sh` / `tools/kver.py` | 版本派生的 shell / Python 实现（其余脚本 source/import 它们） |
 | `build-rootfs.sh` | 用 mmdebstrap 构建 Debian 13 arm64 rootfs（unshare 模式 + qemu-user） |
 | `tools/build-kernel-variant.sh` | 从权威源码树构建内核变体（支持多片段叠加，如 venus+gpu） |
-| `tools/build-board-set.sh` | 板型级构建：5 个功能组合 + minimal 的内核 + 模块树 + boot 镜像（表驱动，缺省只建未完成的） |
+| `tools/build-board-set.sh` | 板型级构建：UFI103s 的 6 个变体及 MF601SL（表驱动，缺省只建未完成的） |
 | `tools/package-boards.py` | 按 `boards/<家族>/<机型>/` 打包各板 boot 镜像 |
 | `tools/package-boot-variant.py` | 打包 ufi103s 的 boot 变体 |
 
-版本相关的一切都从 `source/kernel-version.env` 派生，脚本里不再硬编码版本号；
-换版本用环境变量覆盖即可（如 `KERNEL_VERSION=... bash tools/build-board-set.sh`）。
-构建目录与产物名都带版本号，所以不同版本的内核镜像不会互相覆盖。
-注意 6.18.49 / 7.1.13 的内核树已于 2026-10-07 清理，现在只剩 7.2.9 一棵，
-**旧版本不再能重建**。
+版本相关的一切都从 `source/kernel-version.env` 派生，脚本里不再硬编码版本号。
+构建目录与产物名都带版本号，避免不同版本互相覆盖。
 
 ### 刷机与设备访问
 
@@ -83,29 +80,14 @@
 该板 boot 镜像 + 共享 rootfs + 说明文档 + 校验清单打成一个可下载的包。
 目前是手工拼的，没有脚本。这是面向「给别人刷机」最缺的一块。
 
-**3. 刷机前的镜像校验**
-`flash.sh fastboot-flash` 现在会比对同目录 `build.json` 里记录的 sha256，不一致
-就拒绝刷入——这正好防住一个真实隐患：核对 `build.json` 才发现 UFI103s 目录里
-cmdline 有 PARTUUID/PARTLABEL 两种混用（见
-`boards/ufi00x/ufi103s-ufi003/README.md`）。刷错变体以前不会报错，现在会。
-注意 `fastboot-rootfs` 那个旧接口仍不校验。
-
-**4. 串口自动探测**
+**3. 串口自动探测**
 `tools/ufi-console.sh` 默认写死 `/dev/ttyACM0`（可用环境变量覆盖）。本项目里
 该设备重新插拔后串口名变过（`ttyUSB0` ↔ `ttyACM0`），每次都要人工确认。
 一个按 USB VID:PID 自动定位的辅助会省事，但不是必须。
 
-**5. 板间 DTS 差异快速比对**
+**4. 板间 DTS 差异快速比对**
 `boards/README.md` 里那张家族差异表是临时手写 diff 得出的。要加新机型时
 （判断能否复用 DTB），值得有个一行命令的比对脚本。
-
-**6. ~~LED 镜像新旧不一致~~（已解决）**
-`artifacts/rootfs/` 里原先是三张不同时期构建的镜像，内容不一致（旧的没装 LED、
-没 NetworkManager、没中文）。现由 `tools/build-matrix.sh` 一次产出全部 7 张
-同源镜像（`ufi103s-7.2.9-{max,basic,slim,micro}{,-native}.ext4`），都带通用
-LED 脚本 + fstab 的 `x-systemd.growfs`（网络栈按档位是 NM 或 networkd）。
-旧的 `debian13-arm64-ufi103s-*` 命名与它们的归档副本已随 2026-10-07 的
-旧内核清理移除。
 
 ## 不建议做的
 

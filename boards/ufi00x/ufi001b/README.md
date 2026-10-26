@@ -5,10 +5,9 @@ MSM8916 机型，WiFi 为 **WCN3660b**（与 UFI103s 的 WCN3620 不同），
 
 - DTS：`dts/msm8916-handsome-openstick-ufi001b.dts`
 - DTB：`boot/board.dtb`
-- 内核：同家族共用（当前 7.2.9，5 个板型组合见 `CONTRIBUTING.md` §4.1）
+- 内核：同家族共用（当前 7.2.9，6 个变体见 `CONTRIBUTING.md` §4.1）
 - 设备树标识：`model` = `Handsome OpenStick UFI001b`，`compatible` = `handsome,ufi001b`, `qcom,msm8916`
-- boot 镜像：**暂无 7.2.y 产物** —— 6.18.49 时代那张（离线校验级）已随
-  2026-10-07 的旧内核清理移除；要重出得跑对应板型的构建
+- boot 镜像：**暂无 7.2.y 产物**；需要为该板型完成构建与实机验证
 
 ## 验证状态
 

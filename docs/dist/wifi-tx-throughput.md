@@ -105,7 +105,7 @@ tx retries: 0    tx failed: 0    temperature 52 C
 
 `source/patches/0002-wifi-wcn36xx-raise-max-medium-time-for-ht-tx.patch`
 只改这一个值，并在注释里记录了测量依据。它可以单独套用到 pristine 的
-`linux-7.2.9` 树。上面的数字是在 6.18.49 上测的，补丁文本未变。
+`linux-7.2.9` 树。补丁文本不随旧内核产物分发；当前版本应重新构建并复测。
 它通过 `checkpatch.pl --strict`，无 error 无 warning。
 
 另有两个配套补丁：

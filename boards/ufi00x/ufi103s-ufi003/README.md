@@ -8,31 +8,22 @@
 - `model` = `Handsome OpenStick UFI103s (UFI003)`（UFI103s 与 UFI003 是同一块板的两种叫法）
 - `compatible` = `handsome,ufi103s`, `qcom,msm8916`
 
-> 历史上五块板共用 `compatible = "handsome,openstick"`，只能靠 `model` 区分。
-> 2026-09-14 起每型用自己的 compatible（上游同族如 `thwc,ufi001c` 也是这个约定），
-> 这样 udev/脚本可以直接按 compatible 认板而不必解析 model 字符串。
 
 ## 内核版本
 
 当前 **7.2.9**，release 令牌 `KERNEL_LOCALVERSION=-ufix0x`（均来自
 `source/kernel-version.env`）。
 
-> **刷入状态（2026-10-17）**：boot 分区（p12）与 rootfs（p14）**均已刷为 7.2.9**——
-> boot = `boot-board-venus-4g-gpu-7.2.9.img`（p12 前 8003584 字节与镜像 sha256 一致），
-> rootfs = max 档（不含任何 WiFi 凭据）。设备从闪存启动
-> `7.2.9-ufix0x-venus-4g-gpu-dirty`，开机自动开 USB RNDIS。
-> `minimal` 变体于同日 `fastboot boot` 内存验证（未刷）。
-> 历史：2026-10-10 之前 p12 曾是 7.1.13，仅做过 RAM 预演。回退副本在
-> `out/flash-20261016/`（`p12-before-7.2.9.img`、`p14-before-7.2.9.img.gz`）。
-> 持续负载散热与 MPEG-4 仍有
-> 限制。见 [`2026-10-10-usb-fix.md`](../../../docs/validation/2026-10-10-usb-fix.md)。
-> 最新整机刷入验收见 [`2026-10-16-validation.md`](../../../docs/validation/2026-10-16-validation.md)；早期首轮验收记录（本地保留，不随仓库发布）。
-> 6.18.49 与 7.1.13 的主机内核树/模块产物已清理，回退副本保留；设备旧模块未删。
+> **刷入状态（2026-10-17）**：p12 与 p14 均已刷为 7.2.9：
+> boot 为 `boot-board-venus-4g-gpu-7.2.9.img`，rootfs 为 max 档，
+> 从闪存启动后自动开放 USB RNDIS。`minimal` 变体也已通过内存启动验证。
+> 验收范围见 [`2026-10-16-validation.md`](../../../docs/validation/2026-10-16-validation.md)。
+> 刷前分区备份保存在本机 `out/flash-20261016/`，不随仓库发布。
 
 ## 产物
 
-`dts/` — 5 个功能组合；`boot/` — 对应 boot 镜像 + 每个镜像的 `build.json` +
-`board.dtb`。板型命名规则见 `CONTRIBUTING.md` §4.1：release =
+`dts/` 放设备树源码，boot 镜像与元数据由构建脚本写入 `artifacts/boot/`。
+板型命名规则见 `CONTRIBUTING.md` §4.1：release =
 `<版本>-ufix0x<板型后缀>-dirty`，后缀只写"有的功能"。
 
 | boot 镜像 | DTS | 功能 | 配对模块树 |
@@ -42,9 +33,8 @@
 | `boot-board-venus-7.2.9.img` | `…-ufi103s-venus.dts` | +Venus | `7.2.9-ufix0x-venus-dirty` |
 | `boot-board-venus-4g-7.2.9.img` | `…-ufi103s-venus-4g.dts` | +Venus +4G | `7.2.9-ufix0x-venus-4g-dirty` |
 | `boot-board-venus-4g-gpu-7.2.9.img` | `…-ufi103s-venus-4g-gpu.dts` | +Venus +4G +GPU | `7.2.9-ufix0x-venus-4g-gpu-dirty` |
+| `boot-board-minimal-7.2.9.img` | 同 baseline DTS | WiFi + USB 共享 + zram，裁内核配置 | `7.2.9-ufix0x-minimal-dirty` |
 
-CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不再占板型名字；
-早期那批频率变体（`oc12`、`venus-oc-100`、`venus-oc-burst` 等）已于 2026-09-16 收敛删除。
 
 配套产物：
 
@@ -59,43 +49,20 @@ CPU 超频（三档 OPP + 85°C 被动冷却）已全员化进公共 dtsi，不�
 
 ## 实机状态
 
-### 7.1.13（历史：2026-09-14 实测）
+### 7.2.9 实测范围
 
-> 当时它是 boot 分区的默认启动版；现已被 7.2.9 取代（见上「内核版本」）。
-> 以下为当时记录，保留作对照。
-
-- 启动 ✅：`uname -r` = `7.1.13-ufi003-venus-dirty`，型号与 compatible 正确；
-  开机日志 0 error（仅一条 PSCI `failed to set PC mode` 固件报告，6.18 时期就有）。
-- GPU ✅：`/dev/dri/renderD128`，`DRIVER=adreno`，`GL renderer: FD307`。
-- Venus ✅：硬编 90 帧产 502824 字节；硬解正常（H.264；无 HW H.265/VP9）。
-- WiFi ✅：`wlan0` 连接正常（WCN3620，含上行速率修复）。
-- 4G ✅：remoteproc1 加载 mpss，`wwan0-7` 建出，ModemManager 识别 `modem0`
-  （状态 `sim-missing` —— 未插 SIM，与 6.18 行为一致）。`qrtr-ns`/`rmtfs` 均 active。
-- 推流 ✅：GPU 合成 → Venus 硬编 → MPEG-TS/UDP，27 fps，见 `GPU-STREAMING.md`。
-- 并发 ✅：GPU 合成 + Venus 硬编同时跑 0 内核错误；CPU 压测 30s 无 thermal 异常
-  （47→69°C）。
-- CPU 频率：档位 200/400/800/998.4/1094.4/1209.6/1401.6 MHz 齐全；
-  实测约 1209.6 MHz 后无收益，降压不可行（电压由 PSCI 固件掌控）。
-
-### 7.2.9（2026-10-07 构建；2026-10-10 RAM 实测）
-
-- 5 个板型内核 + boot 镜像 ✅（`tools/build-board-set.sh`）
-- 7 个 rootfs 的 QEMU 冒烟 ✅；不是实机全功能验收。
-- 仅 `venus-4g-gpu` 做了 RAM 实机测试：WiFi、USB 直连、GPU、H.264/VP8、xrdp、
-  蓝牙扫描、存储与内存校验通过；4G 仅到 `sim-missing`。
-- USB NAT ✅：公共nft依赖、NM管理权/包及gadget/native生命周期已修复，
-  两栈实测客户端经棒子出网；新镜像整机与Windows/macOS兼容性未测。
-- 满频压力、持续推流 ⚠️：80°C 测试保护中止；800MHz 限频校验通过，之后已恢复。
-- MPEG-4 硬解 ❌：两版内核同样触发 Venus 固件 fatal；只能重启恢复，不卸载模块。
-- 当前 DTS 的 CPU OPP 为 200/400/800/998.4/1094.4/**1152/1209.6 MHz**。
-- 后续：2026-10-16 已整机刷入 boot + max rootfs 并验收；2026-10-17 `minimal`
-  变体 RAM 验证通过。最新范围见 `../../../docs/validation/2026-10-16-validation.md`。
+- `venus-4g-gpu` 已整机刷入并验证 USB 共享、WiFi、GPU、H.264/VP8、xrdp、
+  蓝牙和存储；4G 仅验证驱动与控制通道，未插 SIM。
+- `minimal` 已通过内存启动验证：WiFi、USB NAT、zram、LED 和 Reset 键。
+- 持续满载与推流受散热限制；MPEG-4 硬解会触发 Venus 固件 fatal。
+- 当前 DTS 的 CPU OPP 为 200/400/800/998.4/1094.4/1152/1209.6 MHz。
+- 完整结果见 `../../../docs/validation/2026-10-16-validation.md`。
 
 ## 升级 / 刷入与回退
 
-改动只在 boot 分区，rootfs 不必重刷（模块以新增目录方式装入，旧目录保留）。
-但 **7.2.9 与 7.1.13 的 vermagic 不同**，所以第 1 步必须先把新模块推上设备，
-否则预演启动时模块会全部静默失配：
+改动内核时，rootfs 可以只增加新 release 的模块目录，不必重刷整个分区。
+但**内核与模块树必须属于同一 release**，否则预演启动时模块会因 vermagic
+不匹配而拒绝加载：
 
 ```sh
 # 1) 主机：模块推到设备（纯新增，不动现有模块）
@@ -119,17 +86,16 @@ fastboot continue
 
 ### 回退
 
-主机上已经没有旧内核树了，回退靠分区读回（**不可再生**，别删）：
+回退使用刷前保存的分区读回副本（**不可再生**，不要删除）：
 
-| 目标 | 镜像 | 说明 |
-|---|---|---|
-| 本次升级前整分区 | `out/rollback/20261010/boot-p12-before.bin` | 64MiB p12 读回；本次各阶段散列一致，回退启动已验证 |
-| 回到 7.1.13 | `out/rollback/boot-7.1.13-as-flashed-28e0902f.img` | 历史 boot 镜像读回；设备上保留 7.1.13 模块目录 |
-| 回到 6.18.49 | `out/rollback/boot-backup-6.18-gpu.img` | 6.18 的 boot；其模块树已从主机清理，设备上是否留有需实机确认 |
-| 原厂 boot | `recovery/original/boot-original-p12.img` | 出厂读回 |
-| 分区级全量 | `recovery/backups/{boot,rootfs}-*.bin` | 6.18.49 时代 p12/p14 的读写前后读回 |
+| 用途 | 位置 |
+|---|---|
+| 升级前 p12 | `out/rollback/20261010/boot-p12-before.bin` |
+| 原厂 boot | `recovery/original/boot-original-p12.img` |
+| 其它分区备份 | `recovery/backups/`、`out/flash-20261016/` |
 
-刷回：`fastboot flash boot <img>` 后 `fastboot continue`。
+这些是本机备份路径，不随公开仓库分发。刷回：
+`fastboot flash boot <img>` 后 `fastboot continue`。
 
 ## rootfs 镜像（7 个矩阵档）
 

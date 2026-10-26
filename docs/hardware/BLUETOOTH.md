@@ -56,7 +56,7 @@ systemctl enable --now bluetooth
 体积代价约 **5.5 MB**（bluez）+ 0.3 MB（rfkill）。`build-rootfs.sh` 里
 `bluetooth.service` 已按存在性判断加入开机启用列表。
 
-## 实测结果（2026-09-15，7.1.13；机制在 7.2.9 未变，2026-10-10 RAM 预演中蓝牙扫描同样通过）
+## 实测结果（机制在当前版本不变）
 
 | 项 | 结果 |
 |---|---|

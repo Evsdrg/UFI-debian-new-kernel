@@ -68,7 +68,7 @@ SSH 断开后 xrdp 会话与 xterm 不会自动回收，`loginctl list-sessions`
 - 温度 41–52°C，`CmaFree` 17.7 MB，无失败服务
 - `usb-gadget` / `NetworkManager` / `xrdp` 均 active
 - `wlan0=192.0.2.109`，`usb0=10.42.0.1`
-- **boot 分区仍为 7.1.13**，重启即回退
+- **当时仅从 RAM 启动，未写 boot 分区**；后续整机刷入见下文
 
 原始日志与截图见 `out/validation-20261015/`。
 

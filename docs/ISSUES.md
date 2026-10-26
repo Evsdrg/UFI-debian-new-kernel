@@ -374,7 +374,7 @@ comm -23 <(grep -E '^CONFIG_[A-Z0-9_]+=y' baseline/.config | sort) \
 
 **现象**：640×480、45 帧的 MPEG-4 Simple Profile 素材，硬解触发
 `Err_Fatal - Z:\b\venus\utils\src\vbuffer.c:1200`，只能重启恢复。
-**旧内核 7.1.13 同样复现**，所以不是 7.2 独有的回归。
+**此前内核也复现**，所以不是当前内核版本独有的回归。
 
 **已排除的误判**：
 
