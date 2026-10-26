@@ -31,7 +31,9 @@ echo "$SUDO_PW" | sudo -S umount "$MNT" 2>/dev/null || true
 LOOP=$(echo "$SUDO_PW" | sudo -S bash -c "
 set -e
 mount -o loop \"$T/test.ext4\" \"$MNT\"
-sed -i 's|^PARTUUID.*|/dev/vda  /  ext4  defaults  0 1|' \"$MNT\"/etc/fstab
+# fstab 的 / 条目可能写 PARTUUID 或 /dev/mmcblk0p14（见 build-rootfs.sh）；
+# 这里按行首非注释、第二字段为 / 的规则整行替换成 QEMU 的 /dev/vda。
+sed -i -E 's|^[^#[:space:]]+[[:space:]]+/[[:space:]].*|/dev/vda  /  ext4  defaults  0 1|' \"$MNT\"/etc/fstab
 chroot \"$MNT\" ln -sf /lib/systemd/system/serial-getty@.service \
     /etc/systemd/system/getty.target.wants/serial-getty@ttyAMA0.service
 umount \"$MNT\"

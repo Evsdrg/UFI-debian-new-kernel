@@ -241,8 +241,12 @@ trap 'rm -rf "$STAGE"' EXIT
 # 再手工 resize2fs（构建脚本仍会在刷机提示里提一句，作为兜底）。
 mkdir -p "$STAGE/etc"
 cat > "$STAGE/etc/fstab" <<'EOF'
-# root by PARTUUID (mmcblk0p14)
-PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e  /      ext4  errors=remount-ro,x-systemd.growfs  0 1
+# root by device node (mmcblk0p14)
+#
+# 不用 PARTUUID：它来自 GPT，每台机器的分区 GUID 都不同，写死某个值会让别的
+# 机器刷进来后挂不上根。设备节点与分区表内容无关，同一型号枚举名固定。
+# 若某批机器的 eMMC 枚举名不同（如 mmcblk1p14），改这一行即可。
+/dev/mmcblk0p14  /      ext4  errors=remount-ro,x-systemd.growfs  0 1
 EOF
 
 # Headless appliance: never let debconf pick a dialog/Readline frontend.  The

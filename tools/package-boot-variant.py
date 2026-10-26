@@ -12,6 +12,7 @@ board-dir 缺省为 boards/ufi00x/ufi103s-ufi003（兼容既有调用）；
 """
 import hashlib
 import json
+import os
 import pathlib
 import struct
 import subprocess
@@ -37,10 +38,21 @@ KERNEL_OFFSET = "0x00080000"
 RAMDISK_OFFSET = "0x02000000"
 SECOND_OFFSET = "0x00f00000"
 TAGS_OFFSET = "0x01e00000"
-CMDLINE = (
-    "earlycon console=ttyMSM0,115200 "
-    "root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait"
-)
+# root= 的写法有两种，用环境变量 BOOT_ROOT 选择（缺省保持 PARTUUID）：
+#
+#   PARTUUID=<guid>      取自 GPT。每台机器的分区 GUID 都不同，所以这个值只对
+#                        作者这台机器成立——别人的机器刷进来会找不到根分区。
+#                        保留为缺省是为了不动已经实机验证过、已发布的 UFI103s
+#                        镜像（内核不可逐位复现，重编会换哈希）。
+#   /dev/mmcblk0p14      设备节点，与 GPT 内容无关，同一型号 eMMC 枚举名固定。
+#                        新板型（如 mf601sl）用这个，别人刷进去不必改 cmdline。
+#                        前提是 p14 确实是 rootfs 分区：容量不一致时 fastboot
+#                        写入就会失败，不会出现"刷进去了但起不来"的静默错配。
+#
+# 内核支持的形式见 source/linux-7.2.9/block/early-lookup.c（/dev/<disk><part>）。
+DEFAULT_ROOT = "PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e"
+ROOT = os.environ.get("BOOT_ROOT") or DEFAULT_ROOT
+CMDLINE = f"earlycon console=ttyMSM0,115200 root={ROOT} rw rootwait"
 
 
 def compile_dtb(dts_path: pathlib.Path, out_dtb: pathlib.Path) -> None:

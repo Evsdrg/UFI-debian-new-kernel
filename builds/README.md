@@ -69,9 +69,14 @@ venus 的模块说成基线内核的模块。但它们的安装方式不同：
 
 ## Cmdline
 
-镜像以 `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e` 启动。那是作者
-rootfs 的 UUID（从镜像里读回来的），不是可移植的 `PARTLABEL=rootfs`。root UUID
-不同的棒子挂不上根分区。刷之前先读 `build.json` 里的 `cmdline`。
+镜像的 `root=` 有两种写法，看各自 `build.json` 的 `cmdline`：
+
+- **UFI103s 的六个镜像**：`root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。
+  那是作者机器 GPT 里 p14 的 GUID，不是可移植的 `PARTLABEL=rootfs`。换机器要改。
+- **MF601SL 的镜像**：`root=/dev/mmcblk0p14`。设备节点与 GPT 内容无关，同一型号
+  直接可启。
+
+刷之前先读 `build.json` 里的 `cmdline`，那是该镜像的实际值。
 
 ## 刻意不含的东西
 

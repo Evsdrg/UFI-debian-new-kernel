@@ -70,10 +70,15 @@ ptn[13]:Name[rootfs]  First[659456] Last[7634910]
 
 ## root 定位与镜像校验
 
-- **cmdline 里的 `root=` 必须与设备 p14 的实际 PARTUUID 一致。** 本项目构建的
-  7.2.9 boot 镜像统一写 `root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`，
-  它只对**本工程构建的 rootfs** 成立；刷别处的根文件系统要在 fastboot 时改 cmdline。
-  每张 boot 镜像的实际 cmdline 记录在同目录的 `board-*-build.json` 里。
+- **cmdline 里的 `root=` 有两种写法，按板型区分**（看同目录 `board-*-build.json` 的
+  `cmdline` 字段，那是该镜像的实际值）：
+  - **UFI103s 的 7 个镜像**：`root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e`。
+    这是作者机器 GPT 里的 p14 GUID，只对**本工程构建的 rootfs + 这台机器**成立；
+    换机器要改 cmdline。
+  - **MF601SL 的镜像**：`root=/dev/mmcblk0p14`。设备节点与 GPT 内容无关，同一型号
+    直接可启。前提是 p14 确实是 rootfs 分区——容量不一致时 fastboot 写入会直接
+    失败，不会出现"刷进去但起不来"的静默错配。
+  - 改 cmdline 不必重打包：`fastboot -c "…root=<你的>…" boot <img>` 即可。
 - **刷前必比 `build.json` 的 sha256。** `flash.sh fastboot-flash` 会自动比对
   同目录 `build.json`，不一致就拒绝刷入（防刷错变体）。`fastboot-rootfs` 是
   不校验的旧接口，别用。

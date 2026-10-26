@@ -2,7 +2,7 @@
   "variant": "board-mf601sl-7.2.9",
   "kernel_release": "7.2.9-ufix0x-mf601sl-dirty",
   "dts": "msm8916-thwc-mf601sl-v07.dts",
-  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=/dev/mmcblk0p14 rw rootwait",
   "boot_image": "boot-board-mf601sl-7.2.9.img",
   "boot_size": 7905280,
   "kernel_size": 7902154,
@@ -10,6 +10,6 @@
   "appended_dtb_size": 51027,
   "image_gz_sha256": "0973771fe7681bf9c7033a54070b435f78f8767faf079bdcef2d1e102bfe1939",
   "dtb_sha256": "b7b2b97bf241e80ef461a309c6d6ab97140e8878130cb28cad28479a2bfa941d",
-  "boot_sha256": "7919545232391d5b21edf6e5e65313e3306819d4d74888c3529b58e8379755db",
+  "boot_sha256": "9476092d7c14b7b0749ee88aeb355b8302fcad49d0ca7e2e127d441463b821fc",
   "flash_status": "not flashed"
 }
