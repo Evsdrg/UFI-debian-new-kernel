@@ -5,7 +5,10 @@ Reuses the already-validated UFI103s boot layout:
   Image.gz + appended DTB, page 2048, base 0x80000000, header v0.
 
 Usage:
-  tools/package-boot-variant.py <variant> <dts-name> <image-gz> <modules-release> <out-dir>
+  tools/package-boot-variant.py <variant> <dts-name> <image-gz> <modules-release> <out-dir> [board-dir]
+
+board-dir 缺省为 boards/ufi00x/ufi103s-ufi003（兼容既有调用）；
+其它板型（如 boards/thwc-mf601sl）作为第 6 个参数传入。
 """
 import hashlib
 import json
@@ -21,7 +24,8 @@ BASE = kver.BASE
 SRC = kver.KERNEL_SRC
 MKBOOTIMG = BASE / "mkbootimg/mkbootimg"
 # 中间产物（.dtb 与拼接前的 kernel-dtb）留在 build/ 下，属可再生中间态。
-BOARD_DIR = BASE / "build/boards/ufi103s-ufi003"
+# 目录名随板目录变化（build/boards/<board-basename>），避免不同板型互相覆盖。
+BUILD_BOARDS = BASE / "build/boards"
 # This board's DTS live under its board directory, not inside the kernel tree;
 # see boards/README.md for the layout.
 BOARD = BASE / "boards/ufi00x/ufi103s-ufi003"
@@ -59,19 +63,21 @@ def compile_dtb(dts_path: pathlib.Path, out_dtb: pathlib.Path) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) != 6:
+    if len(sys.argv) not in (6, 7):
         print(__doc__)
         return 2
     variant, dts_name, image_gz, modules_release, out_dir = sys.argv[1:6]
+    board_root = pathlib.Path(sys.argv[6]) if len(sys.argv) == 7 else BOARD
 
     image_path = pathlib.Path(image_gz)
     if not image_path.is_file():
         raise SystemExit(f"missing Image.gz: {image_path}")
 
-    dts_path = BOARD / "dts" / dts_name
+    dts_path = board_root / "dts" / dts_name
     if not dts_path.is_file():
         raise SystemExit(f"missing DTS: {dts_path}")
 
+    BOARD_DIR = BUILD_BOARDS / board_root.name
     BOARD_DIR.mkdir(parents=True, exist_ok=True)
     out = pathlib.Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

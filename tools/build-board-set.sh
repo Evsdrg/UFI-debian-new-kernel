@@ -9,7 +9,11 @@
 #
 # 用法：tools/build-board-set.sh [板型名 ...]   缺省构建全部未完成的。
 #   可用板型（键 = DTS 后缀，空 = 基线）：
-#     "" 4g venus venus-4g venus-4g-gpu minimal
+#     "" 4g venus venus-4g venus-4g-gpu minimal   （UFI103s）
+#     mf601sl                                      （THWC MF601SL_CT_V07，电池型 4G MiFi）
+#
+# 板型表每条为：后缀 | 内核片段 | DTS 文件 | 板目录（可选，缺省 UFI103s 板目录）
+# 板目录不同的板型会构建到 artifacts/boot/<板目录名>/ 下。
 set -uo pipefail
 
 BASE="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,6 +26,8 @@ VENUS_FRAG="$BASE/source/configs/ufi103s-venus.config"
 GPU_FRAG="$BASE/source/configs/ufi103s-gpu.config"
 BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
 MINIMAL_FRAG="$BASE/source/configs/ufi103s-minimal.config"
+MF601SL_FRAG="$BASE/source/configs/mf601sl.config"
+MF601SL_BOARD="$BASE/boards/thwc-mf601sl"
 
 # 板型表：后缀 | 内核片段 | DTB
 # 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
@@ -44,13 +50,14 @@ TYPES=(
   "venus-4g|$VENUS_FRAG|$DTS_PREFIX-venus-4g.dts"
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
   "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
+  "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD"
 )
 
 WANT=("$@")
 rc_total=0
 
 for entry in "${TYPES[@]}"; do
-    IFS='|' read -r suffix frags dtsname <<< "$entry"
+    IFS='|' read -r suffix frags dtsname board_dir_override <<< "$entry"
     if [ ${#WANT[@]} -gt 0 ]; then
         keep=0
         for w in "${WANT[@]}"; do [ "$w" = "$suffix" ] && keep=1; done
@@ -66,7 +73,9 @@ for entry in "${TYPES[@]}"; do
     fi
     # 父目录带 -dirty（与 kver MODULES_DIR 惯例一致）
     TREE="$ARTIFACTS_MODULES/$RELEASE"
-    DTB_SRC="$BOARD_DIR/dts/$dtsname"
+    THIS_BOARD_DIR="${board_dir_override:-$BOARD_DIR}"
+    DTB_SRC="$THIS_BOARD_DIR/dts/$dtsname"
+    BOARD_OUT_NAME="$(basename "$THIS_BOARD_DIR")"
 
     echo "=============================================="
     echo "==> 板型 [$VARIANT] release=$RELEASE"
@@ -97,7 +106,7 @@ for entry in "${TYPES[@]}"; do
         "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
         "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \
         "$RELEASE" \
-        "$ARTIFACTS_BOOT/ufi103s-ufi003" || { rc_total=1; continue; }
+        "$ARTIFACTS_BOOT/$BOARD_OUT_NAME" "$THIS_BOARD_DIR" || { rc_total=1; continue; }
 done
 
 echo "=============================================="

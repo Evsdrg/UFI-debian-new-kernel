@@ -12,6 +12,7 @@
 | [`VIDEO-CODEC.md`](VIDEO-CODEC.md) | Venus 编解码实测：性能、画质、格式边界、坏素材误判 | 用硬编解码、选分辨率 |
 | [`CPU-POWER.md`](CPU-POWER.md) | CPU 频率 / 电压 / 散热：1209.6 MHz 上限、降压不可行、热保护 | 调频、评估持续负载 |
 | [`LED.md`](LED.md) | 三色状态灯的跨型号适配与灯语 | 灯不亮、改状态指示 |
+| [`MF601SL.md`](MF601SL.md) | MF601SL_CT_V07 电池型 4G MiFi 的设备树三方对比与取值依据 | 适配 MF601SL、核对 GPIO |
 | [`BLUETOOTH.md`](BLUETOOTH.md) | 蓝牙：为什么"没打开"、固件不用单独提供、实测 | 蓝牙扫描 / 配对 / 排错 |
 
 ## 几条最容易踩的硬限制（速查）

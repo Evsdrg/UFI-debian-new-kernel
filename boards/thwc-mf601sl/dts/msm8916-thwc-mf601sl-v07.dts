@@ -1,0 +1,290 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * THWC MF601SL_CT_V07（mf601sl_v07）—— MSM8916 电池型 4G MiFi
+ *
+ * 硬件依据（按可信度排序，详见 out/mf601sl-research/REPORT.md）：
+ *   1. debian12_sl_v07.dtb —— 从一台实际可启动的 6.x Debian boot 镜像提取，
+ *      sha256 1a03db51…；本 DTS 的 GPIO 布局以它为准。
+ *   2. 原厂固件 boot.img 内的 DTB（33 份 FDT 中 board-id=0x08/0x100 的那份）
+ *      —— 仅作交叉核对；它是高通 BSP 语言（hsusb-otg / lsuart / cortex-acc），
+ *      驱动模型与本内核不同，不能直接使用。
+ *
+ * 与 UFI103s 的差异（不可照搬）：
+ *   - USB-ID 走 extcon-usb-gpio 的 GPIO121（SL 板型；MC_V05 才是 GPIO110）
+ *   - 复位键 GPIO34（KEY_RESTART）
+ *   - LED 为 6 颗三色 + 4 个 SIM 控制，GPIO 见下
+ *   - 电池 pm8916_lbc 充电 + pm8916_bms 电量计（simple-battery 描述）
+ *   - 4G 完整保留（mpss/mba/rmtfs/bam-dmux），不可套用 WiFi-only 的内存裁剪
+ *
+ * 未确认项（需实机裁决，勿当作已验证）：
+ *   - 原厂 BSP 另有 key_wps=GPIO107、key_freset=GPIO34(code 216)，与本树
+ *     （GPIO34 / code 408）不一致，可能是不同硬件批次
+ *   - 原厂 BSP 的 gpio-leds 列了 18 个引脚，其中 LED_3/4/7/8/11/12/13/14
+ *     为无功能名的占位；本树只启用有明确语义的 10 个
+ *   - 电池满充电压：本树 4.2V（保守），原厂 BSP 为 4.35V；有历史遥测
+ *     4.3443V 报 Over voltage 的记录，未确认实物规格前不调高
+ */
+
+/dts-v1/;
+
+#include "msm8916-pm8916.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/leds/common.h>
+
+/ {
+	model = "THWC MF601SL_CT_V07 (4G)";
+	compatible = "thwc,mf601sl-v07", "qcom,msm8916";
+
+	aliases {
+		mmc0 = &sdhc_1;
+		mmc1 = &sdhc_2;
+		serial0 = &blsp_uart2;
+	};
+
+	chosen {
+		stdout-path = "serial0";
+	};
+
+	battery: battery {
+		compatible = "simple-battery";
+		voltage-min-design-microvolt = <3000000>;
+		voltage-max-design-microvolt = <4200000>;
+		energy-full-design-microwatt-hours = <7980000>;
+		charge-full-design-microamp-hours = <2100000>;
+		ocv-capacity-celsius = <25>;
+		ocv-capacity-table-0 = <4200000 100>, <4100000 95>,
+				       <4050000 90>, <4000000 85>,
+				       <3950000 80>, <3900000 75>,
+				       <3850000 70>, <3800000 65>,
+				       <3750000 60>, <3700000 55>,
+				       <3650000 50>, <3600000 45>,
+				       <3550000 40>, <3500000 35>,
+				       <3450000 30>, <3400000 25>,
+				       <3350000 20>, <3300000 15>,
+				       <3250000 10>, <3200000 5>,
+				       <3150000 3>, <3100000 1>,
+				       <3000000 0>;
+	};
+
+	usb_id: usb-id {
+		compatible = "linux,extcon-usb-gpio";
+		id-gpios = <&tlmm 121 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_id_default>;
+	};
+
+	gpio-keys {
+		compatible = "gpio-keys";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_keys_default>;
+
+		button-restart {
+			label = "Restart";
+			gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
+			linux,code = <KEY_RESTART>;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&gpio_leds_default>;
+
+		led-r {
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&tlmm 115 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "mmc0";
+			default-state = "off";
+		};
+
+		led-g {
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 110 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
+		};
+
+		led-b {
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&tlmm 119 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy0tx";
+			default-state = "off";
+		};
+
+		led-1 {
+			color = <LED_COLOR_ID_RED>;
+			gpios = <&tlmm 116 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "mmc1";
+			default-state = "off";
+		};
+
+		led-2 {
+			color = <LED_COLOR_ID_GREEN>;
+			gpios = <&tlmm 112 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
+		};
+
+		led-3 {
+			color = <LED_COLOR_ID_BLUE>;
+			gpios = <&tlmm 120 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "phy0rx";
+			default-state = "off";
+		};
+
+		/* SIM 切换控制（非 LED，沿用 gpio-leds 以便 sysfs 控制，
+		 * 与既有 SL 板型的做法一致；用户态脚本按 label 匹配） */
+		sim-sel {
+			label = "sim:sel";
+			gpios = <&tlmm 49 GPIO_ACTIVE_HIGH>;
+			default-state = "on";
+		};
+
+		sim-en {
+			label = "sim:en";
+			gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		sim-sel2 {
+			label = "sim:sel2";
+			gpios = <&tlmm 50 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+
+		sim-en2 {
+			label = "sim:en2";
+			gpios = <&tlmm 51 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+		};
+	};
+};
+
+&blsp_dma {
+	status = "okay";
+};
+
+&blsp_uart2 {
+	status = "okay";
+};
+
+/* eMMC */
+&sdhc_1 {
+	status = "okay";
+	vmmc-supply = <&pm8916_l8>;
+	vqmmc-supply = <&pm8916_l5>;
+};
+
+/* microSD */
+&sdhc_2 {
+	status = "okay";
+	vmmc-supply = <&pm8916_l11>;
+	vqmmc-supply = <&pm8916_l12>;
+};
+
+&usb {
+	status = "okay";
+	extcon = <&usb_id>, <&usb_id>;
+};
+
+&usb_hs_phy {
+	v1p8-supply = <&pm8916_l7>;
+	v3p3-supply = <&pm8916_l13>;
+	extcon = <&usb_id>;
+};
+
+/* ---- 电池：充电（LBC）+ 电量计（BMS）---- */
+&pm8916_charger {
+	status = "okay";
+	monitored-battery = <&battery>;
+	qcom,vdd-safe = <4200000>;
+	qcom,ibat-safe = <500000>;
+};
+
+&pm8916_bms {
+	status = "okay";
+	monitored-battery = <&battery>;
+	power-supplies = <&pm8916_charger>;
+};
+
+&pm8916_vib {
+	status = "okay";
+};
+
+/* ---- 4G：完整保留 modem 链 ---- */
+&mpss {
+	status = "okay";
+};
+
+&mpss_mem {
+	/* 85MiB @0x86800000，与原厂 DTB 及 SL 参考树一致 */
+	reg = <0x0 0x86800000 0x0 0x5500000>;
+	status = "okay";
+};
+
+&mba_mem {
+	status = "okay";
+};
+
+&bam_dmux {
+	status = "okay";
+};
+
+&bam_dmux_dma {
+	status = "okay";
+};
+
+&apr {
+	status = "okay";
+};
+
+/* ---- WiFi/BT：WCN3620 ---- */
+&wcnss {
+	status = "okay";
+};
+
+&wcnss_mem {
+	status = "okay";
+};
+
+/* ---- 硬件编解码：默认不开（电池型 MiFi 不做推流/转码，省 5MB 预留）----
+ * 若需要硬编解码，叠加 ufi103s-venus.config 重新构建，并把下面两段改为 okay。
+ */
+&venus {
+	status = "disabled";
+};
+
+&venus_mem {
+	status = "disabled";
+};
+
+/* ---- 引脚复用 ---- */
+&tlmm {
+	usb_id_default: usb-id-default-state {
+		pins = "gpio121";
+		function = "gpio";
+
+		drive-strength = <8>;
+		input-enable;
+		bias-pull-up;
+	};
+
+	gpio_keys_default: gpio-keys-default-state {
+		pins = "gpio34";
+		function = "gpio";
+
+		drive-strength = <2>;
+		bias-pull-up;
+	};
+
+	gpio_leds_default: gpio-leds-default-state {
+		pins = "gpio110", "gpio112", "gpio115", "gpio116",
+		       "gpio119", "gpio120", "gpio24", "gpio49",
+		       "gpio50", "gpio51";
+		function = "gpio";
+
+		drive-strength = <2>;
+		bias-disable;
+	};
+};

@@ -27,7 +27,7 @@ rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产�
 共 **7 个 rootfs**。F1 只有 NM（用户指定）；USB 网络共享是所有档的默认能力。
 所有档**都不预置任何 Wi-Fi 凭据**，首次进系统靠 USB RNDIS。
 
-## 二、内核与 DTB 板型映射（ufi103s）
+## 二、内核与 DTB 板型映射（ufi103s + mf601sl）
 
 **板型级命名 + 正向功能后缀**（2026-09-16 定稿）：内核 release =
 `<ver>-ufix0x<板型后缀>-dirty`，后缀只写"有的功能"（无 4G 不写 -no4g，
@@ -43,6 +43,12 @@ rootfs 已清理；下表的 release 后缀现在是 `7.2.9-ufix0x*`，boot 产�
 | venus-4g | +硬件编解码 +4G | （备用） |
 | venus-4g-gpu | +硬件编解码 +4G +GPU | **max** |
 | minimal | **WiFi + USB 共享 + zram，其余全裁**（内存最大化） | slim / micro |
+| mf601sl | **THWC MF601SL_CT_V07 电池型 4G MiFi**（不同板目录，独立 DTS） | basic |
+
+**mf601sl 是另一块板**，DTS 在 `boards/thwc-mf601sl/`、内核片段是
+`source/configs/mf601sl.config`。它保留完整 4G 链、启用 LBC 充电 + BMS 电量计，
+release 为 `7.2.9-ufix0x-mf601sl-dirty`。**不能套用 minimal 的内存裁剪**
+（会关掉 modem 链）。详见 [`docs/hardware/MF601SL.md`](../hardware/MF601SL.md)。
 
 **minimal 与其它板型的区别**：DTS 与空板型相同（同一个 WiFi-only 设备树），
 差异**全在内核配置**——在 common 配置之上再叠
