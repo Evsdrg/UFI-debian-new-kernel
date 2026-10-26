@@ -11,6 +11,7 @@
 | `sp970/` | sp970 | 独立设计，引脚布局与其它机型不同 |
 | `uz801/` | uz801 | 独立设计，引脚布局与其它机型不同 |
 | `thwc-mf601sl/` | mf601sl_v07 | THWC 电池型 4G MiFi；与 UFI 家族差异大（电池/SD/完整4G/USB-ID GPIO121） |
+| `thwc-mf32/` | MF32_MB_V02 | THWC 电池型 4G MiFi；RGB+电量条 LED、双击关机，已构建但未实机验证 |
 
 ## 实测差异（逐字节 diff，注释行已剔除）
 

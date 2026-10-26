@@ -7,6 +7,7 @@
 | [`BUILD-MATRIX.md`](BUILD-MATRIX.md) | 板型、内核变体、rootfs 档位与网络栈的对应关系 |
 | [`TRIMMING.md`](TRIMMING.md) | max/basic/slim/micro 四档的取舍，以及 QEMU 冒烟流程 |
 | [`TOOLING.md`](TOOLING.md) | 构建与验证工具清单、已知缺口 |
+| [`UPSTREAM.md`](UPSTREAM.md) | 上游 stable 版本、平台相关变更与补丁预检 |
 
 常用命令：
 

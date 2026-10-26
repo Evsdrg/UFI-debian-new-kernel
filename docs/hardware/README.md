@@ -13,6 +13,7 @@
 | [`CPU-POWER.md`](CPU-POWER.md) | CPU 频率、电压和散热 |
 | [`LED.md`](LED.md) | 状态灯的设备树命名、灯语与适配 |
 | [`MF601SL.md`](MF601SL.md) | MF601SL 设备树来源、GPIO 对比与未确认项 |
+| [`WIFI-HOTSPOT.md`](WIFI-HOTSPOT.md) | WCN36xx AP 能力、NM 热点方案与验收清单 |
 | [`BLUETOOTH.md`](BLUETOOTH.md) | 蓝牙驱动、固件与实测结果 |
 
 几个最容易影响可用性的限制：

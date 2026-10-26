@@ -30,6 +30,8 @@ BASE_FRAG="$BASE/source/configs/ufi103s-baseline.config"
 MINIMAL_FRAG="$BASE/source/configs/ufi103s-minimal.config"
 MF601SL_FRAG="$BASE/source/configs/mf601sl.config"
 MF601SL_BOARD="$BASE/boards/thwc-mf601sl"
+MF32_FRAG="$BASE/source/configs/mf32.config"
+MF32_BOARD="$BASE/boards/thwc-mf32"
 
 # 板型表：后缀 | 内核片段 | DTB
 # 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
@@ -53,6 +55,7 @@ TYPES=(
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
   "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
   "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD|/dev/mmcblk0p14"
+  "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=rootfs"
 )
 
 WANT=("$@")

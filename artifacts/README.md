@@ -30,7 +30,7 @@ artifacts/
 | `empty-ramdisk` | ❌ | 空的 initramfs（legacy boot image 需要这个字段） |
 
 UFI103s 有六个 7.2.9 boot 变体（五个功能组合 + `minimal`）；
-MF601SL 有独立板级镜像。其它四块 UFI 家族板目前只有裸 DTB。
+MF601SL 与 MF32 各有独立板级镜像。其它四块 UFI 家族板目前只有裸 DTB。
 
 ### rootfs/
 

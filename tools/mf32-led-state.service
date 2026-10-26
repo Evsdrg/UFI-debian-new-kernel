@@ -1,0 +1,15 @@
+[Unit]
+Description=MF32 RGB system status + battery gauge LEDs
+Documentation=file:/usr/local/share/doc/mf32-led-state.md
+After=systemd-udev-settle.service NetworkManager.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/mf32-led-state.sh monitor
+ExecStop=/usr/local/sbin/mf32-led-state.sh off
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

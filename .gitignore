@@ -79,8 +79,6 @@ modules.builtin.modinfo
 /CLEANUP-HISTORY.md
 /ISSUES-LOCAL.md
 # MF32（未 bring-up 的第三方板，无产物、无硬件，内部逆向资料）
-/boards/thwc-mf32/
-/tools/mf32-*
 # 内部构建辅助素材（非构建依赖，各主机自备）：
 # arch-test-arm64 是宿主缺 arm64 探针时的临时补齐件（见 CONTRIBUTING.md §3）
 /tools/toolchain/
