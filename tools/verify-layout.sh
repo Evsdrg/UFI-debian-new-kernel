@@ -81,7 +81,7 @@ for path in \
   /etc/localtime \
   /etc/timezone \
   /etc/systemd/system/multi-user.target.wants/chrony.service \
-  /etc/systemd/system/rmtfs.service.d/ufi103s.conf \
+  "/etc/systemd/system/rmtfs.service.d/${ROOTFS_BOARD:-ufi103s}.conf" \
   /usr/lib/modules/${KERNEL_RELEASE}/kernel/drivers/soc/qcom/rmtfs_mem.ko; do
   debugfs -R "stat $path" "$ROOTFS" >/dev/null 2>&1 || true
   debugfs -R "stat $path" "$ROOTFS" 2>/dev/null | grep -q '^Inode:' || { printf 'rootfs:%s=MISSING\n' "$path" >&2; exit 1; }

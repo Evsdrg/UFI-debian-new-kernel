@@ -9,7 +9,7 @@ MSM8916 电池型 4G MiFi。与 UFI103s 同 SoC 但硬件差异大：**有电池
 |---|---|
 | 设备树 | ✅ 已写（`dts/msm8916-thwc-mf601sl-v07.dts`），cpp+dtc 编译通过 |
 | 内核 | ✅ 已构建（`7.2.9-ufix0x-mf601sl-dirty`，678 个模块） |
-| 测试包 | ✅ 已生成（`out/mf601sl-build/package/`，14MB） |
+| 测试包 | ✅ 已生成（`out/mf601sl-build/package/`，118MB，含 boot + rootfs + 模块） |
 | **实机验证** | ❌ **未做**（本工作区无此设备） |
 
 ## 硬件（依据见 `docs/hardware/MF601SL.md`）
@@ -48,11 +48,34 @@ bash tools/build-board-set.sh mf601sl
 
 ## 测试包
 
-`out/mf601sl-build/package/`（不入库）内含 boot 镜像、DTB、模块树、`build.json`、
-`来源与不确定项.md`、`SHA256SUMS.txt`。
+`out/mf601sl-build/package/`（不入库，118MB）内含：
+
+```
+boot-mf601sl-7.2.9.img                    内核 + DTB
+mf601sl-dtb-7.2.9.dtb                     单独设备树
+modules-7.2.9-ufix0x-mf601sl-dirty.tar.gz 678 个模块（与 boot 同 vermagic）
+rootfs-mf601sl-7.2.9-basic.ext4.gz        Debian 13 basic 档（312MB → 105MB）
+build.json / 来源与不确定项.md / SHA256SUMS.txt
+```
 
 **刷机前必读 `来源与不确定项.md`**：里面列了 5 个必须实机确认的不确定项
 （按键、LED 数量、电池电压、SIM sel/en、已知死机问题）。
+
+## rootfs 是"通用镜像 + 板名"，不是独立工程
+
+用户态软件（NM / ModemManager / qrtr / rmtfs / usb-gadget / nftables）与板型无关，
+靠内核与 sysfs 发现设备。`build-rootfs.sh` 只需传：
+
+```sh
+KERNEL_RELEASE=7.2.9-ufix0x-mf601sl-dirty \
+MODULE_TREE=artifacts/modules/7.2.9-ufix0x-mf601sl-dirty \
+ROOTFS_FLAVOR=basic ROOTFS_BOARD=mf601sl \
+MMDEBSTRAP_FORMAT=ext4 bash build-rootfs.sh
+```
+
+`ROOTFS_BOARD` 只影响三处命名（hostname、`modules-load.d/<board>.conf`、
+`rmtfs.service.d/<board>.conf`）和 LED 灯名映射。**真正必须配对的是模块树**——
+UFI 的 rootfs 刷到 MF601SL 上会因 vermagic 不匹配导致所有模块加载失败。
 
 ## 不确定项速览
 

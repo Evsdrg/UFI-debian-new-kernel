@@ -27,12 +27,21 @@ set -u
 
 # ---------------------------------------------------------------- 配置
 
-# 灯与网口的发现方式：设备树里三颗状态灯的默认（function,color）组合在所有
-# 机型上都是 WLAN/blue、WAN/green、HEARTBEAT/red。sysfs 里没有 color/function
-# 属性，所以先按已知名字匹配，匹配不到再按名字里的颜色词兜底。
+# 灯与网口的发现方式。sysfs 里没有 color/function 属性，所以先按已知名字
+# 匹配，匹配不到再按名字里的颜色词兜底。
+#
+# 两种灯布局：
+#   三色单灯（UFI 家族）：blue=wlan、green=wan、red=heartbeat，
+#       三颗灯各代表一件事，红灯额外兼作 CPU 负载指示。
+#   每功能红绿双灯（MF601SL）：battery/wifi/net 各有红绿两颗，
+#       没有独立的"CPU 负载灯"。这种布局下把 RED_HINT 指向 net 的红灯，
+#       BLUE/GREEN 分别指向 wifi 绿 / net 绿，并把 RED_LOAD_INDICATOR=0，
+#       否则脚本会拿 4G 红灯去反映 CPU 负载。
 LED_BLUE_HINT=${LED_BLUE_HINT:-blue:wlan}
 LED_GREEN_HINT=${LED_GREEN_HINT:-green:wan}
 LED_RED_HINT=${LED_RED_HINT:-red:heartbeat}
+# 1 = 红灯兼作 CPU 负载指示（UFI 家族默认）；0 = 红灯不反映 CPU（MF601SL）。
+RED_LOAD_INDICATOR=${RED_LOAD_INDICATOR:-1}
 
 WIFI_IFACE=${WIFI_IFACE:-}
 MODEM_MGMT=${MODEM_MGMT:-auto}      # auto | nm | mm  (auto：有 nmcli 用 nm，否则 mmcli)
@@ -142,6 +151,11 @@ cpu_busy_pct() {
 # 红灯档位，带滞回。打印 on / off。
 red_for_load() {
     busy=$1
+    # 该板没有独立负载灯时，红灯不参与 CPU 指示（见文件头的灯布局说明）。
+    if [ "$RED_LOAD_INDICATOR" = 0 ]; then
+        echo off
+        return 0
+    fi
     last=$(cat "$REDMEM" 2>/dev/null || echo 0)
     on=0
     if [ "$last" = 1 ]; then

@@ -5,11 +5,11 @@
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
   "boot_image": "boot-board-mf601sl-7.2.9.img",
   "boot_size": 7905280,
-  "kernel_size": 7902078,
+  "kernel_size": 7902154,
   "appended_dtb_offset": 7853175,
-  "appended_dtb_size": 50951,
+  "appended_dtb_size": 51027,
   "image_gz_sha256": "0973771fe7681bf9c7033a54070b435f78f8767faf079bdcef2d1e102bfe1939",
-  "dtb_sha256": "b3fcaab997cce2d5e1624250a50b93559e8f0cc47ef1f5d177a094a90a810933",
-  "boot_sha256": "95111b5b8e14823b6ae285c0aa29fd8a429fe10e57c44f5245c7d886ae1a0713",
+  "dtb_sha256": "b7b2b97bf241e80ef461a309c6d6ab97140e8878130cb28cad28479a2bfa941d",
+  "boot_sha256": "7919545232391d5b21edf6e5e65313e3306819d4d74888c3529b58e8379755db",
   "flash_status": "not flashed"
 }

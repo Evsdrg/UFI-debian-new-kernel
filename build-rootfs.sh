@@ -22,6 +22,11 @@
 #   ROOTFS_DESKTOP=0|1       是否装桌面/xrdp（默认 1）
 #   ROOTFS_ROOT_PASSWORD     设备 root 口令。不传则镜像里 root 无口令（只能串口/
 #                            共享网络登录），给别人刷机时务必传。
+#   ROOTFS_BOARD=<name>      板名，只影响主机名/模块加载文件名/rmtfs drop-in 名。
+#                            默认 ufi103s；MF601SL 传 mf601sl。
+#                            用户态软件本身与板型无关（NM/ModemManager/qrtr/rmtfs/
+#                            usb-gadget 都靠内核与 sysfs 发现设备），所以**不需要**
+#                            为每块板单独维护一套 rootfs 工程，只要模块树配对。
 #
 # 镜像**不预置任何 Wi-Fi 凭据**（这是刻意的）：刷到无屏棒子上后，先靠 USB RNDIS
 # 共享进系统（插电脑就自动开出 10.42.0.1 并 DHCP），再用 nmtui/nmcli 配无线。
@@ -121,6 +126,9 @@ PKGS_BENCH="iperf3"
 #   ROOTFS_NET=nm|native（NM=NetworkManager；native=networkd+wpa_supplicant+
 #   dnsmasq+nftables，USB 共享双档都是网关 10.42.0.1/24）
 ROOTFS_FLAVOR="${ROOTFS_FLAVOR:-max}"
+# 板名：仅用于镜像内的命名（hostname / modules-load.d / rmtfs drop-in）。
+# 用户态功能与板型无关，靠内核与 sysfs 发现；真正必须配对的是模块树。
+ROOTFS_BOARD="${ROOTFS_BOARD:-ufi103s}"
 ROOTFS_NET="${ROOTFS_NET:-nm}"
 
 case "$ROOTFS_NET" in
@@ -436,6 +444,20 @@ EOF
 install -D -m 755 "$WORKDIR/tools/ufi-led-state.sh" "$STAGE/usr/local/sbin/ufi-led-state.sh"
 install -D -m 644 "$WORKDIR/tools/ufi-led-state.service" "$STAGE/etc/systemd/system/ufi-led-state.service"
 install -D -m 644 "$WORKDIR/tools/ufi-led-state.default" "$STAGE/etc/default/ufi-led-state"
+# MF601SL 是"每功能红绿双灯"布局（battery/wifi/net 各一对），没有独立负载灯，
+# sysfs 名由 DTS 的 function+color 组合决定。默认值只覆盖这台板，不改脚本逻辑。
+if [[ "$ROOTFS_BOARD" == mf601sl ]]; then
+    cat > "$STAGE/etc/default/ufi-led-state" <<'EOF'
+# MF601SL：每功能红绿双灯，无独立 CPU 负载灯。
+# sysfs 名来自 DTS 的 function+color：power:red/power:green、wan:red/wan:green、
+# wlan:red/wlan:green。脚本用"红=net、蓝=wifi 绿、绿=net 绿"的既有三档模型，
+# 因此把 net 的红灯当 RED，wifi 绿当 BLUE，net 绿当 GREEN，并关掉负载指示。
+LED_RED_HINT=red:wan
+LED_BLUE_HINT=green:wlan
+LED_GREEN_HINT=green:wan
+RED_LOAD_INDICATOR=0
+EOF
+fi
 install -D -m 755 "$WORKDIR/tools/venus-test.sh" "$STAGE/root/venus-test.sh"
 install -D -m 755 "$WORKDIR/tools/venus-transcode.sh" "$STAGE/usr/local/sbin/venus-transcode.sh"
 # Stable /dev/video-decoder + /dev/video-encoder names: the m2m node numbers are
@@ -445,7 +467,7 @@ install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d
 # qrtr_smd / rpmsg_wwan_ctrl）只在 ROOTFS_4G=1 时列出；关掉 4G 就不加载它们，
 # 免得为一个用不上的功能把 modem 固件拉起来、白占内存与功耗。
 {
-    echo "# UFI103s mainline hardware"
+    echo "# ${ROOTFS_BOARD} mainline hardware"
     echo "wcn36xx"
     echo "qcom_wcnss_pil"
     if [[ "$ROOTFS_4G" == 1 ]]; then
@@ -456,7 +478,7 @@ install -D -m 644 "$WORKDIR/tools/70-venus-video.rules" "$STAGE/etc/udev/rules.d
         echo "rpmsg_wwan_ctrl"
     fi
     echo "zram"
-} > "$STAGE/etc/modules-load.d/ufi103s.conf"
+} > "$STAGE/etc/modules-load.d/$ROOTFS_BOARD.conf"
 
 # --- Adreno 306 GPU（render-only）---
 # 只在 full 档位启用：精简档位不装 mesa（libgl1-mesa-dri 等），带上 drm/msm
@@ -533,7 +555,7 @@ cat > "$STAGE/etc/udev/rules.d/60-rmtfs-autostart.rules" <<'EOF'
 ACTION=="add", KERNEL=="qcom_rmtfs_mem1", SUBSYSTEM=="rmtfs", TAG+="systemd", ENV{SYSTEMD_WANTS}+="rmtfs.service"
 EOF
 mkdir -p "$STAGE/etc/systemd/system/rmtfs.service.d"
-cat > "$STAGE/etc/systemd/system/rmtfs.service.d/ufi103s.conf" <<'EOF'
+cat > "$STAGE/etc/systemd/system/rmtfs.service.d/$ROOTFS_BOARD.conf" <<'EOF'
 [Unit]
 Wants=systemd-modules-load.service
 After=systemd-modules-load.service
@@ -691,8 +713,8 @@ MMDEBSTRAP_ARGS=(
 	"--include=$PKGS_EXTRA"
 	# 精简档位的体积裁剪（doc/man/非中文 locale）。数组为空时不展开任何参数。
 	"${PATH_EXCLUDES[@]}"
-	'--customize-hook=echo ufi103s > $1/etc/hostname'
-	'--customize-hook=printf '\''127.0.0.1\tlocalhost\n127.0.1.1\tufi103s\n::1\t\tlocalhost ip6-localhost ip6-loopback\n'\'' > $1/etc/hosts'
+	"--customize-hook=echo ${ROOTFS_BOARD} > \$1/etc/hostname"
+	"--customize-hook=printf '127.0.0.1\tlocalhost\n127.0.1.1\t${ROOTFS_BOARD}\n::1\t\tlocalhost ip6-localhost ip6-loopback\n' > \$1/etc/hosts"
 	'--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service'
 	'--customize-hook=echo Asia/Shanghai > $1/etc/timezone && ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime'
 

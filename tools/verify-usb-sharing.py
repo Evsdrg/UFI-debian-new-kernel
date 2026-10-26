@@ -2,6 +2,7 @@
 """USB delivery assertions for all resolved kernels and NM/native rootfs images."""
 import hashlib
 from pathlib import Path
+import os
 import re
 import subprocess
 import sys
@@ -78,12 +79,18 @@ try:
     images=[Path(p) for p in sys.argv[1:]] or [
         kver.ARTIFACTS_ROOTFS/f'ufi103s-{KERNEL_VERSION}-{flavor}.ext4'
         for flavor in ('max','basic','slim','micro','basic-native','slim-native','micro-native')]
+    # ROOTFS_RELEASE=<release> 显式指定镜像里的内核 release，用于非 UFI 板型
+    # （如 mf601sl）。缺省时按 UFI 档位命名规则推导。
+    forced_release=os.environ.get('ROOTFS_RELEASE','')
     for image in images:
         check(image.is_file(), f'missing rootfs image: {image}')
         native=image.stem.endswith('-native')
         flavor=image.stem.split(f'{KERNEL_VERSION}-',1)[-1].removesuffix('-native')
-        suffix='-venus-4g-gpu' if flavor=='max' else '-4g' if flavor=='basic' else ''
-        rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
+        if forced_release:
+            rel=forced_release
+        else:
+            suffix='-venus-4g-gpu' if flavor=='max' else '-4g' if flavor=='basic' else ''
+            rel=f'{KERNEL_VERSION}{KERNEL_LOCALVERSION}{suffix}-dirty'
         for path in ('/usr/sbin/nft','/usr/sbin/dnsmasq'):
             s=stat(image,path)
             check(re.search(r'Mode:\s+0[0-7]*[1357][0-7][0-7]',s),f'{image.name}: not executable {path}')
