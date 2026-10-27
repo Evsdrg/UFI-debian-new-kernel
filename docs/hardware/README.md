@@ -7,6 +7,7 @@
 |---|---|
 | [`FASTBOOT.md`](FASTBOOT.md) | fastboot 刷机、回退、分区注意事项与实测记录 |
 | [`NETWORK.md`](NETWORK.md) | NetworkManager、中文 locale、rootfs 自动扩容 |
+| [`4G.md`](4G.md) | 4G 流量、短信、基带/EFS 备份与恢复、rmtfs 只读陷阱 |
 | [`DESKTOP.md`](DESKTOP.md) | i3、xrdp、Adreno 306 render-only GPU |
 | [`GPU-STREAMING.md`](GPU-STREAMING.md) | GPU 合成、Venus 编码与 UDP 推流 |
 | [`VIDEO-CODEC.md`](VIDEO-CODEC.md) | Venus 编解码能力、性能、格式与分辨率限制 |
