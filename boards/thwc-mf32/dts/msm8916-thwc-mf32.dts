@@ -2075,10 +2075,28 @@
 				charger@1000 {
 					compatible = "qcom,pm8916-lbc";
 					reg = <0x1000 0x1200 0x1300 0x1600>;
-					interrupts = <0x00 0x13 0x01 0x03>;
+					reg-names = "chgr", "bat_if", "usb", "misc";
+					/* 驱动按 interrupt-names 取 "usb_vbus"，
+					 * 原厂反编译只留了一个中断且无名字，会直接 probe 失败。
+					 * 这里按 pm8916.dtsi 补齐 10 个。 */
+					interrupts = <0x00 0x10 0x00 0x03>,
+						     <0x00 0x10 0x05 0x03>,
+						     <0x00 0x10 0x06 0x03>,
+						     <0x00 0x10 0x07 0x03>,
+						     <0x00 0x12 0x00 0x03>,
+						     <0x00 0x12 0x01 0x03>,
+						     <0x00 0x13 0x00 0x03>,
+						     <0x00 0x13 0x01 0x03>,
+						     <0x00 0x13 0x02 0x03>,
+						     <0x00 0x13 0x04 0x03>;
+					interrupt-names = "vbat_det", "fast_chg", "chg_fail",
+							  "chg_done", "bat_pres", "temp_ok",
+							  "coarse_det", "usb_vbus", "chg_gone",
+							  "overtemp";
 					status = "okay";
-					qcom,vdd-safe = <0x401640>;
-					qcom,ibat-safe = <0xaae60>;
+					/* 7.2.9 驱动认 qcom,fast-charge-safe-*；旧名会被忽略。 */
+					qcom,fast-charge-safe-voltage = <0x401640>;
+					qcom,fast-charge-safe-current = <0xaae60>;
 					monitored-battery = <0x56>;
 					phandle = <0x58>;
 				};
@@ -2143,7 +2161,16 @@
 				vm-bms@4000 {
 					compatible = "qcom,pm8916-bms-vm";
 					reg = <0x4000>;
-					interrupts = <0x00 0x40 0x04 0x01>;
+					/* 驱动按 interrupt-names 取 "fifo"，原厂只留了一个无名中断，
+					 * 会直接 probe 失败。这里按 pm8916.dtsi 补齐 6 个。 */
+					interrupts = <0x00 0x40 0x00 0x01>,
+						     <0x00 0x40 0x01 0x01>,
+						     <0x00 0x40 0x02 0x01>,
+						     <0x00 0x40 0x03 0x01>,
+						     <0x00 0x40 0x04 0x01>,
+						     <0x00 0x40 0x05 0x01>;
+					interrupt-names = "cv_leave", "cv_enter", "ocv_good",
+							  "ocv_thr", "fifo", "state_chg";
 					status = "okay";
 					monitored-battery = <0x56>;
 					power-supplies = <0x58>;

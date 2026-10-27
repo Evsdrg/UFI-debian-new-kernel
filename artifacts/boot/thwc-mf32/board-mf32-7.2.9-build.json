@@ -5,11 +5,11 @@
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
   "boot_image": "boot-board-mf32-7.2.9.img",
   "boot_size": 7907328,
-  "kernel_size": 7903725,
+  "kernel_size": 7904184,
   "appended_dtb_offset": 7852958,
-  "appended_dtb_size": 52815,
+  "appended_dtb_size": 53274,
   "image_gz_sha256": "4c24ce0828648615474bbf4920a751c068a0a5ee592d702746ccaa59f0efc297",
-  "dtb_sha256": "84195a9339eb0f89a13c7ea61c2dee9d6fd66207643faa000a9b91694e4d1843",
-  "boot_sha256": "a3748c414adcbe72dc0ff46ba5c07d0e7cf646d70f2e5298a5a0c6dd67a07053",
+  "dtb_sha256": "255bcb1fba8ffaccbd4a6bacc26ec7daecfa63fef31db11e63cd749c1f317896",
+  "boot_sha256": "fdd5b40c790359cc6fc5bd231108c56ece31f2aec3e632be4693144922a33064",
   "flash_status": "not flashed"
 }

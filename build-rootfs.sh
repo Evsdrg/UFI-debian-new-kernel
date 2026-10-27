@@ -83,7 +83,10 @@ chrony,tzdata,kmod,udev,e2fsprogs,ca-certificates,dnsmasq"
 # ---- 4G / 蜂窝（可用 ROOTFS_4G=0 关掉）----
 # modemmanager 管 ModemManager 服务；qmi/qrtr/rmtfs 是 QMI 通道与 NV 存取；
 # usb-modeswitch 处理模组从存储模式切到 modem 模式。
-PKGS_4G="modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch"
+# mobile-broadband-provider-info：APN 数据库（serviceproviders.xml，含中国移动/
+# 联通/电信）。NetworkManager 的 gsm.auto-config 靠它按 MCC/MNC 自动查 APN；
+# 缺这个包时 NM 会报 "APN not found"，插卡也不会自动拨号。
+PKGS_4G="modemmanager,libqmi-utils,qrtr-tools,rmtfs,usb-modeswitch,mobile-broadband-provider-info"
 
 # ---- 中文化（可用 ROOTFS_ZH=0 关掉）----
 # locales        ：提供 locale-gen/update-locale 与 /usr/share/i18n（**17MB 的大头**）
@@ -558,6 +561,12 @@ install -D -m 644 "$WORKDIR/tools/usb-gadget.service" "$STAGE/etc/systemd/system
 if [[ "$ROOTFS_NET" == nm ]]; then
     install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
         "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
+    # 4G 自动配置连接：gsm.auto-config=yes，按运营商 MCC/MNC 从
+    # serviceproviders.xml 自动取 APN。仅在装了 4G 组件时才有意义。
+    if [[ "$ROOTFS_4G" == 1 ]]; then
+        install -D -m 600 "$WORKDIR/tools/nm-connections/4g-auto.nmconnection" \
+            "$STAGE/etc/NetworkManager/system-connections/4g-auto.nmconnection"
+    fi
 fi
 
 # rmtfs must start after the kernel has created its shared-memory device.

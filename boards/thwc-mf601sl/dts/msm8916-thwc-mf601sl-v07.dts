@@ -49,22 +49,24 @@
 	battery: battery {
 		compatible = "simple-battery";
 		voltage-min-design-microvolt = <3000000>;
-		voltage-max-design-microvolt = <4200000>;
+		/* 标称 4.35V，按 4.25V 充电：BMS 的 OVERVOLTAGE 判定用的也是这个值，
+		 * 必须 >= 实际充电截止电压，否则充满时会报 Over voltage。 */
+		voltage-max-design-microvolt = <4250000>;
 		energy-full-design-microwatt-hours = <7980000>;
 		charge-full-design-microamp-hours = <2100000>;
 		ocv-capacity-celsius = <25>;
-		ocv-capacity-table-0 = <4200000 100>, <4100000 95>,
-				       <4050000 90>, <4000000 85>,
-				       <3950000 80>, <3900000 75>,
-				       <3850000 70>, <3800000 65>,
-				       <3750000 60>, <3700000 55>,
-				       <3650000 50>, <3600000 45>,
-				       <3550000 40>, <3500000 35>,
-				       <3450000 30>, <3400000 25>,
-				       <3350000 20>, <3300000 15>,
-				       <3250000 10>, <3200000 5>,
-				       <3150000 3>, <3100000 1>,
-				       <3000000 0>;
+		ocv-capacity-table-0 = <4250000 100>, <4200000 96>,
+				       <4100000 92>, <4050000 89>,
+				       <4000000 85>, <3950000 80>,
+				       <3900000 75>, <3850000 70>,
+				       <3800000 65>, <3750000 60>,
+				       <3700000 55>, <3650000 50>,
+				       <3600000 45>, <3550000 40>,
+				       <3500000 35>, <3450000 30>,
+				       <3400000 25>, <3350000 20>,
+				       <3300000 15>, <3250000 10>,
+				       <3200000 5>, <3150000 3>,
+				       <3100000 1>, <3000000 0>;
 	};
 
 	usb_id: usb-id {
@@ -208,8 +210,11 @@
 &pm8916_charger {
 	status = "okay";
 	monitored-battery = <&battery>;
-	qcom,vdd-safe = <4200000>;
-	qcom,ibat-safe = <500000>;
+	/* 7.2.9 驱动读的是 qcom,fast-charge-safe-*；旧名 qcom,vdd-safe /
+	 * qcom,ibat-safe 会被忽略，probe_dt() 直接返回 -EINVAL。
+	 * 限压 4.25V：电池标称 4.35V，但考虑电芯质量按更保守值充电。 */
+	qcom,fast-charge-safe-voltage = <4250000>;
+	qcom,fast-charge-safe-current = <500000>;
 };
 
 &pm8916_bms {

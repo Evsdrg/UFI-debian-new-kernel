@@ -123,6 +123,27 @@ try:
             exact_asset(image,connection,BASE/'tools/nm-connections/usb-share.nmconnection')
             check('Mode:  0600' in stat(image,connection),f'{image.name}: unsafe keyfile mode')
             check(b'firewall-backend=nftables' in debugfs(image,'cat /etc/NetworkManager/NetworkManager.conf'),f'{image.name}: backend not pinned')
+        # ---- 4G 自动配置（仅带 4G 的档位）----
+        # max/basic 默认装 4G；slim/micro 不装。native 档不走 NM，
+        # 由 mm-connect.sh 手动拨号，所以不要求 NM 连接文件。
+        has_4g = flavor in ('max', 'basic')
+        if has_4g:
+            apn_db = '/usr/share/mobile-broadband-provider-info/serviceproviders.xml'
+            st = stat(image, apn_db)
+            check('Size:' in st or 'Inode:' in st, f'{image.name}: missing APN database {apn_db}')
+            # 必须真的是非空 XML，否则 NM 查 APN 会失败
+            head = debugfs(image, 'cat ' + apn_db)[:64]
+            check(b'<?xml' in head or b'<serviceproviders' in head,
+                  f'{image.name}: APN database looks empty/corrupt')
+            if not native:
+                apn_conn = '/etc/NetworkManager/system-connections/4g-auto.nmconnection'
+                exact_asset(image, apn_conn, BASE / 'tools/nm-connections/4g-auto.nmconnection')
+                check('Mode:  0600' in stat(image, apn_conn),
+                      f'{image.name}: unsafe keyfile mode for 4g-auto')
+        elif flavor in ('slim', 'micro'):
+            check(not exists(image, '/etc/NetworkManager/system-connections/4g-auto.nmconnection'),
+                  f'{image.name}: slim/micro should not ship 4g-auto connection')
+
         # 交付镜像**不得含预置 Wi-Fi 凭据**（见 build-rootfs.sh 文件头）。
         # 无屏棒子的首入路径是 USB RNDIS；预置 PSK 历史上因裸反斜杠转义
         # 静默写错（11 个空格+口令）导致刷完即失联，所以直接不要预置。

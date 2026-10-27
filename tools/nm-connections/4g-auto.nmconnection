@@ -1,0 +1,28 @@
+# 装到 /etc/NetworkManager/system-connections/4g-auto.nmconnection（600）
+#
+# 4G 自动配置：gsm.auto-config=yes 时，NM 会按模组注册到的运营商 MCC/MNC
+# 去 /usr/share/mobile-broadband-provider-info/serviceproviders.xml 查 APN、
+# 用户名和密码（源码见 NetworkManager src/core/devices/wwan/nm-modem-broadband.c
+# 的 try_create_connect_properties()）。因此不需要预置任何运营商 APN。
+#
+# 前提：镜像必须装 mobile-broadband-provider-info 包（build-rootfs.sh 的 PKGS_4G
+# 已包含）。缺这个包时 NM 会报 "APN not found"，连接直接失败。
+#
+# 想固定某个 APN（例如物联网卡）时，改成 apn=xxx 并把 auto-config 设为 no。
+[connection]
+id=4g-auto
+type=gsm
+interface-name=wwan0
+autoconnect=true
+# 用全局默认重试次数（4 次）。不要写 0——0 在 NM 里表示"无限重试"，
+# 没插 SIM 时会一直重试刷日志。
+autoconnect-priority=10
+
+[gsm]
+auto-config=yes
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=ignore
