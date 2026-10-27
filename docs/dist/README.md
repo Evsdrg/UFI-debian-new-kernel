@@ -16,6 +16,7 @@
 | `install-module.sh` | 在设备上安全替换 / 回滚 `wcn36xx.ko`（校验 vermagic） |
 | `wifi-tx-test.sh` | 上行 / 下行速率测量，非破坏性 |
 | `gen-manifest.sh` | 从目录里的文件重写 `builds/boot/*/build.json` |
+| `gpt-backup.sh` | 按 OpenStick GPT 表把整片镜像拆成单分区文件，并可安全写回（默认只写 boot/rootfs/基带校准） |
 | `check-repo.sh [内核树]` | 自检：脚本语法、补丁可应用性、产物哈希、文档链接 |
 
 ## 你能帮什么
