@@ -4,4 +4,7 @@ Name=usb0
 [Network]
 Address=10.42.0.1/24
 IPForward=ipv4
+# 上游 PPPoE/VPN 的 MTU 常小于 1500；NM 档在 connection 里设 mtu=1400，
+# native 档在 networkd 里设，效果相同。
+MTUBytes=1400
 # 设备端固定网关地址；PC 侧由 dnsmasq 分配 10.42.0.10-50

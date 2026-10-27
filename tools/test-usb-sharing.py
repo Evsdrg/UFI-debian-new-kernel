@@ -84,6 +84,29 @@ class GadgetTests(unittest.TestCase):
         self.run_gadget('stop', 1); self.assertTrue(self.g.exists())
         del self.env['MOCK_FAIL_RMDIR']; self.run_gadget('stop')
 
+    def test_udc_disappeared_gadget_is_rebuilt(self):
+        """UDC 消失后 configfs 仍留着旧 UDC 名：这是"断开后不恢复"的典型状态。
+        start 必须允许清理重建，而不是报"请先明确停止"。"""
+        self.run_gadget('start')
+        self.assertIn('active UDC=ci_hdrc.0', self.run_gadget('status').stdout)
+        # 模拟内核侧 UDC 注销：目录消失，但 configfs 的 UDC 属性仍写旧名字。
+        (self.env['USB_GADGET_UDCS'] and Path(self.env['USB_GADGET_UDCS'])/'ci_hdrc.0').rmdir()
+        self.run_gadget('status', 3)
+        # UDC 重新出现（枚举/恢复），start 应能重建
+        (Path(self.env['USB_GADGET_UDCS'])/'ci_hdrc.0').mkdir()
+        self.run_gadget('start')
+        self.assertIn('active UDC=ci_hdrc.0', self.run_gadget('status').stdout)
+        self.run_gadget('stop')
+
+    def test_bound_conflict_with_live_udc_still_refused(self):
+        """UDC 目录还在、但配置不符，仍必须拒绝，避免拆掉别的 gadget。"""
+        self.run_gadget('start')
+        (self.g/'idProduct').write_text('0xffff\n')
+        (self.g/'UDC').chmod(0o644)
+        self.run_gadget('start', 1)
+        self.assertEqual((self.g/'UDC').read_text().strip(), 'ci_hdrc.0')
+        self.run_gadget('stop')
+
 NATIVE_MOCK = r'''#!/usr/bin/env python3
 import os, sys, pathlib
 root=pathlib.Path(os.environ['MOCK_ROOT']); name=pathlib.Path(sys.argv[0]).name
@@ -118,5 +141,33 @@ class NativeTests(unittest.TestCase):
             for action in ['start','stop']:
                 p=subprocess.run(['sh',str(script),action],env=env,capture_output=True,timeout=5)
                 self.assertNotEqual(p.returncode,0)
+
+class WatchdogTests(unittest.TestCase):
+    """usb-gadget-watchdog.sh：status 失败时重跑 start，成功时静默退出。"""
+    def _run(self, active):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            mark = root / 'mark'
+            fake = root / 'usb-gadget'
+            fake.write_text('#!/bin/sh\ncase "$1" in\n'
+                            'status) [ -f "' + str(mark) + '" ] && exit 0 || exit 3 ;;\n'
+                            'start) : > "' + str(mark) + '" ;;\n'
+                            'esac\n')
+            fake.chmod(0o755)
+            if active:
+                mark.touch()
+            env = dict(os.environ, USB_GADGET_BIN=str(fake))
+            p = subprocess.run(['sh', str(BASE/'tools/usb-gadget-watchdog.sh')],
+                               env=env, capture_output=True, text=True, timeout=10)
+            # 必须在 TemporaryDirectory 销毁前取快照，否则 mark 会随目录一起消失。
+            return p.returncode, p.stdout, mark.exists()
+    def test_inactive_triggers_start(self):
+        rc, out, started = self._run(active=False)
+        self.assertEqual(rc, 0)
+        self.assertTrue(started, 'status 失败时未调用 start')
+    def test_active_is_noop(self):
+        rc, out, started = self._run(active=True)
+        self.assertEqual(rc, 0)
+        self.assertEqual(out, '', '已 active 时不应有输出')
 
 if __name__ == '__main__': unittest.main(verbosity=2)

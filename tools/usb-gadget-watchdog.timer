@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically verify the USB RNDIS gadget is still bound
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+AccuracySec=5s
+Unit=usb-gadget-watchdog.service
+
+[Install]
+WantedBy=timers.target

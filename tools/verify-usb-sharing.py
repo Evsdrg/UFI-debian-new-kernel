@@ -103,6 +103,11 @@ try:
         exact_asset(image,'/usr/local/sbin/usb-gadget.sh',BASE/'tools/usb-gadget.sh')
         exact_asset(image,'/etc/systemd/system/usb-gadget.service',BASE/'tools/usb-gadget.service')
         stat(image,'/etc/systemd/system/multi-user.target.wants/usb-gadget.service')
+        # gadget 健康检查：UDC 后出现 / 内核侧解绑时靠它重建
+        exact_asset(image,'/usr/local/sbin/usb-gadget-watchdog.sh',BASE/'tools/usb-gadget-watchdog.sh')
+        exact_asset(image,'/etc/systemd/system/usb-gadget-watchdog.service',BASE/'tools/usb-gadget-watchdog.service')
+        exact_asset(image,'/etc/systemd/system/usb-gadget-watchdog.timer',BASE/'tools/usb-gadget-watchdog.timer')
+        stat(image,'/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer')
         check('"/dev/null"' in stat(image,'/etc/systemd/system/dnsmasq.service'),f'{image.name}: global dnsmasq not masked')
         for prefix in ('/etc/systemd/system', '/usr/lib/systemd/system'):
             check(not re.search(rb'^Inode:', debugfs(image,'stat '+prefix+'/multi-user.target.wants/nftables.service'),re.M),
@@ -119,6 +124,7 @@ try:
             check(b'Wants=native-net.service' in debugfs(image,'cat /etc/systemd/system/usb-gadget.service.d/native.conf'), 'native gadget restart dependency')
         else:
             exact_asset(image,'/etc/NetworkManager/conf.d/20-usb-managed.conf',BASE/'tools/nm-connections/20-usb-managed.conf')
+            exact_asset(image,'/etc/NetworkManager/dnsmasq-shared.d/90-usb-shared-mtu.conf',BASE/'tools/nm-connections/90-usb-shared-mtu.conf')
             connection='/etc/NetworkManager/system-connections/usb-share.nmconnection'
             exact_asset(image,connection,BASE/'tools/nm-connections/usb-share.nmconnection')
             check('Mode:  0600' in stat(image,connection),f'{image.name}: unsafe keyfile mode')

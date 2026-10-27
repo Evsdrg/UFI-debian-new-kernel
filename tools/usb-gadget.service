@@ -5,14 +5,20 @@ Description=USB RNDIS network gadget (share network over USB, gw 10.42.0.1)
 After=systemd-modules-load.service
 Before=NetworkManager.service systemd-networkd.service native-net.service
 Wants=systemd-modules-load.service
+# 失败后自动重试：无屏设备上 gadget 起不来就等于失联，不能指望人手动
+# systemctl restart。oneshot + RemainAfterExit 下 Restart=on-failure 仍有效，
+# 但只在进程非 0 退出时触发；脚本自身对"UDC 未就绪"会重试到超时。
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/usb-gadget.sh start
 ExecStop=/usr/local/sbin/usb-gadget.sh stop
 RemainAfterExit=yes
-TimeoutStartSec=30
+TimeoutStartSec=60
 TimeoutStopSec=15
+Restart=on-failure
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target

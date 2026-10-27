@@ -337,6 +337,10 @@ ipv6.dhcp-timeout=30
 EOF
 install -D -m 644 "$WORKDIR/tools/nm-connections/20-usb-managed.conf" \
     "$STAGE/etc/NetworkManager/conf.d/20-usb-managed.conf"
+# shared 模式 dnsmasq 的附加参数：下发 DHCP option 26（MTU），
+# 让 PC 侧也按 1400 发包。目录由 NM 以 --conf-dir 传给自己的 dnsmasq。
+install -D -m 644 "$WORKDIR/tools/nm-connections/90-usb-shared-mtu.conf" \
+    "$STAGE/etc/NetworkManager/dnsmasq-shared.d/90-usb-shared-mtu.conf"
 
 # 不预置任何 Wi-Fi 连接文件（见文件头）。首次进系统靠 USB RNDIS，
 # 之后用 nmtui/nmcli 自己配无线。
@@ -558,6 +562,12 @@ fi
 # tools/net-native/；包与管理策略按 ROOTFS_NET 分支装配。
 install -D -m 755 "$WORKDIR/tools/usb-gadget.sh" "$STAGE/usr/local/sbin/usb-gadget.sh"
 install -D -m 644 "$WORKDIR/tools/usb-gadget.service" "$STAGE/etc/systemd/system/usb-gadget.service"
+# gadget 健康检查：configfs 的 match_existing_only=1，UDC 后出现时内核不会
+# 自动重绑；oneshot 服务绑定后即使内核侧解绑，systemd 仍认为 active。
+# 定时器每 30 秒确认一次，失效就重建（start 幂等）。
+install -D -m 755 "$WORKDIR/tools/usb-gadget-watchdog.sh" "$STAGE/usr/local/sbin/usb-gadget-watchdog.sh"
+install -D -m 644 "$WORKDIR/tools/usb-gadget-watchdog.service" "$STAGE/etc/systemd/system/usb-gadget-watchdog.service"
+install -D -m 644 "$WORKDIR/tools/usb-gadget-watchdog.timer" "$STAGE/etc/systemd/system/usb-gadget-watchdog.timer"
 if [[ "$ROOTFS_NET" == nm ]]; then
     install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
         "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
@@ -760,7 +770,7 @@ MMDEBSTRAP_ARGS=(
 	#    设备开机后 wlan0 一直 unavailable。）
 	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
 	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-led-state.service mf32-powerkey.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-led-state.service mf32-powerkey.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && mkdir -p $1/etc/systemd/system/timers.target.wants && ln -sf /etc/systemd/system/usb-gadget-watchdog.timer $1/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
 	# （仅 nm 档）清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要
 	# 清，它会从 sockets.target 自动拉起 networkd）。native 档没有 NM，不存在
 	# 抢占，反而依赖这些单元——上面的钩子按"镜像里有无 NM 二进制"自动跳过。

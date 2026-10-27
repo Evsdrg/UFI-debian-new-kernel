@@ -115,7 +115,7 @@ power_supply"，在这个平台上永远找不到，所以电量条从来不亮�
 
 ### 2.2 已确认的风险点
 
-#### 风险 1：`usb-gadget.service` 无 `Restart=`，启动失败即永久失败 ⚠️ 高
+#### 风险 1：`usb-gadget.service` 无 `Restart=`，启动失败即永久失败 ✅ 已修复
 
 `tools/usb-gadget.service` 是 `Type=oneshot` + `RemainAfterExit=yes`，**没有
 `Restart=`**。若开机时 UDC 尚未就绪（脚本等 20×0.5s = 10 秒），或 configfs
@@ -125,11 +125,12 @@ power_supply"，在这个平台上永远找不到，所以电量条从来不亮�
 - PC 侧完全看不到网卡
 - 用户唯一补救是 `systemctl restart usb-gadget`
 
-**建议**：加 `Restart=on-failure` + `RestartSec=2`（oneshot 服务配 `Restart=` 在
-systemd 里是允许的，但要注意 `RemainAfterExit=yes` 与重启的交互；更稳妥的是改成
-`Type=simple` 的守护进程，或加一个 `ExecStartPost` 健康检查）。
+**修复**：加 `Restart=on-failure` + `RestartSec=3` + `StartLimitIntervalSec=0`
+（oneshot 配 `Restart=on-failure` 合法，`Restart=always` 才被禁止），
+`TimeoutStartSec` 提到 60。另外新增 `usb-gadget-watchdog.timer`：每 30 秒
+检查一次 gadget 是否仍完整绑定，失效就重建（见下面风险 9）。
 
-#### 风险 2：NM shared 模式不做 MSS clamp，上游 MTU < 1500 时大包被丢 ⚠️ 中
+#### 风险 2：NM shared 模式不做 MSS clamp，上游 MTU < 1500 时大包被丢 ✅ 已修复
 
 `usb-share.nmconnection` 没有设 `mtu`，NM shared 模式生成的 nft 规则里
 （实测 `nm-shared-usb0` 表）只有 `masquerade`、`ct state`、`reject`，**没有
@@ -144,33 +145,40 @@ systemd 里是允许的，但要注意 `RemainAfterExit=yes` 与重启的交互�
 **这个项目历史上踩过一次**：2026-10-16 验证时曾误判为 PMTU 问题，后来发现
 是测试目标 IP 不可达。但**机制本身是真实存在的**，只是当时没触发。
 
-**建议**：在 `usb-share.nmconnection` 里设 `mtu=1400`（保守值），或在 nft 规则里
-加 `tcp option maxseg size 1360`。前者更简单，且对 PC 侧是透明的。
+**修复**（三条一起，缺一不可）：
 
-#### 风险 3：`usb-gadget.service` 与 NM 的顺序只是 `Before=`，不是 `Requires=` ⚠️ 中
+1. `usb-share.nmconnection` 的 `[ethernet] mtu=1400`
+2. `/etc/NetworkManager/dnsmasq-shared.d/90-usb-shared-mtu.conf` 下发
+   `dhcp-option=option:mtu,1400`，让 PC 侧也按 1400 发包
+3. native 档：`10-usb0.network` 的 `MTUBytes=1400`，`dnsmasq.conf` 同样的
+   DHCP 选项，`nat.nft` 里加 `tcp option maxseg size set 1360`
+
+只做第 1 条只能限制设备→PC 方向；PC→设备方向仍会发 1500。
+
+#### 风险 3：`usb-gadget.service` 与 NM 的顺序只是 `Before=`，不是 `Requires=` ✅ 已修复
 
 `usb-gadget.service` 有 `Before=NetworkManager.service`，但如果 gadget 启动
 **失败**，NM 仍会正常启动（`Before` 只影响顺序）。此时 NM 会一直尝试激活
 `usb-share` 但接口不存在，日志里会出现反复重试。
 
-**建议**：给 `usb-gadget.service` 加 `RequiredBy=NetworkManager.service` 或
-让 NM 的 `usb-share` 连接加 `autoconnect-retries=0`（无限重试，等接口出现）。
+**修复**：`usb-share.nmconnection` 加 `autoconnect-retries=0`（0 = 无限重试）。
+NM 默认只重试 4 次就永久放弃，USB 重新枚举或 gadget 重启后拉不起来。
 
-#### 风险 4：UDC 等待窗口只有 10 秒，可能不够 ⚠️ 低
+#### 风险 4：UDC 等待窗口只有 10 秒，可能不够 ✅ 已修复
 
 `usb-gadget.sh:76-83` 最多等 20×0.5s = 10 秒。`TimeoutStartSec=30` 给了 30 秒，
 但脚本自己在 10 秒后就放弃了。慢速 eMMC 或内核模块加载慢时可能不够。
 
-**建议**：把循环改成 `seq 1 60`（30 秒），与 `TimeoutStartSec` 对齐。
+**修复**：循环改成 `seq 1 60`（30 秒），与 `TimeoutStartSec=60` 留出一半余量。
 
-#### 风险 5：`MaxPower 200`（200 mA）声明值可能偏低 ℹ️ 低
+#### 风险 5：`MaxPower 200`（200 mA）声明值可能偏低 ✅ 已修复
 
 configfs 的 `MaxPower` 单位是 mA。200 mA 是向主机声明的取电上限，**不影响数据
 传输**，但如果设备实际功耗超过声明值，某些严格的主机（尤其是 USB hub）可能
 在枚举后限流甚至断开。
 
-MF601SL/MF32 带电池，充电时功耗可能超过 200 mA。**建议按实际需求调到 500 mA**
-（USB 2.0 允许的最大值）。
+MF601SL/MF32 带电池，充电时功耗可能超过 200 mA。已调到 **500 mA**
+（USB 2.0 单个配置允许的上限）。
 
 #### 风险 6：`extcon` 只接了 ID，没有 VBUS 检测 ℹ️ 信息
 
@@ -207,7 +215,29 @@ macOS **不原生支持 RNDIS**，需要第三方驱动（HoRNDIS，且在新版
 
 **结论：本项目不需要额外处理 autosuspend。** 历史实机日志里也没有相关记录。
 
-#### 风险 9：没有 IPv6（`ipv6.method=ignore`）ℹ️ 信息
+#### 风险 9：内核侧解绑后 gadget 不自动重绑（"RNDIS 自己断开"的根因）✅ 已修复
+
+这是"群友观测到 RNDIS 会断开"最主要的内核侧机制：
+
+- configfs gadget 的驱动标志 **`match_existing_only = 1`**（`configfs.c:1985`），
+  所以 UDC 后出现时内核**不会**自动把 gadget 绑上去
+- `usb-gadget.service` 是 `oneshot + RemainAfterExit`，绑定成功后即使内核侧解绑了
+  （UDC 注销、控制器掉电恢复、USB 重新枚举），**systemd 仍认为服务 active**，
+  不会触发 `Restart=`
+- `configfs_composite_unbind()` **不清 `udc_name`**，所以 `$G/UDC` 里仍显示旧名字；
+  而 `complete()` 要求 `[ -d "$UDCS/<名字>" ]`，一旦 UDC 目录消失就返回失败
+- 旧版 `start()` 遇到"UDC 有值但 complete 失败"时直接 `fail '请先明确停止'`，
+  **自愈被自己挡住**
+
+**修复**：
+
+1. `usb-gadget.sh start()` 改为区分两种情况：UDC 目录**还在**（真的有别的 gadget
+   占着）→ 拒绝；UDC 目录**已不存在**（内核侧已解绑的残留）→ 清理重建
+2. `remove_tree()` 在 UDC 已消失、写空失败时，只要确认 `$UDCS/<名字>` 不存在就继续清
+3. 新增 `usb-gadget-watchdog.timer`（每 30 秒）+ `usb-gadget-watchdog.service`：
+   调 `usb-gadget.sh status`，非 active 就重跑 `start`（start 幂等，且有 flock 串行）
+
+#### 风险 10：没有 IPv6（`ipv6.method=ignore`）ℹ️ 信息
 
 `usb-share.nmconnection` 里 `[ipv6] method=ignore`。这不影响 IPv4 稳定性，
 但如果 PC 侧有 IPv6 优先的应用，可能出现"解析到 AAAA 后超时"的假性卡顿。
@@ -227,13 +257,19 @@ USB hub 级联、USB 3.0 主机口（RNDIS 是 USB 2.0 设备）。
 
 ## 三、优先级建议
 
-| 优先级 | 项目 | 理由 |
+| 状态 | 项目 | 位置 |
 |---|---|---|
-| **高** | 给 `usb-gadget.service` 加失败重试 | 一次失败就永久失联，无屏设备无法自救 |
-| **高** | `usb-share.nmconnection` 设 `mtu=1400` | 上游 MTU 变化时避免大包黑洞 |
-| **中** | UDC 等待窗口对齐到 30 秒 | 慢速启动时避免假失败 |
-| **中** | `MaxPower` 调到 500 | 带电池机型充电时可能超 200mA |
-| **低** | OCV 电量百分比（方案 A） | 精度 ±5%，够做电量条 |
-| **低** | 内核侧加 CAPACITY | 硬件不支持电流测量，走不通 |
+| ✅ | gadget 失败自动重启 | `tools/usb-gadget.service` |
+| ✅ | gadget 定时健康检查与重建 | `tools/usb-gadget-watchdog.{sh,service,timer}` |
+| ✅ | UDC 后出现/内核解绑后重建 | `tools/usb-gadget.sh` 的 `start()` / `remove_tree()` |
+| ✅ | UDC 等待窗口 10s → 30s | `tools/usb-gadget.sh` |
+| ✅ | `MaxPower` 200 → 500 mA | `tools/usb-gadget.sh` |
+| ✅ | NM 档 MTU 1400（设备侧 + DHCP 下发） | `usb-share.nmconnection` + `90-usb-shared-mtu.conf` |
+| ✅ | native 档 MTU 1400 + MSS clamp | `10-usb0.network` / `dnsmasq.conf` / `nat.nft` |
+| ✅ | `autoconnect-retries=0`（无限重试） | `usb-share.nmconnection` |
+| — | OCV 电量百分比（方案 A） | 未实现；精度 ±5%，够做电量条 |
+| — | 内核侧加 CAPACITY | 走不通，硬件无电流通道 |
 
-以上除"已验证的稳定性数据"外，均**未在实机验证**。
+**以上修复均通过离线测试（10 项）与 QEMU 冒烟，但未在实机验证。**
+实机验收需要：插拔 USB 主机线、USB 主机休眠唤醒、反复重启 gadget 服务，
+确认 `usb0` 的 carrier 恢复后 PC 侧不用重新插拔就能继续通信。

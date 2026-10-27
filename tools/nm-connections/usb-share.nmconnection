@@ -5,8 +5,16 @@ id=usb-share
 type=ethernet
 interface-name=usb0
 autoconnect=true
+# 0 = 无限重试。默认只重试 4 次就放弃自动连接；USB 重新枚举、gadget 重启、
+# 或开机时 usb0 出现晚于 NM 启动，都可能把 4 次用完，之后就再也起不来。
+autoconnect-retries=0
 
 [ethernet]
+# MTU 1400 而不是 1500：上游是 PPPoE（MTU 1492）或 VPN 时，PC 按 1500
+# 发的大包在转发后会成为黑洞（ping 通、小请求通、HTTPS 卡死）。
+# NM shared 模式不会自动做 MSS clamp，所以在设备侧把 MTU 压到 1400，
+# 让 PC 侧通过 DHCP/ICMP 学到更小的值。
+mtu=1400
 
 [ipv4]
 method=shared

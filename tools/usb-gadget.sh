@@ -19,8 +19,13 @@ write_attr() {
 }
 remove_tree() {
     [ -d "$G" ] || return 0
-    if [ -n "$(value "$G/UDC" || true)" ]; then
-        printf '\n' >"$G/UDC" || return 1
+    bound=$(value "$G/UDC" || true)
+    if [ -n "$bound" ]; then
+        # 正常解绑。若内核侧已经解绑（UDC 目录已不存在），写空可能失败；
+        # 这种情况下内核已经没有可解绑的对象，继续清 configfs 残留是安全的。
+        if ! printf '\n' >"$G/UDC" 2>/dev/null; then
+            [ ! -d "$UDCS/$bound" ] || return 1
+        fi
     fi
     for link in os_desc/c.1 configs/c.1/rndis.usb0; do
         if [ -L "$G/$link" ]; then rm "$G/$link" || return 1; fi
@@ -66,14 +71,28 @@ start() {
     [ -d "$CFG" ] || fail 'configfs 未挂载或 USB_CONFIGFS 不可用'
     bound=$(value "$G/UDC" || true)
     if [ -n "$bound" ]; then
-        complete || fail '已有绑定 gadget 与期望配置不一致；请先明确停止'
-        echo "usb-gadget: 已装配（UDC=$bound）"
-        return
+        if complete; then
+            echo "usb-gadget: 已装配（UDC=$bound）"
+            return
+        fi
+        # 两种可能：
+        #   1) 有别的 gadget 占着、配置与期望不符 → 不该擅自拆
+        #   2) 内核侧已解绑但 configfs 的 UDC 属性仍留着旧名字
+        #      （configfs_composite_unbind 不清 udc_name）→ 这是"断开后
+        #      不恢复"的典型状态，必须允许重建
+        # 判据：该 UDC 目录是否还存在。不存在 = 内核侧确实已无此 UDC，
+        # 清掉残留对象重建是安全的。
+        if [ -d "$UDCS/$bound" ]; then
+            fail '已有绑定 gadget 与期望配置不一致；请先明确停止'
+        fi
+        echo "usb-gadget: UDC $bound 已不存在，清理残留后重建" >&2
     fi
     # 清理上次失败留下的未绑定对象，再按同一份描述符重新构建。
     remove_tree || fail '无法清理未绑定 gadget'
+    # 最多等 30 秒。TimeoutStartSec=60 留出一半余量；之前只等 10 秒，
+    # 慢速启动时脚本会先于 systemd 超时自己放弃，触发一次无谓的重启。
     udc=
-    for _ in $(seq 1 20); do
+    for _ in $(seq 1 60); do
         for path in "$UDCS"/*; do
             [ -d "$path" ] || continue
             udc=${path##*/}; break
@@ -96,7 +115,9 @@ start() {
     mkdir "$G/configs/c.1"
     mkdir "$G/configs/c.1/strings/0x409"
     write_attr configs/c.1/strings/0x409/configuration 'RNDIS Network'
-    write_attr configs/c.1/MaxPower 200 # configfs 单位 mA；不是 2W，也不是实际功耗测量
+    # configfs 单位 mA。500 是 USB 2.0 单个配置允许的上限；带电池机型
+    # （MF32/MF601SL）充电时功耗会超过 200mA，声明过低时严格的 hub 可能限流。
+    write_attr configs/c.1/MaxPower 500
     mkdir "$G/functions/rndis.usb0"
     ln -s "$G/functions/rndis.usb0" "$G/configs/c.1/rndis.usb0"
     write_attr os_desc/use 1

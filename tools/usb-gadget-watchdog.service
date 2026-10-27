@@ -1,0 +1,10 @@
+[Unit]
+Description=USB RNDIS gadget health check
+# 只在 gadget 服务已经 active 时检查；服务本身 failed 时由 Restart= 负责。
+After=usb-gadget.service
+ConditionPathExists=/sys/kernel/config/usb_gadget
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/usb-gadget-watchdog.sh
+TimeoutStartSec=45

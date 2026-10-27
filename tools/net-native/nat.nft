@@ -9,6 +9,10 @@ table inet openstick_usb {
     }
     chain forward {
         type filter hook forward priority filter; policy accept;
+        # MSS clamp：上游 MTU < 1500 时，让 PC 侧的 TCP 按 1360 发段，
+        # 避免大包在转发路径上被丢弃（症状是 ping 通、HTTPS 卡死）。
+        # 1360 = 1400 (usb0 MTU) - 20 (IPv4) - 20 (TCP)。
+        tcp flags syn tcp option maxseg size set 1360
         oifname "usb0" ip daddr 10.42.0.0/24 ct state { established, related } accept
         iifname "usb0" ip saddr 10.42.0.0/24 accept
         iifname "usb0" reject
