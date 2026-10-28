@@ -14,7 +14,7 @@
 | [`CPU-POWER.md`](CPU-POWER.md) | CPU 频率、电压和散热 |
 | [`LED.md`](LED.md) | 状态灯的设备树命名、灯语与适配 |
 | [`MF601SL.md`](MF601SL.md) | MF601SL 设备树来源、GPIO 对比与未确认项 |
-| [`BATTERY.md`](BATTERY.md) | 电池、充电与电量显示：驱动属性、内核能力边界、用户态消费点 |
+| [`BATTERY.md`](BATTERY.md) | 电池、充电、电量显示，以及"必须装电池否则半小时重启"现象分析 |
 | [`POWER-AND-RNDIS.md`](POWER-AND-RNDIS.md) | OCV 查表做电量百分比的可行性与精度，RNDIS 稳定性风险清单 |
 | [`WIFI-HOTSPOT.md`](WIFI-HOTSPOT.md) | WCN36xx AP 能力、NM 热点方案与验收清单 |
 | [`BLUETOOTH.md`](BLUETOOTH.md) | 蓝牙驱动、固件与实测结果 |

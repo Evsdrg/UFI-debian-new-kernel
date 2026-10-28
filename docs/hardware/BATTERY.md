@@ -150,3 +150,98 @@ MF601SL 的 OCV 表已按 4.25V 重新标定：100% 对应 4250000 µV，其余�
 - [ ] 电量条 LED 与实测电压的对应关系
 
 以上全部**未在硬件上验证**——本工作区没有这两块板子。
+
+## 六、"必须上电池，否则半小时内重启"的分析
+
+群友反馈：电池机刷完 Debian 必须装电池，纯 USB 供电半小时内必重启；装电池后
+可稳定运行一个月。以下按源码证据逐条拆解，区分**已证实的机制**与**待实测的推测**。
+
+### 6.1 已确认的硬件/驱动事实
+
+| 事实 | 依据 |
+|---|---|
+| LBC 驱动**完全不检测电池是否存在** | `pm8916_lbc.c` 只 `platform_get_irq_byname(pdev, "usb_vbus")`（第 325 行）并注册这一个中断；DTS 里定义的 `bat_pres`、`vbat_det`、`chg_fail`、`temp_ok`、`overtemp` 等 9 个中断**驱动一个都没请求** |
+| BMS 驱动**不暴露 `POWER_SUPPLY_PROP_PRESENT`，也不暴露 `CAPACITY`** | `pm8916_bms_vm.c:106-111` 的属性表只有 `STATUS`/`VOLTAGE_NOW`/`VOLTAGE_OCV`/`HEALTH`；`grep -n 'present'` 零命中 |
+| 驱动初始化时**无条件**写 `CHG_EN \| PSTG_EN` 使能充电 | `pm8916_lbc.c:110-111` |
+| 驱动**从不设置 USB 输入电流限制（ICL）** | `pm8916_lbc.c` 全文只有 `USBIN_VALID` 状态位（第 31 行）与两处读取（188、346 行），无任何 `USBIN_IMAX` / `ICL` 寄存器操作。同族 `qcom_smbb.c` 有 `ATTR_USBIN_IMAX`（`usb-charge-current-limit`），LBC 没有 |
+| 用户态**没有任何低电量处理** | 镜像里没有 battery 相关 systemd unit；`build-rootfs.sh` 无低电关机逻辑；`upower` 只在 max 档且读不到 `capacity`（见第三节） |
+| 内核 watchdog **已启用**：`RuntimeWatchdogSec=60s`、`RebootWatchdogSec=60s` | `build-rootfs.sh:426-431`；`CONFIG_PM8916_WATCHDOG=m`，上限 127 秒 |
+| PM8916 会记录上次掉电原因，但**只有 watchdog 驱动读它** | `pm8916_wdt.c:12-16,188-201` 定义并读取 `POFF_REASON1_PMIC_WD` / `POFF_REASON2_UVLO` / `POFF_REASON2_OTST3`；全树无任何写操作 |
+
+### 6.2 最可能的主因：纯 USB 供电时的电流预算不足
+
+这是"半小时"这个时间尺度最吻合的解释：
+
+1. **PM8916 LBC 是线性充电器**（`qcom,pm8916-lbc` 的 binding 原文：
+   "Implements a simple, autonomous CC/CV charger"）。线性充电的输入电流
+   ≈ 输出电流 + 自身压差损耗，它**不会**把 USB 的 5V 高效变换成电池电压。
+2. **驱动不设 USB 输入限流**，所以输入限流取 PMIC 上电默认值。USB 2.0 端口
+   通常只保证 **500 mA**（未枚举时 100 mA）。
+3. 设备满载功耗实测：WiFi 吞吐测试时 CPU 有负载，历史记录里 4 核满载 45 秒
+   升到 86℃、功耗显著高于 2.5W。**500 mA × 5V = 2.5W** 是 USB 2.0 的上限。
+4. 因此纯 USB 供电时，系统净功耗 > 输入功率 → 缺口由电池补。**没有电池**
+   就只有一个很小的输入电容，母线电压会缓慢下跌。
+5. **半小时**这个量级与"小电容 + 2.5W 输入"的放电曲线一致，而不是分钟级
+   （分钟级更像 UVLO 立即触发）。
+
+**但这一条我不能确认为唯一原因**：缺少 PM8916 的 USB 输入限流默认值实测数据，
+也没有纯 USB 供电下 `voltage_now` 的实测曲线。要证实需要：
+`cat /sys/class/power_supply/pm8916-bms-vm/voltage_now` 每 10 秒采样一次，
+记录从插上到重启的完整曲线。
+
+### 6.3 第二可能：UVLO 触发的硬复位，而不是软件崩溃
+
+- PM8916 的 `POFF_REASON2_UVLO`（bit5）就是"欠压锁定"标记。若母线电压跌破
+  UVLO 阈值，PMIC 直接断电，**内核来不及打任何日志**——这与群友描述的
+  "必重启"（而不是"死机"）吻合。
+- `pm8916_wdt` 会把该位映射成 `WDIOF_POWERUNDER`，通过
+  `/dev/watchdog0` 的 `WDIOC_GETBOOTSTATUS` 可读。
+- **但本项目镜像里 `CONFIG_WATCHDOG_SYSFS` 未开**（`common-7.2.9-os.config:3637`
+  `# CONFIG_WATCHDOG_SYSFS is not set`），所以没有
+  `/sys/class/watchdog/watchdog0/bootstatus`；只能靠 `wdctl`（镜像里有
+  `/usr/bin/wdctl`，走 ioctl）读 `BOOTSTATUS` 位。
+- **这一点是可直接验证的**：下次重启后执行 `wdctl`，若 `Boot status` 里出现
+  `POWERUNDER`，就基本确认是 UVLO。
+
+### 6.4 第三可能：PM8916 的补充模式（PSTG）
+
+`CHG_CTRL` 的 bit5 叫 `PSTG_EN`（Power Stage Enable）。驱动无条件置位它。
+在 PM8916 LBC 上，PSTG 的作用是当输入功率不足以同时供系统 + 充电时，
+**由电池补充供电**（supplement mode）。这正是"装了电池就稳"的机制：
+
+- 有电池：PSTG 使能 → 输入不足时电池补，系统电压稳定 → 可稳定一个月
+- 无电池：PSTG 无处可补 → 母线直接跌落 → UVLO 硬复位
+
+这条与 6.2 是同一个物理过程的两面，且能解释"必须装电池"这个强相关性。
+
+**未证实部分**：我没有 PM8916 寄存器手册确认 PSTG 在这颗 PMIC 上的确切行为，
+只能从驱动无条件置位 + 同族 PMIC（PM8941 `qcom_smbb`）的 supplement 语义推断。
+
+### 6.5 可以排除的方向
+
+| 方向 | 排除依据 |
+|---|---|
+| 软件崩溃 / oops | 30 分钟量级不像崩溃；且 `RuntimeWatchdogSec=60s` 会让真死机在 60 秒内硬复位，不会拖到半小时 |
+| 热节流 | 电池板 DTS 未定义 `thermal-zones` 的 cooling-maps（MF601SL 完全不包含 thermal 段，MF32 是反编译展开的独立表）；且重启而非降频 |
+| RTC / 时钟问题 | 与本现象无关 |
+| 电池驱动 probe 失败 | 若 LBC/BMS 没起来，`EXTCON_USB` 不会注册，插电脑连 RNDIS 都没有——但群友能刷机、能跑，说明驱动是起来的 |
+
+### 6.6 建议
+
+**短期（使用者侧）**：按群友经验，电池机型**必须装电池使用**。这不是配置问题，
+是供电架构问题。
+
+**要确认根因**，需要做三件事（都要实机）：
+
+1. 纯 USB 供电（不装电池）下每 10 秒采样 `voltage_now`，记录到重启的曲线
+2. 重启后跑 `wdctl` 读 `BOOTSTATUS`，看是否有 `POWERUNDER`
+3. 装电池重复 1、2 作为对照
+
+**若要改善纯 USB 供电**，可行方向（均需实机验证）：
+
+- 降低系统峰值功耗：CPU 限频到 800MHz、关 WiFi、关 4G
+- 缩短 watchdog 超时到 30 秒，让真死机能更快自恢复（但这不解决 UVLO）
+- **不要**试图用软件"提高输入限流"——驱动根本没有这个接口，且提高限流会让
+  输入电压跌得更快
+
+**本节的结论都是源码分析与推理，未在实机验证。**
