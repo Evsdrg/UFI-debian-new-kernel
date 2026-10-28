@@ -1,0 +1,53 @@
+diff --git a/drivers/power/supply/pm8916_lbc.c b/drivers/power/supply/pm8916_lbc.c
+index cdc4d78c4..6e843bebc 100644
+--- a/drivers/power/supply/pm8916_lbc.c
++++ b/drivers/power/supply/pm8916_lbc.c
+@@ -43,6 +43,12 @@
+ #define PM8916_LBC_CHGR_CHG_EN BIT(7)
+ #define PM8916_LBC_CHGR_PSTG_EN BIT(5)
+ 
++#define PM8916_LBC_USB_ENUM_TIMER_STOP 0x4e
++#define PM8916_LBC_USB_ENUM_TIMER_STOP_BIT BIT(0)
++
++#define PM8916_LBC_MISC_BOOT_DONE 0x42
++#define PM8916_LBC_MISC_BOOT_DONE_BIT BIT(7)
++
+ #define PM8916_LBC_CHGR_MIN_CURRENT 90000
+ #define PM8916_LBC_CHGR_MAX_CURRENT 1440000
+ 
+@@ -107,6 +113,35 @@ static int pm8916_lbc_charger_configure(struct pm8916_lbc_charger *chg)
+ 	if (ret)
+ 		goto error;
+ 
++	/*
++	 * Tell the PMIC that the boot chain finished.  CHG_EN alone does not
++	 * start the charging FSM: the hardware description for
++	 * LBC_CHGR_CHG_CTRL bit 7 says "BOOT_DONE in the LBC_MISC peripheral
++	 * must also be set to 1 in order that FSM controlled charging starts".
++	 * The bootloader is supposed to set this, but not every one does;
++	 * qcom_smbb.c does the same thing with the same comment.
++	 */
++	ret = regmap_update_bits(chg->regmap,
++				 chg->reg[LBC_MISC] + PM8916_LBC_MISC_BOOT_DONE,
++				 PM8916_LBC_MISC_BOOT_DONE_BIT,
++				 PM8916_LBC_MISC_BOOT_DONE_BIT);
++	if (ret)
++		goto error;
++
++	/*
++	 * Stop the USB enumeration timer.  If it is left running it expires
++	 * after 120 s (the default), at which point the charger assumes USB
++	 * enumeration failed or that the host granted less than 100 mA, and
++	 * clamps IBAT_MAX to 90 mA.  With no battery fitted that leaves the
++	 * system running straight off a 90 mA input budget.
++	 */
++	ret = regmap_update_bits(chg->regmap,
++				 chg->reg[LBC_USB] + PM8916_LBC_USB_ENUM_TIMER_STOP,
++				 PM8916_LBC_USB_ENUM_TIMER_STOP_BIT,
++				 PM8916_LBC_USB_ENUM_TIMER_STOP_BIT);
++	if (ret)
++		goto error;
++
+ 	ret = regmap_write(chg->regmap, chg->reg[LBC_CHGR] + PM8916_LBC_CHGR_CHG_CTRL,
+ 			   PM8916_LBC_CHGR_CHG_EN | PM8916_LBC_CHGR_PSTG_EN);
+ 	if (ret)

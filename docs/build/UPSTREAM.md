@@ -30,12 +30,13 @@ kernel.org stable 仓库已有 **Linux 7.2.13**（2026-10-26，提交 `3c172eede
 
 ## 补丁兼容性预检
 
-已在干净的 v7.2.13 工作树上按序实测，当前四个补丁全部可以套用：
+已在干净的 v7.2.13 工作树上按序实测，当前五个补丁全部可以套用：
 
 1. `0001-wifi-wcn36xx-make-firmware-feat-caps-readable.patch`
 2. `0002-wifi-wcn36xx-raise-max-medium-time-for-ht-tx.patch`
 3. `0003-wifi-wcn36xx-add-cfg-override-diagnostics.patch`
 4. `0005-venus-hfi1xx-encoder-fixes.patch`
+5. `0006-power-supply-pm8916-lbc-complete-charger-handshake.patch`
 
 这里只证明补丁能按序套用，**不代表 7.2.13 已完成构建或实机验证**。
 

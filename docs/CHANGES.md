@@ -10,7 +10,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 
 ## 一、内核（Linux 7.2.9）
 
-### 1.1 补丁：4 个，均在 `source/patches/`
+### 1.1 补丁：5 个，均在 `source/patches/`
 
 在 `source/patches/`，在 pristine 7.2.9 上按序干净套用
 （无 fuzz、无 reject），反向套用也干净。分发镜像（`builds/`）由同一份源码与
@@ -22,8 +22,11 @@ Debian 13」差在哪里。每项都指向权威定义处。
 | `0002` wcn36xx MAX_MEDIUM_TIME 6000→20000 | **真正的上行速率修复**：6000 太小，固件速率自适应卡在 MCS0（约 6 Mbit/s）；改后 45–50 Mbit/s | 未上游 |
 | `0003` wcn36xx cfg override 诊断 | `cfg_override` 模块参数 + debugfs 旋钮，运行时把 `WCN36XX_HAL_CFG_*` 推给固件，不必每个值重编一次 | 诊断用，未上游 |
 | `0005` venus HFI 1xx 编码修复 | 四项：8x8 transform 只发给 HFI 4xx/6xx；1xx 强制 in-band headers；`vdec` G_FMT 等 reconf 事件；对外广告真实的 128x32 对齐 | 未上游 |
+| `0006` pm8916_lbc 补全充电握手 | 补写 `LBC_MISC_BOOT_DONE` 与 `LBC_USB_ENUM_TIMER_STOP`。缺前者 FSM 充电不启动，缺后者 120 秒后 `IBAT_MAX` 被压到 90mA——纯 USB 无电池供电时撑不住系统功耗。依据 PM8916 HRD 原文与同族 `qcom_smbb.c` 对照，**未实机验证** | 未上游 |
 
 三个 wcn36xx 补丁都通过 `checkpatch --strict`，无 error 无 warning。
+
+`0006` 的依据与实机验证步骤见 `source/patches/pm8916-lbc-handshake-provenance.txt`。
 
 **已知缺陷（已修）**：`0005` 原本还含一份与 `0004` 逐字节重复的 `hfi_parser.c`
 改动，导致按序号套用必然冲突。已把该段从 0005 删除（0004 本身随后随 7.2.9
