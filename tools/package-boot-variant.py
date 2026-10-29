@@ -98,8 +98,19 @@ def main() -> int:
     compile_dtb(dts_path, dtb)
     print(f"dtb={dtb} ({dtb.stat().st_size} bytes)")
 
+    # DTB 布局（环境变量 BOOT_DTB_LAYOUT，默认 inline）：
+    #   inline  = Image.gz+dtb 拼接体整体作为 kernel，header kernel_size 含 dtb。
+    #             UFI103s 的新版 LK 在 kernel 区内扫描 magic，实测可用，保持不动。
+    #   padded  = 面向老 LK（MF32）。LE.1.1 dev_tree.c find_dt_image_offset()
+    #             在 kernel_buf + ROUNDUP(kernel_size, page) 找 DTB，即要求
+    #             kernel_size 只含内核本体、DTB 挂在其后页对齐空档。2026-10-29
+    #             由该板 aboot.bin 反汇编确认。
+    dtb_layout = os.environ.get("BOOT_DTB_LAYOUT", "inline")
     kernel_dtb = out / f"kernel-{variant}-dtb"
-    kernel_dtb.write_bytes(image_path.read_bytes() + dtb.read_bytes())
+    if dtb_layout == "padded":
+        kernel_dtb.write_bytes(image_path.read_bytes())
+    else:
+        kernel_dtb.write_bytes(image_path.read_bytes() + dtb.read_bytes())
 
     ramdisk = out / "empty-ramdisk"
     ramdisk.write_bytes(b"")
@@ -123,14 +134,22 @@ def main() -> int:
         check=True,
     )
 
-    data = boot.read_bytes()
+    data = bytearray(boot.read_bytes())
     assert data[:8] == b"ANDROID!", "boot magic missing"
     kernel_size = struct.unpack_from("<I", data, 8)[0]
     page_size = struct.unpack_from("<I", data, 36)[0]
-    # The kernel payload starts at the second page; the appended DTB sits at
-    # the very end of it, i.e. (kernel payload offset) + len(Image.gz).
     payload_off = page_size
-    dtb_offset = payload_off + image_path.stat().st_size
+    if dtb_layout == "padded":
+        # DTB 放到 kernel_size 页对齐之后的第一个位置（老 LK 的搜索点）。
+        gz_len = image_path.stat().st_size
+        assert kernel_size == gz_len, f"padded 布局 kernel_size 应恰为 Image.gz 长度: {kernel_size} != {gz_len}"
+        dtb_offset = payload_off + ((gz_len + page_size - 1) // page_size) * page_size
+        data = data[:dtb_offset]  # 裁掉 mkbootimg 对空 ramdisk 写的补零页
+        data += dtb.read_bytes()
+        boot.write_bytes(bytes(data))
+    else:
+        # inline：payload 起点 + len(Image.gz) 处就是拼接的 DTB。
+        dtb_offset = payload_off + image_path.stat().st_size
     assert data[dtb_offset:dtb_offset + 4] == b"\xd0\x0d\xfe\xed", "appended DTB missing"
     dtb_total = struct.unpack_from(">I", data, dtb_offset + 4)[0]
     tail = len(data) - (dtb_offset + dtb_total)
@@ -146,6 +165,7 @@ def main() -> int:
         "kernel_size": kernel_size,
         "appended_dtb_offset": dtb_offset,
         "appended_dtb_size": dtb.stat().st_size,
+        "dtb_layout": dtb_layout,
         "image_gz_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
         "dtb_sha256": hashlib.sha256(dtb.read_bytes()).hexdigest(),
         "boot_sha256": hashlib.sha256(data).hexdigest(),

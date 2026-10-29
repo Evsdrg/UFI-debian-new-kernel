@@ -682,6 +682,27 @@ if [[ -n "${EXTRA_MODULE_TREES:-}" ]]; then
     done
 fi
 
+# lk2nd extlinux 启动资产（ROOTFS_EXTLINUX_KERNEL 非空时启用）。
+# 面向原厂老 LK 的板型（如 MF32）：boot 分区放 lk2nd.img，由老 LK 按 ATAG
+# 路径加载；lk2nd 再从本 rootfs 读 /extlinux/extlinux.conf 引导 mainline
+# （gz kernel 自动解压，FDT 直接指 dtb 文件，无 CAF 那套 msm-id 匹配）。
+if [[ -n "${ROOTFS_EXTLINUX_KERNEL:-}" ]]; then
+    [[ -f "$ROOTFS_EXTLINUX_KERNEL" ]] || { echo "缺少 extlinux kernel: $ROOTFS_EXTLINUX_KERNEL" >&2; exit 1; }
+    [[ -n "${ROOTFS_EXTLINUX_DTB:-}" && -f "$ROOTFS_EXTLINUX_DTB" ]] || {
+        echo "ROOTFS_EXTLINUX_KERNEL 已设但 ROOTFS_EXTLINUX_DTB 缺失/不存在（此启动方式必须给 dtb）" >&2; exit 1; }
+    install -D -m 644 "$ROOTFS_EXTLINUX_KERNEL" "$STAGE/boot/Image.gz"
+    install -D -m 644 "$ROOTFS_EXTLINUX_DTB" "$STAGE/boot/dtb/board.dtb"
+    mkdir -p "$STAGE/extlinux"
+    cat > "$STAGE/extlinux/extlinux.conf" <<EOF
+# 由 build-rootfs.sh 生成：lk2nd extlinux 入口
+DEFAULT mainline
+LABEL mainline
+  LINUX /boot/Image.gz
+  FDT /boot/dtb/board.dtb
+  APPEND root=${ROOTFS_ROOT_DEVICE} rw rootwait earlycon console=ttyMSM0,115200
+EOF
+fi
+
 # Variant firmware overlay (e.g. venus.mbn naming for the Venus codec).
 if [[ -n "${EXTRA_FIRMWARE_DIR:-}" ]]; then
     [[ -d "$EXTRA_FIRMWARE_DIR" ]] || { echo "缺少扩展固件目录: $EXTRA_FIRMWARE_DIR" >&2; exit 1; }

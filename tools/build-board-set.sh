@@ -12,7 +12,7 @@
 #     "" 4g venus venus-4g venus-4g-gpu minimal   （UFI103s）
 #     mf601sl                                      （THWC MF601SL_CT_V07，电池型 4G MiFi）
 #
-# 板型表每条为：后缀 | 内核片段 | DTS 文件 | 板目录（可选）| root= 写法（可选）
+# 板型表每条为：后缀 | 内核片段 | DTS 文件 | 板目录（可选）| root= 写法（可选）| DTB 布局（可选）
 # 板目录不同的板型会构建到 artifacts/boot/<板目录名>/ 下。
 # root= 写法缺省保持 PARTUUID（不动已实机验证的 UFI103s 镜像）；
 # 新板型用 /dev/mmcblk0p14，别人刷进去不必改 cmdline。
@@ -55,14 +55,14 @@ TYPES=(
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
   "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
   "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD|/dev/mmcblk0p14"
-  "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=system"
+  "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=rootfs|padded"
 )
 
 WANT=("$@")
 rc_total=0
 
 for entry in "${TYPES[@]}"; do
-    IFS='|' read -r suffix frags dtsname board_dir_override board_root_override <<< "$entry"
+    IFS='|' read -r suffix frags dtsname board_dir_override board_root_override dtb_layout_override <<< "$entry"
     if [ ${#WANT[@]} -gt 0 ]; then
         keep=0
         for w in "${WANT[@]}"; do [ "$w" = "$suffix" ] && keep=1; done
@@ -108,6 +108,7 @@ for entry in "${TYPES[@]}"; do
 
     # 打包 boot 镜像（Image.gz + 板型 DTB）
     BOOT_ROOT="${board_root_override:-}" \
+    BOOT_DTB_LAYOUT="${dtb_layout_override:-inline}" \
     python3 tools/package-boot-variant.py \
         "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
         "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \

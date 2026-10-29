@@ -4,12 +4,13 @@
   "dts": "msm8916-thwc-mf32.dts",
   "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=system rw rootwait",
   "boot_image": "boot-board-mf32-7.2.9.img",
-  "boot_size": 7907328,
-  "kernel_size": 7904184,
-  "appended_dtb_offset": 7852958,
+  "boot_size": 7907354,
+  "kernel_size": 7850910,
+  "appended_dtb_offset": 7854080,
   "appended_dtb_size": 53274,
+  "dtb_layout": "padded",
   "image_gz_sha256": "4c24ce0828648615474bbf4920a751c068a0a5ee592d702746ccaa59f0efc297",
   "dtb_sha256": "255bcb1fba8ffaccbd4a6bacc26ec7daecfa63fef31db11e63cd749c1f317896",
-  "boot_sha256": "5e475b42a070f6fdc5ea458c71c68f099de82858da2e3ba8d67a873c70ea4512",
+  "boot_sha256": "e257a26a16066e1b8ef3522111c91bab703c1e2ad72e8b685a66432945d7be3f",
   "flash_status": "not flashed"
 }
