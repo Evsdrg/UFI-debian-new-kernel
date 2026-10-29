@@ -2111,9 +2111,10 @@
 							  "overtemp";
 					status = "okay";
 					/* 7.2.9 驱动认 qcom,fast-charge-safe-*；旧名会被忽略。 */
-					/* 限压 4.25V（电池标称 4.35V，主动保守 0.10V）。
+					/* 充电截止 4.25V（电池标称 4.35V，主动保守 0.10V）。
 					 * 驱动 clamp 到 [4.00V, 4.775V] 并按 25mV 步进量化，
-					 * 4250000 正好是 4.0V + 10×25mV。 */
+					 * 4250000 正好是 4.0V + 10×25mV。
+					 * 注意：这只是充电上限，不是 BMS 的过压判定基准。 */
 					qcom,fast-charge-safe-voltage = <4250000>;
 					qcom,fast-charge-safe-current = <0xaae60>;
 					monitored-battery = <0x56>;
@@ -3198,16 +3199,19 @@
 	battery {
 		compatible = "simple-battery";
 		voltage-min-design-microvolt = <0x2dc6c0>;
-		/* 电池标称 4.35V；按用户要求主动限到 4.25V（比原厂 4.2V 略高，
-		 * 仍留 0.10V 余量）。BMS 的 OVERVOLTAGE 判定也用这个值，
-		 * 必须 >= 实际充电截止电压，否则充满时报 Over voltage。 */
-		voltage-max-design-microvolt = <4250000>;
+		/* 电池真实规格 4.35V。注意这是 BMS 的 OVERVOLTAGE 判定基准
+		 * （vbat_now > voltage_max_design_uv 即报错），**不是充电截止电压**。
+		 * 满电电池静置电压可到 4.38V，所以这个值必须按电池规格写 4.35V；
+		 * 若写成充电截止值 4.25V，满电时会永久误报 Over voltage。
+		 * 充电截止由 charger 节点的 qcom,fast-charge-safe-voltage 控制。 */
+		voltage-max-design-microvolt = <4350000>;
 		energy-full-design-microwatt-hours = <0x79c3e0>;
 		charge-full-design-microamp-hours = <0x200b20>;
 		ocv-capacity-celsius = <0x19>;
-		ocv-capacity-table-0 = <4250000 100>, <4200000 96>,
-				       <4100000 92>, <4050000 89>,
-				       <4000000 85>, <3950000 80>,
+		ocv-capacity-table-0 = <4350000 100>, <4300000 98>,
+				       <4250000 96>, <4200000 94>,
+				       <4100000 90>, <4050000 87>,
+				       <4000000 84>, <3950000 80>,
 				       <3900000 75>, <3850000 70>,
 				       <3800000 65>, <3750000 60>,
 				       <3700000 55>, <3650000 50>,
