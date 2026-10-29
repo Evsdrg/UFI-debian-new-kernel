@@ -771,7 +771,9 @@ MMDEBSTRAP_ARGS=(
 	'--customize-hook=ln -sf /lib/systemd/system/serial-getty@.service $1/etc/systemd/system/getty.target.wants/serial-getty@ttyMSM0.service'
 	'--customize-hook=echo Asia/Shanghai > $1/etc/timezone && ln -sf /usr/share/zoneinfo/Asia/Shanghai $1/etc/localtime'
 
-	"--customize-hook=mkdir -p \$1/root \$1/usr && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/ && cp -a --no-preserve=ownership $STAGE/usr/. \$1/usr/ && cp -a --no-preserve=ownership $STAGE/root/. \$1/root/"
+	"--customize-hook=mkdir -p \$1/root \$1/usr \$1/boot \$1/extlinux && cp -a --no-preserve=ownership $STAGE/etc/. \$1/etc/ && cp -a --no-preserve=ownership $STAGE/lib/. \$1/usr/lib/ && cp -a --no-preserve=ownership $STAGE/usr/. \$1/usr/ && cp -a --no-preserve=ownership $STAGE/root/. \$1/root/ && { test ! -d $STAGE/boot || cp -a --no-preserve=ownership $STAGE/boot/. \$1/boot/; } && { test ! -d $STAGE/extlinux || cp -a --no-preserve=ownership $STAGE/extlinux/. \$1/extlinux/; }"
+	# extlinux 资产断言：STAGE 里有就必须进镜像（白名单遗漏的兜底防线）。
+	"--customize-hook=if test -e $STAGE/extlinux/extlinux.conf; then test -f \$1/extlinux/extlinux.conf && test -f \$1/boot/Image.gz && test -f \$1/boot/dtb/board.dtb || { echo 'extlinux 资产未进入镜像' >&2; exit 1; }; fi"
 	# 语言 hooks 放在 STAGE 拷贝**之后**：它们要断言/依赖 $STAGE 里的文件
 	# （如 /etc/default/locale）。放在拷贝之前会因文件还不存在而失败。
 	"${LOCALE_HOOKS[@]}"

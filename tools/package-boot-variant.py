@@ -106,8 +106,15 @@ def main() -> int:
     #             kernel_size 只含内核本体、DTB 挂在其后页对齐空档。2026-10-29
     #             由该板 aboot.bin 反汇编确认。
     dtb_layout = os.environ.get("BOOT_DTB_LAYOUT", "inline")
+    # BOOT_DTB=<dtb> ：走 CAF 传统格式，用 mkbootimg --dt 把 DTB 大小/偏移写进
+    # boot header 的 dt_size 字段（offset 40）。OpenStick 的 lk1st（CAF aboot）
+    # 的 dev_tree_appended() 只认这个字段/或紧跟 kernel 的 inline 布局，不认
+    # mainline 的页对齐 padded 布局。设了它时 kernel 只放 Image.gz。
+    boot_dtb = os.environ.get("BOOT_DTB")
     kernel_dtb = out / f"kernel-{variant}-dtb"
-    if dtb_layout == "padded":
+    if boot_dtb:
+        kernel_dtb.write_bytes(image_path.read_bytes())
+    elif dtb_layout == "padded":
         kernel_dtb.write_bytes(image_path.read_bytes())
     else:
         kernel_dtb.write_bytes(image_path.read_bytes() + dtb.read_bytes())
@@ -128,6 +135,7 @@ def main() -> int:
             "--tags_offset", TAGS_OFFSET,
             "--pagesize", str(PAGE_SIZE),
             "--header_version", "0",
+            *(["--dt", boot_dtb] if boot_dtb else []),
             "--cmdline", CMDLINE,
             "--output", str(boot),
         ],
@@ -139,7 +147,16 @@ def main() -> int:
     kernel_size = struct.unpack_from("<I", data, 8)[0]
     page_size = struct.unpack_from("<I", data, 36)[0]
     payload_off = page_size
-    if dtb_layout == "padded":
+    if boot_dtb:
+        # mkbootimg --dt 布局：header / kernel / ramdisk / second / dt，各页对齐。
+        ksz = struct.unpack_from("<I", data, 8)[0]
+        rsz = struct.unpack_from("<I", data, 16)[0]
+        ssz = struct.unpack_from("<I", data, 24)[0]
+        rup = lambda n: (n + page_size - 1) // page_size * page_size
+        dtb_offset = payload_off + rup(ksz) + rup(rsz) + rup(ssz)
+        dt_size = struct.unpack_from("<I", data, 40)[0]
+        assert dt_size == dtb.stat().st_size, f"header dt_size {dt_size} != dtb {dtb.stat().st_size}"
+    elif dtb_layout == "padded":
         # DTB 放到 kernel_size 页对齐之后的第一个位置（老 LK 的搜索点）。
         gz_len = image_path.stat().st_size
         assert kernel_size == gz_len, f"padded 布局 kernel_size 应恰为 Image.gz 长度: {kernel_size} != {gz_len}"
