@@ -8,7 +8,7 @@
 - 输入 = 整盘镜像的开头（protective MBR + 主 header + PMT）。
 - 输出：
     gpt-main.bin  34 扇区，`edl w gpt` 从 LBA0 写（MBR 原样 + 新 header/PMT）
-    gpt-back.bin  33 扇区，`edl ws <pmt备份起点> 33` 写盘尾（PMT + 备份 header）
+    gpt-back.bin  33 扇区，`edl ws <pmt备份起点>` 写盘尾（PMT + 备份 header，33 扇区由文件尺寸决定）
 
 UEFI GPT header 偏移（相对 header 起点）：
     8 Revision | 12 HeaderSize | 16 HdrCRC32 | 24 MyLBA | 32 AltLBA
@@ -126,7 +126,7 @@ def main():
         print(f"  {p['name']:<10} LBA{p['first']}..{p['last']}  ({(p['last']-p['first']+1)*SS/2**20:9.1f} MiB)")
     assert NEW[-1]["last"] == mh["lu"], "rootfs 必须到 last usable"
     print(f"主表: LBA0..33（写 edl w gpt）\n备份: PMT@LBA{back_pmt_lba} + header@LBA{mh['alt']}"
-          f" → 写 `edl ws {back_pmt_lba} 33 gpt-back.bin`")
+          f" → 写 `edl ws {back_pmt_lba} gpt-back.bin`")
     print("OK")
 
 if __name__ == "__main__":
