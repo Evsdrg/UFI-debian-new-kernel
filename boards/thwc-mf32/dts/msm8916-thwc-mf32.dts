@@ -2111,7 +2111,10 @@
 							  "overtemp";
 					status = "okay";
 					/* 7.2.9 驱动认 qcom,fast-charge-safe-*；旧名会被忽略。 */
-					qcom,fast-charge-safe-voltage = <0x401640>;
+					/* 限压 4.25V（电池标称 4.35V，主动保守 0.10V）。
+					 * 驱动 clamp 到 [4.00V, 4.775V] 并按 25mV 步进量化，
+					 * 4250000 正好是 4.0V + 10×25mV。 */
+					qcom,fast-charge-safe-voltage = <4250000>;
 					qcom,fast-charge-safe-current = <0xaae60>;
 					monitored-battery = <0x56>;
 					phandle = <0x58>;
@@ -3195,11 +3198,25 @@
 	battery {
 		compatible = "simple-battery";
 		voltage-min-design-microvolt = <0x2dc6c0>;
-		voltage-max-design-microvolt = <0x401640>;
+		/* 电池标称 4.35V；按用户要求主动限到 4.25V（比原厂 4.2V 略高，
+		 * 仍留 0.10V 余量）。BMS 的 OVERVOLTAGE 判定也用这个值，
+		 * 必须 >= 实际充电截止电压，否则充满时报 Over voltage。 */
+		voltage-max-design-microvolt = <4250000>;
 		energy-full-design-microwatt-hours = <0x79c3e0>;
 		charge-full-design-microamp-hours = <0x200b20>;
 		ocv-capacity-celsius = <0x19>;
-		ocv-capacity-table-0 = <0x401640 0x64 0x3e8fa0 0x5f 0x3def78 0x5a 0x3d66c0 0x55 0x3cd250 0x50 0x3c3610 0x4b 0x3bad58 0x46 0x3b3828 0x41 0x3ad680 0x3c 0x3a7ca8 0x37 0x3a9800 0x32 0x3a2e88 0x2d 0x39f008 0x28 0x39b958 0x23 0x398690 0x1e 0x3982a8 0x19 0x3953c8 0x14 0x391930 0x10 0x386580 0x0d 0x38cef8 0x0b 0x386198 0x0a 0x37d8e0 0x09 0x383e70 0x08 0x373ca0 0x07 0x36ee80 0x06 0x362b30 0x05 0x36cf40 0x04 0x3567e0 0x03 0x349cc0 0x02 0x32a8c0 0x01 0x2dc6c0 0x00>;
+		ocv-capacity-table-0 = <4250000 100>, <4200000 96>,
+				       <4100000 92>, <4050000 89>,
+				       <4000000 85>, <3950000 80>,
+				       <3900000 75>, <3850000 70>,
+				       <3800000 65>, <3750000 60>,
+				       <3700000 55>, <3650000 50>,
+				       <3600000 45>, <3550000 40>,
+				       <3500000 35>, <3450000 30>,
+				       <3400000 25>, <3350000 20>,
+				       <3300000 15>, <3250000 10>,
+				       <3200000 5>, <3150000 3>,
+				       <3100000 1>, <3000000 0>;
 		phandle = <0x56>;
 	};
 
