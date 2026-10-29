@@ -109,6 +109,17 @@ MMDEBSTRAP_FORMAT=ext4 bash build-rootfs.sh
   - `fastboot oem edl`/`reboot-edl` 均不支持；原厂 Android `adb reboot edl` 落 LK fastboot。
 - **刷写与回退验证**：曾以 edl 刷入 Debian boot+system（LK 不认无法启动）→
   9008 会话原字节回写原厂 boot+system → `reset` → Android 完整启动 ✅ 回退闭环成立。
-- **未决**：boot.img 的 DTB 需按 LK 要求页对齐（或 qcdt 表）重打包后 RAM 验证；
-  1200MHz 降压 975mV 死机（见 ISSUES）；9008 进出多次出现 Sahara 脏状态，
-  物理拔插是唯一恢复手段。
+- **lk2nd 路线实测（同日晚些）**：
+  - 自编译 `lk2nd-msm8916.img`（musl 工具链）；老 LK `fastboot boot` 裸 lk2nd 被拒
+    （RAM 路径强制查页对齐 DTB）；**给 lk2nd 页对齐附加 mf32 DTB 后 RAM 加载成功**
+    （lk2nd 接管，`fastboot getvar product` 返回 `MSM8916P`，支持完整 flash/erase）。
+  - **新 GPT（方案 A）已生效**：21 个固件条目逐字节原样 + boot 64MB@LBA396384 +
+    devinfo 1MB + persist 32MB@LBA529504 + rootfs 3.36GiB@LBA595040..7634910；
+    主备表均已写入，edl 按新表识别正常；persist 已从原厂位置逐字节迁移。
+  - **断电重上电实验**：boot 分区仍为原厂 Android 时，LK 正常起 Android（证明
+    表切换本身不破坏原厂路径）。下一步是把 lk2nd+DTB 变体写入 boot、Debian rootfs
+    写入 rootfs 分区，再从闪存走 原厂LK→lk2nd→extlinux→Debian。
+  - edl firehose 单命令 payload 上限 ~24MB，大分区自动分块；连续大会话易触发
+    Sahara 脏状态，物理断电是唯一恢复。
+- **未决**：1200MHz 降压 975mV 死机（见 ISSUES）；lk2nd 从 flash 路径加载变体镜像
+  尚未实测（RAM 已验证）。
