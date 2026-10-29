@@ -88,3 +88,27 @@ MMDEBSTRAP_FORMAT=ext4 bash build-rootfs.sh
 
 本地测试包在 `out/mf32-build/`，包含 boot、DTB、模块树、rootfs、
 `测试说明.md` 和 `SHA256SUMS.txt`。测试包与验收记录不随公开仓库分发。
+
+## 2026-10-29 实机会话记录（设备 e81940f，MF32 到手首轮）
+
+- **整盘备份**：`out/mf32-device-backup/emmc-full.bin`（7634944 扇区 ×512 =
+  3909091328 字节，精确等于 GPT 容量；sha256 `ada99e2f…` 已入 SHA256SUMS.txt）。
+  全盘与 28 个分区独立读回交叉验证：**26/28 逐字节一致**（含 boot、system、
+  modem、modemst1/2、fsg、aboot/tz/hyp/sbl/rpm 全部关键分区）；persist/cache
+  两处为 Android 运行期正常写差。
+- **分区布局实测**：28 分区、eMMC 3.53 GiB。rootfs 载体是 `system`（LBA429152，
+  800MB），**不存在 p14**；此前构建按 `PARTLABEL=rootfs`/`mmcblk0p14` 的假设作废，
+  已改 `PARTLABEL=system`。
+- **原厂 boot**：`ANDROID!` v0，page=2048，base=0x80000000，kernel=3.10（ATAGs，
+  cmdline 带 `user_debug=31`），**kernel 之后全零、无 DTB/qcdt** ——老式启动。
+- **LK 行为（aboot.bin 反解字符串 + 实测）**：
+  - 完整 DTB 选择代码在（`Best match DTB tags`、`qcom,msm-id`、
+    `DTB offset is incorrect, kernel image does not have appended DTB`）；
+  - fastboot boot 我们的镜像报 `dtb not found`：**appended DTB 未放页对齐位置被拒**；
+  - LK 无 `flash`/`erase`（`unknown command`），只有 RAM boot —— 刷写必须走 9008；
+  - `fastboot oem edl`/`reboot-edl` 均不支持；原厂 Android `adb reboot edl` 落 LK fastboot。
+- **刷写与回退验证**：曾以 edl 刷入 Debian boot+system（LK 不认无法启动）→
+  9008 会话原字节回写原厂 boot+system → `reset` → Android 完整启动 ✅ 回退闭环成立。
+- **未决**：boot.img 的 DTB 需按 LK 要求页对齐（或 qcdt 表）重打包后 RAM 验证；
+  1200MHz 降压 975mV 死机（见 ISSUES）；9008 进出多次出现 Sahara 脏状态，
+  物理拔插是唯一恢复手段。

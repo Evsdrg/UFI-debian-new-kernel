@@ -2,7 +2,7 @@
   "variant": "board-mf32-7.2.9",
   "kernel_release": "7.2.9-ufix0x-mf32-dirty",
   "dts": "msm8916-thwc-mf32.dts",
-  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=system rw rootwait",
   "boot_image": "boot-board-mf32-7.2.9.img",
   "boot_size": 7907328,
   "kernel_size": 7904184,
@@ -10,6 +10,6 @@
   "appended_dtb_size": 53274,
   "image_gz_sha256": "4c24ce0828648615474bbf4920a751c068a0a5ee592d702746ccaa59f0efc297",
   "dtb_sha256": "255bcb1fba8ffaccbd4a6bacc26ec7daecfa63fef31db11e63cd749c1f317896",
-  "boot_sha256": "fdd5b40c790359cc6fc5bd231108c56ece31f2aec3e632be4693144922a33064",
+  "boot_sha256": "5e475b42a070f6fdc5ea458c71c68f099de82858da2e3ba8d67a873c70ea4512",
   "flash_status": "not flashed"
 }
