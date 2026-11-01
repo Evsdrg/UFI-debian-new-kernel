@@ -55,7 +55,10 @@ TYPES=(
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
   "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
   "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD|/dev/mmcblk0p14"
-  "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=rootfs|padded"
+  "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
+  "mf32-gpu|$MF32_FRAG:$GPU_FRAG|msm8916-thwc-mf32-gpu.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
+  "mf32-venus|$MF32_FRAG:$VENUS_FRAG|msm8916-thwc-mf32-venus.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
+  "mf32-venus-gpu|$MF32_FRAG:$VENUS_FRAG:$GPU_FRAG|msm8916-thwc-mf32-venus-gpu.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
 )
 
 WANT=("$@")

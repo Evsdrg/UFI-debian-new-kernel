@@ -1,5 +1,6 @@
 #!/bin/bash
-# mf32-led-state.sh 逻辑自测：假 sysfs 注水，覆盖 RGB 优先级与电量条场景。
+# mf32-led-state.sh 逻辑自测（实测硬件版，2026-10-30）
+# 假 sysfs 注水，覆盖三颗状态灯优先级 + 电量条 peek/危急/充电填充/滞回。
 # 不依赖实机；跑完输出 PASS/FAIL 明细，全部通过退出 0。
 set -u
 cd "$(dirname "$0")/.."
@@ -7,22 +8,27 @@ SCRIPT=tools/mf32-led-state.sh
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
-# 假 sysfs 骨架
+# 假 sysfs 骨架：只建实机存在的 7 颗灯
 LEDS=$T/sys/class/leds; PSY=$T/sys/class/power_supply
 mkdir -p "$LEDS" "$PSY/bms"
-for l in red:status green:status blue:status bat:1 bat:2 bat:3 bat:4; do
+for l in wifistatus 4g_1 4g_type bat1 batl2 batl3 batl4; do
     mkdir -p "$LEDS/$l"
     : > "$LEDS/$l/brightness"; : > "$LEDS/$l/trigger"
     : > "$LEDS/$l/delay_on";   : > "$LEDS/$l/delay_off"
 done
-echo 0 > "$PSY/bms/capacity"; echo Unknown > "$PSY/bms/status"
+# bms：只有 voltage_now/status，没有 capacity（与实机一致）
+echo 4350000 > "$PSY/bms/voltage_now"; echo Discharging > "$PSY/bms/status"
 
-# 假 nmcli/systemctl：内容由 $T/nmcli-* / $T/systemctl-failed 控制
+# 假命令：内容由 $T/nmcli-* / $T/systemctl-failed / $T/mmcli-state 控制
 SHIM=$T/bin; mkdir -p "$SHIM"
 cat > "$SHIM/nmcli" <<EOF
 #!/bin/sh
 case "\$*" in
-  *con\ show*)  [ -f "$T/nmcli-wifi" ]  && echo "home:802-11-wireless:wlan0:activated" ;;
+  *NAME,TYPE,DEVICE,STATE*con\ show*)
+      [ -f "$T/nmcli-wifi" ] && echo "home:802-11-wireless:wlan0:activated" ;;
+  *NAME,TYPE*con\ show*)
+      # 只有配置存在（nmcli-wifi-cfg）才报有 WiFi profile
+      [ -f "$T/nmcli-wifi-cfg" ] && echo "home:802-11-wireless" ;;
   *dev\ show*)  [ -f "$T/nmcli-wwan" ]  && cat "$T/nmcli-wwan" ;;
 esac
 exit 0
@@ -32,12 +38,17 @@ cat > "$SHIM/systemctl" <<EOF
 [ -f "$T/systemctl-failed" ] && cat "$T/systemctl-failed"
 exit 0
 EOF
-chmod +x "$SHIM/nmcli" "$SHIM/systemctl"
+cat > "$SHIM/mmcli" <<EOF
+#!/bin/sh
+[ -f "$T/mmcli-state" ] && echo "       state: \$(cat "$T/mmcli-state")"
+exit 0
+EOF
+chmod +x "$SHIM/nmcli" "$SHIM/systemctl" "$SHIM/mmcli"
 
 export MF32_LED_SYS="$LEDS" MF32_PSY_SYS="$PSY" MF32_STATE="$T/state" PATH="$SHIM:$PATH"
 
 pass=0; fail=0
-chk() {  # chk <场景> <led> <属性期望: bright=1,trigger=timer,delay_on=250...>
+chk() {  # chk <场景> <led> <属性期望: brightness=1,trigger=timer,delay_on=250...>
     local scen=$1 led=$2; shift 2
     local bad=""
     local dir="$LEDS/$led"
@@ -48,107 +59,110 @@ chk() {  # chk <场景> <led> <属性期望: bright=1,trigger=timer,delay_on=250
     done
     if [ -z "$bad" ]; then pass=$((pass+1)); else fail=$((fail+1)); echo "FAIL($scen)$bad"; fi
 }
-
 run() { "$SCRIPT" once force >/dev/null 2>&1; }
-setbatt() { echo "$1" > "$PSY/bms/capacity"; echo "${2:-Discharging}" > "$PSY/bms/status"; }
+setbatt() { echo "$1" > "$PSY/bms/voltage_now"; echo "${2:-Discharging}" > "$PSY/bms/status"; }
+peek() { echo $(( $(date +%s) + ${1:-3} )) > "$T/state/peek_until"; }
+unpeek() { rm -f "$T/state/peek_until"; }
 
-# 场景 1：满电未充，WiFi 好，无 4G 会话 → 4 常亮 + 蓝常亮
-setbatt 100 Discharging; touch "$T/nmcli-wifi"; rm -f "$T/nmcli-wwan"
+# ---------------- 状态灯 ----------------
+
+# S1 常态（满电、WiFi 已连、无 4G）：电量条全灭，WiFi 蓝常亮，LTE 全灭
+setbatt 4350000 Discharging; touch "$T/nmcli-wifi" "$T/nmcli-wifi-cfg"; rm -f "$T/nmcli-wwan" "$T/mmcli-state"
 run
-chk S1 bat:1 brightness=1 trigger=none
-chk S1 bat:4 brightness=1 trigger=none
-chk S1 blue:status brightness=1 trigger=none
-chk S1 red:status brightness=0
+chk S1 bat1 brightness=0
+chk S1 batl4 brightness=0
+chk S1 wifistatus brightness=1 trigger=none
+chk S1 4g_1 brightness=0
+chk S1 4g_type brightness=0
 
-# 场景 2：50% 充电中 → 2 常亮 + bat:3 填充闪 + 蓝常亮
-setbatt 50 Charging
+# S2 无 WiFi 配置：WiFi 灯灭
+rm -f "$T/nmcli-wifi" "$T/nmcli-wifi-cfg"
 run
-chk S2 bat:2 brightness=1
-chk S2 bat:3 trigger=timer delay_on=500 delay_off=500
-chk S2 bat:4 brightness=0
-chk S2 blue:status brightness=1
+chk S2 wifistatus brightness=0
 
-# 场景 3：10% 未充 → 1 常亮 + 红常亮（低电警告）
-setbatt 10 Discharging
+# S3 WiFi 已配置但断开：慢闪
+touch "$T/nmcli-wifi-cfg"; rm -f "$T/nmcli-wifi"
 run
-chk S3 bat:1 brightness=1 trigger=none
-chk S3 bat:2 brightness=0
-chk S3 red:status brightness=1 trigger=none
+chk S3 wifistatus trigger=timer delay_on=1000 delay_off=1000
 
-# 场景 4：5% 未充 → bat:1 快闪 + 红快闪（危急）
-setbatt 5 Discharging
+# S4 4G 会话建立：LTE 蓝常亮
+setbatt 4350000 Discharging; echo "wwan0:connected" > "$T/nmcli-wwan"
 run
-chk S4 bat:1 trigger=timer delay_on=250 delay_off=250
-chk S4 red:status trigger=timer delay_on=250 delay_off=250
+chk S4 4g_1 brightness=1 trigger=none
+chk S4 4g_type brightness=0
 
-# 场景 5：危急但充电中 → 不进红快闪，改显品红（红+蓝），条按充电渲染
-setbatt 5 Charging
-run
-chk S5 red:status brightness=1 trigger=none
-chk S5 blue:status brightness=1 trigger=none
-chk S5 bat:2 trigger=timer delay_on=500 delay_off=500
-
-# 场景 6：4G 会话 → 绿常亮
-setbatt 90 Discharging; echo "wwan0:connected" > "$T/nmcli-wwan"
-run
-chk S6 green:status brightness=1 trigger=none
-chk S6 blue:status brightness=0
-
-# 场景 7：4G 连接中 → 绿快闪
+# S5 4G 拨号中：LTE 蓝快闪
 echo "wwan0:connecting" > "$T/nmcli-wwan"
 run
-chk S7 green:status trigger=timer delay_on=250 delay_off=250
+chk S5 4g_1 trigger=timer delay_on=250 delay_off=250
 
-# 场景 8：WiFi 断 → 蓝慢闪（优先于绿系）
-rm -f "$T/nmcli-wifi"; echo "wwan0:connected" > "$T/nmcli-wwan"
+# S6 4G 失败（mmcli failed）：LTE 红常亮
+rm -f "$T/nmcli-wwan"; echo failed > "$T/mmcli-state"
 run
-chk S8 blue:status trigger=timer delay_on=1000 delay_off=1000
-chk S8 green:status brightness=0
+chk S6 4g_type brightness=1 trigger=none
+chk S6 4g_1 brightness=0
 
-# 场景 9：档位滞回 —— 从 100%（4 档）降到 73%，应保持 4 档；再降到 70% 才降 3 档
-setbatt 73 Discharging; touch "$T/nmcli-wifi"
+# S7 系统异常：LTE 红慢闪（压过其它 LTE 态）
+rm -f "$T/mmcli-state"; echo "x.service loaded failed failed" > "$T/systemctl-failed"
 run
-chk S9a bat:4 brightness=1
-setbatt 70 Discharging
-run
-chk S9b bat:4 brightness=0
-chk S9b bat:3 brightness=1
+chk S7 4g_type trigger=timer delay_on=1000 delay_off=1000
+rm -f "$T/systemctl-failed"
 
-# 场景 10：once 后状态快照存在
-[ -s "$T/state/status" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL(S10) 无状态快照"; }
+# ---------------- 电量条 peek ----------------
 
-# off 命令：先红常亮再全灭（跳过 2s 睡眠无法 mock，直接查终态）
-OFF_RED_SECS=0 "$SCRIPT" off >/dev/null 2>&1
-chk OFF red:status brightness=0 trigger=none
-chk OFF bat:3 brightness=0 trigger=none
+# S8 peek 满电：4 颗常亮
+setbatt 4350000 Discharging; peek; run
+chk S8 bat1 brightness=1 trigger=none
+chk S8 batl4 brightness=1 trigger=none
 
+# S9 peek 50%（3650000→50%）未充电：2 常亮、第 3 颗不填充
+setbatt 3650000 Discharging; peek; run
+chk S9 batl2 brightness=1
+chk S9 batl3 brightness=0 trigger=none
+chk S9 batl4 brightness=0
 
-# 场景 11：QUIET=1 稳态条全灭（蓝灯也不亮）
-setbatt 80 Discharging; touch "$T/nmcli-wifi"; rm -f "$T/nmcli-wwan"
-QUIET=1 run
-chk S11 bat:2 brightness=0
-chk S11 blue:status brightness=0
+# S10 peek 50% 充电中：同样 2 常亮 + 第 3 颗填充
+setbatt 3650000 Charging; peek; run
+chk S10 batl2 brightness=1
+chk S10 batl3 trigger=timer delay_on=500 delay_off=500
 
-# 场景 12：QUIET 下 peek（peek_until 在未来）→ 条恢复显示
-echo $(( $(date +%s) + 3 )) > "$T/state/peek_until"
-QUIET=1 run
-chk S12 bat:4 brightness=1
-chk S12 blue:status brightness=0
-rm -f "$T/state/peek_until"
+# S11 peek 到期：电量条全灭
+setbatt 4350000 Discharging; unpeek; run
+chk S11 bat1 brightness=0
+chk S11 batl4 brightness=0
 
-# 场景 13：充电中 → 品红（红+蓝同亮），绿灭
-setbatt 90 Charging; touch "$T/nmcli-wifi"; rm -f "$T/nmcli-wwan"
-run
-chk S13 red:status brightness=1
-chk S13 blue:status brightness=1
-chk S13 green:status brightness=0
+# S12 危急低电（3200000→5%，未充）：bat1 常驻快闪，无需 peek
+setbatt 3200000 Discharging; unpeek; run
+chk S12 bat1 trigger=timer delay_on=250 delay_off=250
+chk S12 batl2 brightness=0
 
-# 场景 14：充电 + 4G 会话 → 品红优先于绿
-echo "wwan0:connected" > "$T/nmcli-wwan"
-run
-chk S14 red:status brightness=1
-chk S14 blue:status brightness=1
-chk S14 green:status brightness=0
+# S13 低电 10%（3250000）未充、无 peek：电量条全灭（不常驻显示）
+setbatt 3250000 Discharging; unpeek; run
+chk S13 bat1 brightness=0
+
+# S14 滞回：先 100%（4 档），再降到 74%（仍在 4 档滞回内），再降到 70% 才降档
+setbatt 4350000 Discharging; peek; run
+chk S14 batl4 brightness=1
+setbatt 3880000 Discharging; peek; run   # ~74%，滞回保持 4 档
+chk S14b batl4 brightness=1
+setbatt 3500000 Discharging; peek; run   # 35%，降到 2 档
+chk S14c batl2 brightness=1
+chk S14c batl3 brightness=0
+
+# ---------------- QUIET / off / 快照 ----------------
+
+# S15 QUIET=1 + peek：电量条也不显示
+setbatt 4350000 Discharging; peek; QUIET=1 run
+chk S15 batl4 brightness=0
+
+# S16 off：全灭
+"$SCRIPT" off >/dev/null 2>&1
+for l in wifistatus 4g_1 4g_type bat1 batl2 batl3 batl4; do
+    chk S16 "$l" brightness=0 trigger=none
+done
+
+# S17 状态快照存在
+[ -s "$T/state/status" ] && pass=$((pass+1)) || { fail=$((fail+1)); echo "FAIL(S17) 无状态快照"; }
 
 echo "----------------------------------------"
 echo "PASS=$pass FAIL=$fail"

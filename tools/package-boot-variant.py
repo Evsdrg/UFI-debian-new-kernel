@@ -67,11 +67,33 @@ def compile_dtb(dts_path: pathlib.Path, out_dtb: pathlib.Path) -> None:
         cpp_cmd += ["-I", str(inc)]
     cpp_cmd.append(str(dts_path))
     pre = subprocess.check_output(cpp_cmd)
-    subprocess.run(
-        ["dtc", "-q", "-I", "dts", "-O", "dtb", "-o", str(out_dtb)],
+    # 与内核构建 scripts/Makefile.dtbs 的 DTC_FLAGS 保持一致：
+    # 这几类检查在 ARM64 SoC DTS 里普遍存在结构性误报（同一硬件块可复用为
+    # I2C 或 SPI 导致 unit-address 重复、qfprom 子节点 reg 重叠等），内核
+    # 自身构建默认全部关闭。其余检查保持开启，任何 warning 都视为失败。
+    dtc_flags = [
+        "-Wno-unique_unit_address",
+        "-Wno-unit_address_vs_reg",
+        "-Wno-avoid_unnecessary_addr_size",
+        "-Wno-alias_paths",
+        "-Wno-interrupt_map",
+        "-Wno-simple_bus_reg",
+        # graph_child_address: dtc 对"graph 节点只有一个 port"的误报。W3C graph
+        # 规范允许单 port；主线 msm8916-mtp.dts 同样触发。内核构建不启用该 check。
+        # 不为此改 DTS 结构——那些结构已与实机验证过的 DTB 二进制一致。
+        "-Wno-graph_child_address",
+    ]
+    r = subprocess.run(
+        ["dtc", *dtc_flags, "-I", "dts", "-O", "dtb", "-o", str(out_dtb)],
         input=pre,
-        check=True,
+        capture_output=True,
     )
+    diag = (r.stdout + r.stderr).decode(errors="replace").strip()
+    if diag:
+        print(diag)
+    if r.returncode != 0 or "Warning" in diag or "ERROR" in diag:
+        print(f"错误：DTB 编译失败或存在 warning (rc={r.returncode})", file=sys.stderr)
+        return 1
 
 
 def main() -> int:

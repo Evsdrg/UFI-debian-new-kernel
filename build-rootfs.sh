@@ -447,36 +447,42 @@ EOF
 # LED status service and the Venus test harness live in tools/ as the single
 # source of truth for both files and units.  The default file holds the knobs a
 # board may need to override (LED names, wifi iface, red thresholds).
-# LED 状态服务按板型选择：MF32 使用自己的 RGB+电量条与电源键语义，
+# LED/按键守护进程：mf32 与 mf601sl 都用 C 实现（事件驱动，稳态 0 CPU）。
+# 交叉编译器按目标架构选：arm64 用 aarch64-linux-gnu-gcc。
+# 编译在 STAGE 里进行，产物直接进镜像，不依赖构建机与镜像的 ABI 差异
+# （-static，避免依赖镜像里的 glibc 版本）。
+build_ledctl() {  # $1=源文件  $2=安装名
+    local src="$1" name="$2"
+    local cc="${CROSS_COMPILE:-aarch64-linux-gnu-}gcc"
+    command -v "$cc" >/dev/null || { echo "缺少交叉编译器 $cc" >&2; return 1; }
+    # shellcheck disable=SC2086
+    "$cc" -std=gnu23 -O2 -Wall -Wextra -Werror -Wshadow -Wformat=2 \
+        -Wstrict-prototypes -Wmissing-prototypes -static \
+        -o "$STAGE/usr/local/sbin/$name" "$src"
+}
+
+# LED 状态服务按板型选择：MF32/MF601SL 用各自的 C 守护进程（含电源键语义），
 # 其余板继续使用 UFI 灯语。文件与单元都以 tools/ 为单一事实来源。
-if [[ "$ROOTFS_BOARD" == mf32 ]]; then
-    install -D -m 755 "$WORKDIR/tools/mf32-led-state.sh" "$STAGE/usr/local/sbin/mf32-led-state.sh"
-    install -D -m 644 "$WORKDIR/tools/mf32-led-state.service" "$STAGE/etc/systemd/system/mf32-led-state.service"
-    install -D -m 644 "$WORKDIR/tools/mf32-led-state.default" "$STAGE/etc/default/mf32-led-state"
-    install -D -m 644 "$WORKDIR/boards/thwc-mf32/LED-SCHEME.md" "$STAGE/usr/local/share/doc/mf32-led-state.md"
-    install -D -m 755 "$WORKDIR/tools/mf32-powerkey.sh" "$STAGE/usr/local/sbin/mf32-powerkey.sh"
-    install -D -m 644 "$WORKDIR/tools/mf32-powerkey.service" "$STAGE/etc/systemd/system/mf32-powerkey.service"
-    install -D -m 644 "$WORKDIR/tools/mf32-powerkey.default" "$STAGE/etc/default/mf32-powerkey"
-    install -D -m 644 "$WORKDIR/tools/mf32-logind-powerkey.conf" "$STAGE/etc/systemd/logind.conf.d/mf32-powerkey.conf"
-    install -D -m 644 "$WORKDIR/boards/thwc-mf32/POWER-KEYS.md" "$STAGE/usr/local/share/doc/mf32-powerkey.md"
+if [[ "$ROOTFS_BOARD" == mf32 || "$ROOTFS_BOARD" == mf601sl ]]; then
+    if [[ "$ROOTFS_BOARD" == mf32 ]]; then
+        build_ledctl_ok=0
+        mkdir -p "$STAGE/usr/local/sbin"
+        build_ledctl "$WORKDIR/tools/mf32-ledctl.c" mf32-ledctl || build_ledctl_ok=1
+        [[ $build_ledctl_ok == 0 ]] || { echo "mf32-ledctl 编译失败" >&2; exit 1; }
+        install -D -m 644 "$WORKDIR/tools/mf32-ledctl.service" "$STAGE/etc/systemd/system/mf32-ledctl.service"
+        install -D -m 644 "$WORKDIR/boards/thwc-mf32/LED-SCHEME.md" "$STAGE/usr/local/share/doc/mf32-ledctl.md"
+        install -D -m 644 "$WORKDIR/boards/thwc-mf32/POWER-KEYS.md" "$STAGE/usr/local/share/doc/mf32-powerkey.md"
+        install -D -m 644 "$WORKDIR/tools/mf32-logind-powerkey.conf" "$STAGE/etc/systemd/logind.conf.d/mf32-powerkey.conf"
+    else
+        mkdir -p "$STAGE/usr/local/sbin"
+        build_ledctl "$WORKDIR/tools/mf601sl-ledctl.c" mf601sl-ledctl || { echo "mf601sl-ledctl 编译失败" >&2; exit 1; }
+        install -D -m 644 "$WORKDIR/tools/mf601sl-ledctl.service" "$STAGE/etc/systemd/system/mf601sl-ledctl.service"
+        install -D -m 644 "$WORKDIR/tools/mf601-logind-powerkey.conf" "$STAGE/etc/systemd/logind.conf.d/mf601-powerkey.conf"
+    fi
 else
     install -D -m 755 "$WORKDIR/tools/ufi-led-state.sh" "$STAGE/usr/local/sbin/ufi-led-state.sh"
     install -D -m 644 "$WORKDIR/tools/ufi-led-state.service" "$STAGE/etc/systemd/system/ufi-led-state.service"
     install -D -m 644 "$WORKDIR/tools/ufi-led-state.default" "$STAGE/etc/default/ufi-led-state"
-    # MF601SL 是"每功能红绿双灯"布局（battery/wifi/net 各一对），没有独立负载灯，
-    # sysfs 名由 DTS 的 function+color 组合决定。默认值只覆盖这台板，不改脚本逻辑。
-    if [[ "$ROOTFS_BOARD" == mf601sl ]]; then
-        cat > "$STAGE/etc/default/ufi-led-state" <<'EOF'
-# MF601SL：每功能红绿双灯，无独立 CPU 负载灯。
-# sysfs 名来自 DTS 的 function+color：power:red/power:green、wan:red/wan:green、
-# wlan:red/wlan:green。脚本用"红=net、蓝=wifi 绿、绿=net 绿"的既有三档模型，
-# 因此把 net 的红灯当 RED，wifi 绿当 BLUE，net 绿当 GREEN，并关掉负载指示。
-LED_RED_HINT=red:wan
-LED_BLUE_HINT=green:wlan
-LED_GREEN_HINT=green:wan
-RED_LOAD_INDICATOR=0
-EOF
-    fi
 fi
 install -D -m 755 "$WORKDIR/tools/venus-test.sh" "$STAGE/root/venus-test.sh"
 install -D -m 755 "$WORKDIR/tools/venus-transcode.sh" "$STAGE/usr/local/sbin/venus-transcode.sh"
@@ -793,7 +799,7 @@ MMDEBSTRAP_ARGS=(
 	#    设备开机后 wlan0 一直 unavailable。）
 	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
 	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-led-state.service mf32-powerkey.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && mkdir -p $1/etc/systemd/system/timers.target.wants && ln -sf /etc/systemd/system/usb-gadget-watchdog.timer $1/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-ledctl.service mf601sl-ledctl.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && mkdir -p $1/etc/systemd/system/timers.target.wants && ln -sf /etc/systemd/system/usb-gadget-watchdog.timer $1/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
 	# （仅 nm 档）清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要
 	# 清，它会从 sockets.target 自动拉起 networkd）。native 档没有 NM，不存在
 	# 抢占，反而依赖这些单元——上面的钩子按"镜像里有无 NM 二进制"自动跳过。

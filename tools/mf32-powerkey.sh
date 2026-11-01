@@ -22,7 +22,7 @@
 set -u
 
 INPUT_DEV=${MF32_INPUT_DEV:-auto}
-STATE=${MF32_STATE:-/run/mf32-powerkey}
+STATE=${MF32_STATE:-/run/mf32}
 DEFAULTS=/etc/default/mf32-powerkey
 
 DOUBLE_MS=${DOUBLE_MS:-500}    # 两次按下间隔上限（判定双击）
@@ -108,21 +108,48 @@ open_dev() {
     return 0
 }
 
-read_event() {  # 输出 "type code value"，一次一个 evdev 事件（24 字节，arm64 LE）
-    set -- $(dd if="$DEV" bs=24 count=1 2>/dev/null | od -An -tu4 -j16 -N8) || return 1
-    [ $# -ge 2 ] || return 1
-    echo "$(($1 & 0xffff)) $(($1 >> 16)) $2"
+# evdev 事件 24 字节（arm64 64 位 timeval: 16 + type 2 + code 2 + value 4）。
+# 关键：设备只在 cmd_monitor 里 open 一次（fd 3），所有 dd 共享同一个 fd。
+# 早期版本每轮 dd if="$DEV" 重新 open，多个 dd 并发读同一 evdev 节点会互相
+# 抢事件（实测 ps 可见 2 个 dd + 3 层 fork 的 monitor 子 shell），按键丢失。
+# arm64 Linux 的 struct input_event 是 24 字节：
+#   struct timeval { __kernel_time64_t tv_sec(8); long tv_usec(8); }
+#   __u16 type; __u16 code; __s32 value;
+# od -An -tu8 -N24 得到 3 个 64 位数：
+#   $1 = tv_sec  $2 = tv_usec
+#   $3 = type(低16) | code(<<16) | value(<<32)
+# 输出 "type code value ts_ms"（ts_ms 由事件自带时间戳换算，不依赖 date，
+# 也避免把 code 误当时间戳——旧版正是在这里把 EV_SYN 当按键，导致按一下即关机）。
+read_event() {
+    _raw=$(dd bs=24 count=1 <&3 2>/dev/null | od -An -tu8 -N24 2>/dev/null) || return 1
+    [ -n "${_raw:-}" ] || return 1
+    set -- $_raw
+    [ $# -ge 3 ] || return 1
+    _sec=$1; _usec=$2; _packed=$3
+    _type=$(( _packed & 0xffff ))
+    _code=$(( (_packed >> 16) & 0xffff ))
+    _value=$(( (_packed >> 32) & 0xffffffff ))
+    _ts=$(( _sec * 1000 + _usec / 1000 ))
+    echo "$_type $_code $_value $_ts"
 }
 
 cmd_monitor() {
+    trap 'exec 3<&- 2>/dev/null; exit 0' TERM INT
     while :; do
         if open_dev; then
-            trap 'exit 0' TERM INT
-            while :; do
-                ev=$(read_event) || break
-                [ -n "$ev" ] || break
-                handle_key $ev
-            done
+            if exec 3<"$DEV"; then
+                while :; do
+                    ev=$(read_event) || break
+                    [ -n "$ev" ] || break
+                    # shellcheck disable=SC2086
+                    set -- $ev
+                    # 只处理 EV_KEY(1) / KEY_POWER(116)；EV_SYN 等一律忽略
+                    if [ "$1" = 1 ] && [ "$2" = 116 ]; then
+                        handle_key "$3" "$4"
+                    fi
+                done
+                exec 3<&-
+            fi
         fi
         # 设备不在（模块未加载/热插拔）或读失败：稍后重扫
         sleep 3

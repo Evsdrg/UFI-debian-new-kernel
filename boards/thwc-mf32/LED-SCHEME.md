@@ -1,48 +1,55 @@
-# MF32 LED 方案设计
+# MF32 LED 方案设计（实测校准版）
 
-硬件前提（来自反编译 DTB）：**一颗 RGB 三通道 LED**（R=GPIO27 / G=GPIO29 / B=GPIO30，
-共透镜）+ **4 颗独立 LED**（GPIO19/20/21/22，厂配为 per-CPU 活动灯）。
-所有灯都是 gpio-leds、只有 0/1 两态，无 PWM；闪烁只能用内核 `timer` trigger。
+**2026-10-30 实机逐个点亮校准**（设备 e81940f），此前的反编译 DTB 假设已全部作废。
 
-## 分工
+## 一、实机硬件（唯一事实来源）
 
-| 灯组 | 职责 |
-|---|---|
-| RGB（一次只亮一个通道） | 系统状态：异常/低电/关机警示 + 网络状态 |
-| 4 颗独立 LED | 电量条：档位 + 充电填充 + 低电快闪 |
-
-弃用原厂 per-CPU 活动灯：headless MiFi 没人看 CPU 灯，4 颗排成一排正是天然
-的电量条。RGB 混色（黄/品红/白）不可靠（透镜混色质量未知），设计上禁止使用，
-一次只亮一个通道。
-
-## RGB 系统状态（优先级从高到低，同时刻仅一态生效）
-
-| 优先 | 条件 | 显示 | 性质 |
+| sysfs 名 | GPIO | 实测表现 | 说明 |
 |---|---|---|---|
-| 0 | 电量 ≤8% 且未充电，或正在关机 | 红快闪 250/250 | 到关机为止 |
-| 1 | 系统异常（关键单元 failed / 过温） | 红慢闪 1000/1000 | 持续 |
-| 2 | 低电警告（≤15% 且未充电） | 红常亮 | 持续 |
-| 3 | Wi-Fi 已配置但断开 | 蓝慢闪 1000/1000 | 持续到恢复 |
-| 4 | **充电中（Charging/Full）** | **品红（红+蓝）常亮** | 稳态 |
-| 5 | 4G 数据会话已建立 | 绿常亮 | 稳态 |
-| 6 | 4G 正在拨号连接 | 绿快闪 250/250 | 瞬态 |
-| 7 | 系统正常（默认稳态） | 蓝常亮 | 稳态 |
+| `wifistatus` | 73 | **WiFi 蓝灯** | 原厂命名与功能错位 |
+| `4g_1` | 71 | **LTE 蓝灯** | 原厂命名与功能错位 |
+| `4g_type` | 72 | **LTE 红灯** | 原厂命名与功能错位 |
+| `bat1` | 0 | 电池条第 1 颗（最低） | 物理顺序低→高 |
+| `batl2` | 91 | 电池条第 2 颗 | |
+| `batl3` | 1 | 电池条第 3 颗 | |
+| `batl4` | 100 | 电池条第 4 颗（最高） | |
+| `ftest` | 32 | **无灯珠** | 电平正常但不亮，不驱动 |
+| `4g_2` | 70 | **无灯珠** | 同上 |
 
-排序理由：红系是"必须处理"，蓝慢闪（用户设备连不上来了）优先于信息类，
-品红（充电）是最常被远距离查看的状态、压过绿系；4G 会话是 MiFi 核心功能。
+物理排列（左→右）：`4g_1`(LTE 蓝) → `4g_type`(LTE 红) → `wifistatus`(WiFi 蓝) → `bat1..batl4`。
 
-**混色规则（2026-09-15 拆解确认）**：红、蓝灯珠相邻，混色效果良好 → 品红
-是唯一允许的混色状态；绿灯单独放置，**任何含绿的混色继续禁止**。若实机
-观感不佳，品红可整体降级回"仅电量条表达充电"。
+**不存在 RGB 三通道灯**，不存在绿灯，不存在混色能力（原先基于 GPIO27/29/30 的 RGB 方案全部作废）。
+所有灯都是 `gpio-leds`、只有 0/1 两态、无 PWM；闪烁只能用内核 `timer` trigger。
 
-省电原则（与 ufi-led-state 相同）：稳态只允许"常亮"或"灭"，闪烁只存在于
-瞬态/异常/充电填充。4G"已注册无会话"不闪灯（回蓝常亮），避免每秒 2 次
-的 timer 唤醒长期存在。
+## 二、状态灯语义
 
-## 电量条
+三颗状态灯，优先级从高到低（同时刻每颗灯只取一个来源）：
 
-读 `/sys/class/power_supply/*/capacity`（auto 发现， psy 名实机校准）+
-`status`（Charging/Full/Discharging）：
+| 优先 | 条件 | LTE 红 (`4g_type`) | LTE 蓝 (`4g_1`) | WiFi 蓝 (`wifistatus`) |
+|---|---|---|---|---|
+| 1 | **系统异常**（存在 failed 单元） | 慢闪 1000/1000 | 灭 | 灭 |
+| 2 | **4G 模组失败 / 无 SIM** | 常亮 | 灭 | — |
+| 3 | **4G 数据会话已建立** | 灭 | 常亮 | — |
+| 4 | **4G 正在拨号** | 灭 | 快闪 250/250 | — |
+| 5 | **WiFi 已连接** | — | — | 常亮 |
+| 6 | **WiFi 已配置但断开** | — | — | 慢闪 1000/1000 |
+| 7 | 无 WiFi 配置 / 其余 | — | — | 灭 |
+
+- `—` 表示该行不改变该灯（由更高优先级的规则决定，无规则则灭）。
+- 省电原则：稳态只允许「常亮」或「灭」；闪烁只存在于异常/瞬态。
+- 4G「已注册但无会话」不亮灯（避免长期 timer 唤醒）。
+
+## 三、电量条：默认全灭，短按电源键显示
+
+**电量条稳态一律不亮**（省电，且这台设备没有常驻显示需求）。
+
+| 场景 | 显示 |
+|---|---|
+| 常态 | **4 颗全灭** |
+| **短按电源键**（单击） | 显示 3 秒后自动熄灭 |
+| **危急低电**（≤8% 且未充电） | 第 1 颗常驻快闪 250/250（安全警示，不可关闭） |
+
+短按时的档位显示：
 
 | 电量 | 未充电 | 充电中 |
 |---|---|---|
@@ -50,85 +57,77 @@
 | 50–75% | 3 常亮 | 3 常亮 + 第 4 颗慢闪 500/500 |
 | 25–50% | 2 常亮 | 2 常亮 + 第 3 颗慢闪 |
 | 8–25% | 1 常亮 | 1 常亮 + 第 2 颗慢闪 |
-| ≤8% | 第 1 颗快闪 250/250（与 RGB 红快闪联动） | 同充电行 |
+| ≤8% | 第 1 颗快闪 250/250 | 同左（充电时也快闪） |
 
-- 档位滞回 3%：升档需跨过 25/50/75，降档需跌破 22/47/72，防止边界抖动。
-- "第 N+1 颗慢闪"即经典充电填充指示；充满即全常亮。
-- 电量条稳态全是常亮，无定时器唤醒；只有填充位和危急快闪驱动 timer。
+- 档位滞回 3%：升档需跨过 25/50/75，降档需跌破 22/47/72。
+- 短按显示期间（peek）如果正在充电，按「充电中」列显示填充闪烁。
 
-## 开关机与启动阶段
+## 四、电量百分比来源
 
-- **内核接管前**：DTS 只给绿通道挂 `heartbeat` 默认 trigger（绿闪=内核活了），
-  其余全灭；红/蓝不设默认 trigger。
-- **服务接管后**：按上表。`ExecStop`（关机）把 RGB 切红常亮 2 秒再全灭，
-  给"正在关机"一个可见反馈。
-- **关机后**：全灭（PMIC 断电，灯自然灭）。
-- 4G/WiFi 状态来源与 ufi-led-state 一致：nmcli 优先，回退 mmcli/wpa_cli。
+`pm8916_bms_vm` **没有 `capacity` 属性**（属性表只有 STATUS/VOLTAGE_NOW/VOLTAGE_OCV/HEALTH），
+因此由用户态用 `voltage_now` + OCV 表线性插值计算：
 
-## DTS 节点草案（供 mf32 板级 dts 使用）
+- OCV 表内嵌在 `mf32-led-state.sh`，必须与 DTS 的 `ocv-capacity-table-0` 同步修改。
+- 充电时端电压高于 OCV，查表前减 `CHARGE_COMPENSATION=80000`（80mV）。
+- 精度约 ±5%（受负载电流与内阻影响），足够 4 档电量条，不做精确百分比显示。
 
-```dts
-leds {
-	compatible = "gpio-leds";
-	pinctrl-names = "default";
-	pinctrl-0 = <&mf32_leds_default>;
+## 五、开关机与启动阶段
 
-	/* 系统状态 RGB：function/color 出 sysfs 名 red:status 等 */
-	led-sys-r { color = <LED_COLOR_ID_RED>;   function = LED_FUNCTION_STATUS;
-		    gpios = <&tlmm 27 GPIO_ACTIVE_HIGH>; };
-	led-sys-g { color = <LED_COLOR_ID_GREEN>; function = LED_FUNCTION_STATUS;
-		    gpios = <&tlmm 29 GPIO_ACTIVE_HIGH>;
-		    linux,default-trigger = "heartbeat"; };
-	led-sys-b { color = <LED_COLOR_ID_BLUE>;  function = LED_FUNCTION_STATUS;
-		    gpios = <&tlmm 30 GPIO_ACTIVE_HIGH>; };
+- **内核接管前**：DTS 只给 LTE 红灯挂 `heartbeat`? 否 —— 实测硬件无绿灯，改为**不设默认 trigger**，启动阶段全灭（避免误判）。
+- **服务接管后**：按第二节。
+- **关机（双击电源键）**：`ExecStop` 把 LTE 红灯常亮 2 秒再全灭，给可见反馈。
+- **关机后**：全灭（PMIC 断电）。
 
-	/* 电量条：bat:1..4 的 GPIO 映射按实机物理顺序校准后落定 */
-	led-bat-1 { label = "bat:1"; gpios = <&tlmm 19 GPIO_ACTIVE_HIGH>; };
-	led-bat-2 { label = "bat:2"; gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>; };
-	led-bat-3 { label = "bat:3"; gpios = <&tlmm 21 GPIO_ACTIVE_HIGH>; };
-	led-bat-4 { label = "bat:4"; gpios = <&tlmm 20 GPIO_ACTIVE_HIGH>; };
+## 六、按键语义
 
-	/* SIM 切换器沿用厂配（sim:sel/en/sel2/en2），不是指示灯，不进本方案 */
-};
-```
+设备**只有一个物理按键**（PMIC PON `kpdpwr`，`pm8941_pwrkey`，KEY_POWER=116）。
+实测确认：`gpio-keys` 里的 `key_wps`(GPIO27)/`key_freset`(GPIO37) 中断计数长期为 0，
+**实物没有这些键**（原厂 DTB 模板残留）。
 
-原厂 DTB 的 `led-r(mmc0)/led-g(heartbeat)/led-b(phy0tx)` 与 cpu0-3 trigger
-全部弃用。**bat:N 的物理左右顺序必须实机校准**，校准结果落在本 DTS。
+| 操作 | 语义 | 实现 |
+|---|---|---|
+| **短按**（<800ms） | **电量 peek**：点亮电量条 3 秒 | `mf32-powerkey.sh` 写 peek 时间戳 |
+| **双击**（两次按下间隔 ≤500ms） | **干净关机**（`systemctl poweroff`） | `mf32-powerkey.sh` |
+| **长按**（>1.5s 且 <10s） | 软件不动作 | — |
+| **超长按**（>12.3s） | **PMIC 硬件 HARD_RESET**（不可阻止） | 硬件兜底 |
 
-## 实现
+`logind` 的 `HandlePowerKey=ignore`（`/etc/systemd/logind.conf.d/mf32-powerkey.conf`），
+避免短按被默认关机。
 
-- `tools/mf32-led-state.sh`：状态机 + 渲染，支持 `monitor`（服务主循环）、
-  `once`（单次渲染，供自测）、`off`（systemd ExecStop：红常亮后全灭）。
-- `tools/mf32-led-selftest.sh`：假 sysfs + 假 nmcli/systemctl 注水，
-  34 项断言覆盖全部 RGB 优先级分支（含品红充电态）、电量条档位/滞回/充电填充/危急快闪。
-  改状态机必须先跑它。
-- LED/电源/sysfs 根路径可用环境变量替换（`MF32_LED_SYS`、`MF32_PSY_SYS`、
-  `MF32_STATE`），自测不依赖实机。
-- 配置覆盖 `/etc/default/mf32-led-state`：阈值、节拍、`QUIET=1`（夜间静音：
-  稳态灯全灭，只保留异常/充电/低电指示）。
-- 不并入现有 build-rootfs 流程：那是 UFI 棒的 rootfs；MF32 将来有自己的
-  flavor 时再挂 `mf32-led-state.service`。
+### 超长按的硬件事实（PM8916 PON 寄存器实读）
 
-## 附：硬件 PWM 可用性研究（为什么不能靠它做呼吸灯/混色）
+| 寄存器 | 值 | 含义 |
+|---|---|---|
+| `0x840` KPDPWR S1_TIMER | `0x0F` | **10256 ms**（bark 阈值，内核收到中断） |
+| `0x841` KPDPWR S2_TIMER | `0x07` | **2 s**（bite 阈值） |
+| `0x842` KPDPWR S2_CTL | `0x07` | **RESET_TYPE = HARD_RESET** |
+| `0x843` KPDPWR S2_CTL2 | `0x80` | **S2_RESET_EN = 1（已使能）** |
 
-查证于本仓 7.2.9 源码树（与 7.1.13 核对时一致）：
+即：按住约 **10.3 秒**内核收到 bark（仅通知），继续按到约 **12.3 秒** PMIC 直接执行
+HARD_RESET——不经过内核、不同步文件系统。这是硬件保底救援机制，**不要尝试禁用**。
 
-- **唯一的硬件 PWM 是 PMIC 的 LPG**：`qcom,pm8916-pwm`（dtsi 节点 pm8916_pwm，
-  默认 disabled），驱动在 `drivers/leds/rgb/leds-qcom-lpg.c`，单通道
-  （`pm8916_pwm_data`：num_channels=1，base 0xbc00）。该驱动注册标准
-  pwm_chip，LED 硬件图案（LUT 呼吸序列）与通用 PWM 两种用法都支持。
-- **LPG 的输出只能到达 PMIC 的 MPP 引脚**：通道输出经 `qcom,dtest` 发布到
-  DTEST1-4 总线（PWM_DTEST_REG 0xe2..），MPP 侧以 pinconf `qcom,dtest=N`
-  选择 DTEST 为源（spmi-mpp 驱动 SELECTOR_DTEST_FIRST=4，source 4..7 对应
-  DTEST1..4）。PM8916 上共 4×GPIO + 4×MPP，GPIO 收不到 LPG。
-- **SoC 侧（TLMM，MF32 所有灯所在的线）没有任何 PWM 功能**。msm8916 TLMM
-  功能全集中最接近的只有 gcc_gp1/2/3_clk（gpio49/50/51 的 _a 变体、
-  gpio12/13 与 97 的 _b 变体）——那是固定 50% 占空比的时钟输出，能出方波
-  不能控亮度；且 49/50/51 在 MF32 上被 SIM 切换器占用。RGB 的 27/29/30
-  除 GPIO 外只有 cam_mclk1/cci_i2c 之类功能，全与 PWM 无关。
-- **MF32 实物接线**：RGB 在 TLMM 27/29/30，条灯在 TLMM 19/20/21/22，原厂
-  `mpps@a000` 节点无任何子设备 → LPG 对本机现有灯一根都用不上。
+## 七、状态目录（两个服务共享）
 
-结论：呼吸/渐变类效果在 MF32 上只能软件 PWM（代价：kHz 级 CPU 唤醒，
-与本方案稳态零唤醒原则冲突）或维持低频 timer 闪烁（现方案）。LPG 唯一
-潜在的用武之地是 PCB 上引到 MPP 的其它外设——需要电路图/实机确认。
+`mf32-led-state.service` 与 `mf32-powerkey.service` 必须使用**同一个** `MF32_STATE` 目录
+（默认 `/run/mf32`），peek 时间戳才能被 LED 服务读到。
+
+- `/run/mf32/peek_until`：peek 到期时间戳（epoch 秒）
+- `/run/mf32/level`：电量条档位（滞回用）
+- `/run/mf32/net`、`/run/mf32/net_ts`：网络状态缓存
+- `/run/mf32/status`：最近一次渲染的快照（调试用）
+
+## 八、实现
+
+- `tools/mf32-led-state.sh`：状态机 + 渲染，支持 `monitor`（服务主循环）、`once`（单次渲染）、`off`（关机）。
+- `tools/mf32-led-selftest.sh`：假 sysfs + 假 nmcli/systemctl 注水，覆盖状态灯优先级、
+  电量条 peek/危急/充电填充/滞回。**改状态机必须先跑它。**
+- `tools/mf32-powerkey.sh`：电源键状态机（单击 peek / 双击关机 / 长按交给硬件）。
+- 路径可用环境变量替换（`MF32_LED_SYS`、`MF32_PSY_SYS`、`MF32_STATE`），自测不依赖实机。
+- 配置覆盖 `/etc/default/mf32-led-state`：阈值、节拍、`QUIET=1`（夜间静音：连 peek 也不显示电量条）。
+
+## 附：硬件 PWM 不可用（为什么没有呼吸灯）
+
+- 唯一硬件 PWM 是 PMIC 的 LPG（`qcom,pm8916-pwm`，单通道，只能到 MPP 引脚）。
+- **SoC 侧 TLMM 没有任何 PWM 功能**，而 MF32 所有灯都接在 TLMM 上。
+- MF32 的 `mpps@a000` 节点无任何子设备 → LPG 对本机灯一根都用不上。
+- 呼吸/渐变只能软件 PWM（kHz 级 CPU 唤醒，与省电原则冲突），故采用低频 timer 闪烁。

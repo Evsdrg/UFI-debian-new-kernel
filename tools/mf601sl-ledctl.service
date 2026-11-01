@@ -1,0 +1,16 @@
+[Unit]
+Description=MF601SL status LEDs + power key (event-driven)
+Documentation=file:/usr/local/share/doc/mf601sl-ledctl.md
+After=systemd-udev-settle.service NetworkManager.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/mf601sl-ledctl
+ExecStop=/bin/sh -c 'for l in /sys/class/leds/*/; do echo none > $${l}trigger 2>/dev/null; echo 0 > $${l}brightness 2>/dev/null; done'
+Restart=always
+RestartSec=2
+Nice=-5
+
+[Install]
+WantedBy=multi-user.target
