@@ -54,6 +54,8 @@
 
 #define DEFAULT_LED_DIR		"/sys/class/leds"
 #define DEFAULT_PSY_BAT		"/sys/class/power_supply/pm8916-bms-vm"
+/* 充电器在线状态：online=1 表示接了外接电源。接电时电量组常亮。 */
+#define DEFAULT_PSY_CHGR	"/sys/class/power_supply/pm8916-lbc-chgr"
 #define DEFAULT_NET_DIR		"/sys/class/net"
 #define DEFAULT_REMOTEPROC	"/sys/class/remoteproc/remoteproc1/state"
 #define DEFAULT_NM_CONN_DIR	"/etc/NetworkManager/system-connections"
@@ -126,6 +128,7 @@ static const struct ocv_point ocv_table[] = {
 /* 运行期路径（环境变量覆盖，供注水自测；生产用默认值） */
 static const char *g_led_dir = DEFAULT_LED_DIR;
 static const char *g_psy_bat = DEFAULT_PSY_BAT;
+static const char *g_psy_chgr = DEFAULT_PSY_CHGR;
 static const char *g_net_dir = DEFAULT_NET_DIR;
 static const char *g_remoteproc = DEFAULT_REMOTEPROC;
 static const char *g_nm_conn_dir = DEFAULT_NM_CONN_DIR;
@@ -137,6 +140,7 @@ struct mf601sl_state {
 	enum led_mode mode;
 	int bat_pct;
 	bool charging;
+	bool external_power;	/* 充电器 online=1：接了外接电源 */
 	bool wifi_up;
 	bool wifi_configured;
 	bool wwan_up;
@@ -301,13 +305,17 @@ static int voltage_to_pct(int uv, bool charging)
 static void sample_battery(struct mf601sl_state *st)
 {
 	char path[160], status[32];
-	int uv;
+	int uv, online;
 
 	snprintf(path, sizeof(path), "%s/voltage_now", g_psy_bat);
 	uv = read_int(path);
 	snprintf(path, sizeof(path), "%s/status", g_psy_bat);
 	if (read_str(path, status, sizeof(status)))
 		status[0] = '\0';
+
+	snprintf(path, sizeof(path), "%s/online", g_psy_chgr);
+	online = read_int(path);
+	st->external_power = online > 0;
 
 	st->charging = !strcmp(status, "Charging") || !strcmp(status, "Full");
 	st->bat_pct = uv >= 0 ? voltage_to_pct(uv, st->charging) : -1;
@@ -426,9 +434,10 @@ static void sample_network(struct mf601sl_state *st)
 /* ---------------------------------------------------------------- 渲染 */
 
 /*
- * 电量组（右上）：绿=有电，红=低电。默认灭，peek 时显示。
- *   充电中：绿灯慢闪表示正在充；充满后绿灯常亮。
- *   危急低电（<=8% 且未充电）：红灯快闪，任何模式都显示（安全警示）。
+ * 电量组（右上）：绿=有电，红=低电。
+ *   接外接电源（充电器 online=1）：绿灯常亮——不需要短按，也不闪。
+ *   否则默认灭，短按（peek）时显示：<=LOW_PCT 红常亮，其余绿常亮。
+ *   危急低电（<=CRIT_PCT 且未充电）：红灯快闪，任何模式都显示（安全警示）。
  */
 static void render_battery(struct mf601sl_state *st, bool visible)
 {
@@ -441,16 +450,20 @@ static void render_battery(struct mf601sl_state *st, bool visible)
 		return;
 	}
 
+	/* 接外接电源：电量组常亮（不依赖 peek） */
+	if (st->external_power) {
+		led_off(LED_POWER_RED);
+		led_solid(LED_POWER_GREEN);
+		return;
+	}
+
 	if (!visible || st->bat_pct < 0) {
 		led_off(LED_POWER_RED);
 		led_off(LED_POWER_GREEN);
 		return;
 	}
 
-	if (st->charging && st->bat_pct < 100) {
-		led_off(LED_POWER_RED);
-		led_blink(LED_POWER_GREEN, T_SLOW_ON, T_SLOW_OFF);
-	} else if (st->bat_pct <= LOW_PCT) {
+	if (st->bat_pct <= LOW_PCT) {
 		led_off(LED_POWER_GREEN);
 		led_solid(LED_POWER_RED);
 	} else {
@@ -460,11 +473,11 @@ static void render_battery(struct mf601sl_state *st, bool visible)
 }
 
 /*
- * LTE 组（左上）：
+ * LTE 组（左上）：任何状态都必须有灯，不允许全灭。
  *   红慢闪 = 模组故障 / 无 SIM（remoteproc 非 running 或 mmcli failed/locked）
  *   红常亮 = 有卡但注册被拒（registration-denied / registration-limited）
  *   绿常亮 = 数据会话已建立（wwan0 operstate=up）
- *   全灭   = 搜索中 / 未注册（真正的中间态）
+ *   绿慢闪 = 搜索中 / 未注册（真正的中间态）
  */
 static void render_wan(struct mf601sl_state *st, bool visible)
 {
@@ -484,13 +497,17 @@ static void render_wan(struct mf601sl_state *st, bool visible)
 		led_off(LED_WAN_GREEN);
 		led_solid(LED_WAN_RED);
 	} else {
+		/* 搜索中：绿灯慢闪，避免“没灯”被误认为没上电 */
 		led_off(LED_WAN_RED);
-		led_off(LED_WAN_GREEN);
+		led_blink(LED_WAN_GREEN, T_SLOW_ON, T_SLOW_OFF);
 	}
 }
 
 /*
- * WiFi 组（右下）：绿=已连接；红=已配置但断开（慢闪）；全灭=无配置。
+ * WiFi 组（右下）：任何状态都必须有灯，不允许全灭。
+ *   绿常亮 = 已连接
+ *   红慢闪 = 已配置但断开
+ *   绿慢闪 = 未配置（等待用户配网）
  */
 static void render_wlan(struct mf601sl_state *st, bool visible)
 {
@@ -508,7 +525,7 @@ static void render_wlan(struct mf601sl_state *st, bool visible)
 		led_blink(LED_WLAN_RED, T_SLOW_ON, T_SLOW_OFF);
 	} else {
 		led_off(LED_WLAN_RED);
-		led_off(LED_WLAN_GREEN);
+		led_blink(LED_WLAN_GREEN, T_SLOW_ON, T_SLOW_OFF);
 	}
 }
 
@@ -733,6 +750,8 @@ int main(void)
 		g_led_dir = getenv("MF601SL_LED_SYS");
 	if (getenv("MF601SL_PSY_BAT"))
 		g_psy_bat = getenv("MF601SL_PSY_BAT");
+	if (getenv("MF601SL_PSY_CHGR"))
+		g_psy_chgr = getenv("MF601SL_PSY_CHGR");
 	if (getenv("MF601SL_NET_DIR"))
 		g_net_dir = getenv("MF601SL_NET_DIR");
 	if (getenv("MF601SL_REMOTEPROC"))

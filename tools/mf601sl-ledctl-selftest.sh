@@ -8,8 +8,8 @@ BIN=${MF601SL_LEDCTL_BIN:-/tmp/mf601sl-ledctl}
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
-LEDS=$T/leds; PSY=$T/psy/bms; NET=$T/net; NM=$T/nm; ST=$T/state
-mkdir -p "$LEDS" "$PSY" "$NET" "$NM" "$ST"
+LEDS=$T/leds; PSY=$T/psy/bms; CHGR=$T/psy/chgr; NET=$T/net; NM=$T/nm; ST=$T/state
+mkdir -p "$LEDS" "$PSY" "$CHGR" "$NET" "$NM" "$ST"
 
 # MF601SL 实机 6 灯（sysfs 名 = <color>:<function>）
 for l in red:power green:power red:wan green:wan red:wlan green:wlan; do
@@ -19,6 +19,7 @@ for l in red:power green:power red:wan green:wan red:wlan green:wlan; do
 done
 for i in wlan0 wwan0; do mkdir -p "$NET/$i"; echo down > "$NET/$i/operstate"; done
 echo 4200000 > "$PSY/voltage_now"; echo Discharging > "$PSY/status"
+echo 0 > "$CHGR/online"
 echo running > "$T/remoteproc"
 
 pass=0; fail=0
@@ -42,7 +43,7 @@ chk() {  # chk <场景> <led> <属性=期望>...
 # 用 FIFO 作按键设备，避免依赖真实 evdev
 mkfifo "$T/evdev"
 
-export MF601SL_LED_SYS="$LEDS" MF601SL_PSY_BAT="$PSY" MF601SL_NET_DIR="$NET" \
+export MF601SL_LED_SYS="$LEDS" MF601SL_PSY_BAT="$PSY" MF601SL_PSY_CHGR="$CHGR" MF601SL_NET_DIR="$NET" \
        MF601SL_REMOTEPROC="$T/remoteproc" MF601SL_NM_CONN_DIR="$NM" \
        MF601SL_STATE="$ST" MF601SL_INPUT_DEV="$T/evdev" \
        MF601SL_REG_STATE="$T/regstate"
@@ -143,15 +144,15 @@ chk S9 green:power brightness=0
 stop
 echo 4200000 > "$PSY/voltage_now"
 
-echo "=== S10 充电中：绿灯慢闪 ==="
+echo "=== S10 接外接电源（charger online=1）：绿灯常亮，不需短按、不闪 ==="
 echo Charging > "$PSY/status"
+echo 1 > "$CHGR/online"
 start
-key 1 0 100; key 0 0 0
-sleep 0.3
-chk S10 green:power trigger=timer delay_on=1000 delay_off=1000
+chk S10 green:power brightness=1 trigger=none
 chk S10 red:power brightness=0
 stop
 echo Discharging > "$PSY/status"
+echo 0 > "$CHGR/online"
 
 echo "=== S11 WiFi 已连接：绿常亮，红灭 ==="
 echo up > "$NET/wlan0/operstate"
@@ -169,10 +170,10 @@ chk S12 green:wlan brightness=0
 stop
 rm -f "$NM/home.nmconnection"
 
-echo "=== S13 WiFi 无配置：两组全灭 ==="
+echo "=== S13 WiFi 无配置：绿灯慢闪（不再全灭） ==="
 start
 chk S13 red:wlan brightness=0
-chk S13 green:wlan brightness=0
+chk S13 green:wlan trigger=timer delay_on=1000 delay_off=1000
 stop
 
 echo "=== S14 4G 数据会话：绿灯常亮 ==="
@@ -192,10 +193,10 @@ chk S15 green:wan brightness=0
 stop
 echo running > "$T/remoteproc"
 
-echo "=== S16 模组正常但未注册：两灯全灭 ==="
+echo "=== S16 模组正常但未注册（搜索中）：绿灯慢闪（不再全灭） ==="
 start
 chk S16 red:wan brightness=0
-chk S16 green:wan brightness=0
+chk S16 green:wan trigger=timer delay_on=1000 delay_off=1000
 stop
 
 echo "=== S17 注册被拒（registration-denied）：红灯常亮 ==="
