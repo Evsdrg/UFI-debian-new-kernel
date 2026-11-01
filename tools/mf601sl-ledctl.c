@@ -59,6 +59,7 @@
 #define DEFAULT_NM_CONN_DIR	"/etc/NetworkManager/system-connections"
 #define DEFAULT_STATE_DIR	"/var/lib/mf601sl-ledctl"
 #define DEFAULT_INPUT_DEV	NULL	/* NULL = 自动查找 pm8941_pwrkey */
+#define DEFAULT_REG_STATE_FILE	NULL	/* NULL = 用 qmicli 实时查询 */
 
 #define KEY_POWER		116
 #define EV_KEY			1
@@ -70,8 +71,8 @@
 #define MAX_LONG_MS		10000
 #define PEEK_MS			3000
 
-/* 电量阈值 */
-#define LOW_PCT			20
+/* 电量阈值：与 MF32 对齐（tools/mf32-ledctl.c） */
+#define LOW_PCT			15
 #define CRIT_PCT		8
 
 /* 充电时端电压高于 OCV，查表前补偿（µV） */
@@ -108,15 +109,18 @@ struct ocv_point {
 	int pct;
 };
 
-/* 与 DTS 的 ocv-capacity-table-0 逐点对应（boards/thwc-mf601sl/dts）：
- * 充电截止设为 4.25V，因此 100% 点也在 4.25V。 */
+/* 与 MF32 完全一致（tools/mf32-ledctl.c 的 ocv_table[] 与
+ * boards/thwc-mf32/dts 的 ocv-capacity-table-0 同源）：
+ * voltage-max-design 取电池真实规格 4.35V（BMS 的 OVERVOLTAGE 判定基准），
+ * 充电截止另由 charger 的 qcom,fast-charge-safe-voltage=4.25V 限制。 */
 static const struct ocv_point ocv_table[] = {
-	{ 4250000, 100 }, { 4200000, 96 }, { 4100000, 92 }, { 4050000, 89 },
-	{ 4000000, 85 }, { 3950000, 80 }, { 3900000, 75 }, { 3850000, 70 },
-	{ 3800000, 65 }, { 3750000, 60 }, { 3700000, 55 }, { 3650000, 50 },
-	{ 3600000, 45 }, { 3550000, 40 }, { 3500000, 35 }, { 3450000, 30 },
-	{ 3400000, 25 }, { 3350000, 20 }, { 3300000, 15 }, { 3250000, 10 },
-	{ 3200000, 5 }, { 3150000, 3 }, { 3100000, 1 }, { 3000000, 0 },
+	{ 4350000, 100 }, { 4300000, 98 }, { 4250000, 96 }, { 4200000, 94 },
+	{ 4100000, 90 }, { 4050000, 87 }, { 4000000, 84 }, { 3950000, 80 },
+	{ 3900000, 75 }, { 3850000, 70 }, { 3800000, 65 }, { 3750000, 60 },
+	{ 3700000, 55 }, { 3650000, 50 }, { 3600000, 45 }, { 3550000, 40 },
+	{ 3500000, 35 }, { 3450000, 30 }, { 3400000, 25 }, { 3350000, 20 },
+	{ 3300000, 15 }, { 3250000, 10 }, { 3200000, 5 }, { 3150000, 3 },
+	{ 3100000, 1 }, { 3000000, 0 },
 };
 
 /* 运行期路径（环境变量覆盖，供注水自测；生产用默认值） */
@@ -127,6 +131,7 @@ static const char *g_remoteproc = DEFAULT_REMOTEPROC;
 static const char *g_nm_conn_dir = DEFAULT_NM_CONN_DIR;
 static const char *g_state_dir = DEFAULT_STATE_DIR;
 static const char *g_input_dev = DEFAULT_INPUT_DEV;
+static const char *g_reg_state_file = DEFAULT_REG_STATE_FILE;
 
 struct mf601sl_state {
 	enum led_mode mode;
@@ -135,7 +140,8 @@ struct mf601sl_state {
 	bool wifi_up;
 	bool wifi_configured;
 	bool wwan_up;
-	bool modem_fault;
+	bool modem_fault;	/* 模组故障 / 无 SIM：remoteproc 非 running 或 mmcli failed/locked */
+	bool reg_denied;	/* 有卡但注册被拒：registration-denied / limited */
 	long long peek_until;
 	enum key_state kstate;
 	long long press_ms;
@@ -348,9 +354,11 @@ static bool wifi_is_configured(void)
 }
 
 /*
- * 4G 模组状态：remoteproc 只反映 Hexagon 固件是否加载，不反映 SIM/注册状态。
- * ModemManager 的 "state: failed / failed reason: sim-missing" 才是用户可见的
- * 故障态。用 mmcli 查询，只在 netlink 事件触发时调用，不参与轮询。
+ * 4G 模组状态分三层，不能混为一谈：
+ *   1) remoteproc：Hexagon 固件是否加载（模组是否有“生命”）
+ *   2) mmcli state：ModemManager 是否报 failed/locked（无 SIM、模组故障）
+ *   3) 网络注册：registration-denied / limited 表示有卡但被网络拒绝
+ * 只查 1)+2) 会把“注册被拒”误判成“正在搜索”，用户看到全灭而实际已经坏了。
  */
 static bool modem_manager_failed(void)
 {
@@ -373,6 +381,35 @@ static bool modem_manager_failed(void)
 	return failed;
 }
 
+/* 单次 qmicli 调用里同时判定 denied / limited，避免重复 popen。
+ * MF601SL_REG_STATE（自测用）非空时改读该文件，避免依赖真实 qmicli。 */
+static bool modem_reg_denied(void)
+{
+	FILE *fp;
+	char line[256];
+	bool denied = false;
+
+	if (g_reg_state_file) {
+		if (read_str(g_reg_state_file, line, sizeof(line)))
+			return false;
+		return strcmp(line, "denied") == 0 || strcmp(line, "limited") == 0;
+	}
+
+	fp = popen("qmicli -d /dev/wwan0qmi0 --nas-get-serving-system 2>/dev/null",
+		   "r");
+	if (!fp)
+		return false;
+	while (fgets(line, sizeof(line), fp)) {
+		if (strstr(line, "Registration state: 'registration-denied'") ||
+		    strstr(line, "Registration state: 'registration-limited'")) {
+			denied = true;
+			break;
+		}
+	}
+	pclose(fp);
+	return denied;
+}
+
 static void sample_network(struct mf601sl_state *st)
 {
 	char buf[32];
@@ -382,6 +419,8 @@ static void sample_network(struct mf601sl_state *st)
 	st->wwan_up = net_is_up("wwan0");
 	st->modem_fault = read_str(g_remoteproc, buf, sizeof(buf)) ||
 			  strcmp(buf, "running") || modem_manager_failed();
+	/* 模组都没起来时不必再问注册状态 */
+	st->reg_denied = st->modem_fault ? false : modem_reg_denied();
 }
 
 /* ---------------------------------------------------------------- 渲染 */
@@ -421,8 +460,11 @@ static void render_battery(struct mf601sl_state *st, bool visible)
 }
 
 /*
- * LTE 组（左上）：绿=已注册或已建立数据会话；红=无 SIM / 模组故障；
- * 全灭=搜索中或未注册。
+ * LTE 组（左上）：
+ *   红慢闪 = 模组故障 / 无 SIM（remoteproc 非 running 或 mmcli failed/locked）
+ *   红常亮 = 有卡但注册被拒（registration-denied / registration-limited）
+ *   绿常亮 = 数据会话已建立（wwan0 operstate=up）
+ *   全灭   = 搜索中 / 未注册（真正的中间态）
  */
 static void render_wan(struct mf601sl_state *st, bool visible)
 {
@@ -434,10 +476,13 @@ static void render_wan(struct mf601sl_state *st, bool visible)
 
 	if (st->modem_fault) {
 		led_off(LED_WAN_GREEN);
-		led_solid(LED_WAN_RED);
+		led_blink(LED_WAN_RED, T_SLOW_ON, T_SLOW_OFF);
 	} else if (st->wwan_up) {
 		led_off(LED_WAN_RED);
 		led_solid(LED_WAN_GREEN);
+	} else if (st->reg_denied) {
+		led_off(LED_WAN_GREEN);
+		led_solid(LED_WAN_RED);
 	} else {
 		led_off(LED_WAN_RED);
 		led_off(LED_WAN_GREEN);
@@ -698,6 +743,8 @@ int main(void)
 		g_state_dir = getenv("MF601SL_STATE");
 	if (getenv("MF601SL_INPUT_DEV"))
 		g_input_dev = getenv("MF601SL_INPUT_DEV");
+	if (getenv("MF601SL_REG_STATE"))
+		g_reg_state_file = getenv("MF601SL_REG_STATE");
 
 	if (mkdir(g_state_dir, 0755) && errno != EEXIST) {
 		perror("mkdir state dir");

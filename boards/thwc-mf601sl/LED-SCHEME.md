@@ -27,8 +27,8 @@
 | 条件 | 红灯 | 绿灯 |
 |---|---|---|
 | ≤8% 且未充电（危急） | 快闪 250/250（任何模式都显示，安全警示） | 灭 |
-| ≤20% | 常亮 | 灭 |
-| >20% | 灭 | 常亮 |
+| ≤15% | 常亮 | 灭 |
+| >15% | 灭 | 常亮 |
 | 充电中且 <100% | 灭 | 慢闪 1000/1000 |
 | 充满 | 灭 | 常亮 |
 
@@ -36,9 +36,14 @@
 
 | 条件 | 红灯 | 绿灯 |
 |---|---|---|
-| 模组故障 / 无 SIM（`mmcli` 报 failed/locked） | 常亮 | 灭 |
+| 模组故障 / 无 SIM（`remoteproc` 非 running 或 `mmcli` 报 failed/locked） | 慢闪 1000/1000 | 灭 |
+| **有卡但注册被拒**（`qmicli` 报 `registration-denied` / `registration-limited`） | **常亮** | 灭 |
 | 数据会话已建立（`wwan0` operstate=up） | 灭 | 常亮 |
 | 搜索中 / 未注册 | 灭 | 灭 |
+
+> 为什么必须区分「搜索中」与「注册被拒」：`mmcli` 会把被网络拒绝的卡报成
+> `state: searching`，只看它就得到「全灭＝正在搜索」，而用户实际已经上不了网。
+> 真实注册结果只能从 `qmicli --nas-get-serving-system` 的 `Registration state` 取。
 
 ### WiFi 组（右下）
 

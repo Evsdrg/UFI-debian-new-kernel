@@ -12,7 +12,7 @@
 #     "" 4g venus venus-4g venus-4g-gpu minimal   （UFI103s）
 #     mf601sl                                      （THWC MF601SL_CT_V07，电池型 4G MiFi）
 #
-# 板型表每条为：后缀 | 内核片段 | DTS 文件 | 板目录（可选）| root= 写法（可选）| DTB 布局（可选）
+# 板型表每条为：后缀 | 内核片段 | DTS 文件 | 板目录（可选）| root= 写法（可选）| DTB 布局（可选）| 额外 cmdline（可选）
 # 板目录不同的板型会构建到 artifacts/boot/<板目录名>/ 下。
 # root= 写法缺省保持 PARTUUID（不动已实机验证的 UFI103s 镜像）；
 # 新板型用 /dev/mmcblk0p14，别人刷进去不必改 cmdline。
@@ -33,7 +33,7 @@ MF601SL_BOARD="$BASE/boards/thwc-mf601sl"
 MF32_FRAG="$BASE/source/configs/mf32.config"
 MF32_BOARD="$BASE/boards/thwc-mf32"
 
-# 板型表：后缀 | 内核片段 | DTB
+# 板型表：后缀 | 内核片段 | DTS | 板目录（可选）| root= 写法（可选）| DTB 布局（可选）| 额外 cmdline（可选）
 # 后缀空 = 基线；gpu 板型叠加 gpu 片段（render-only 校验在下方）。
 # 板型 = 正交功能组合，后缀只写"有的功能"（无 4G 不写 -no4g，就什么都不写）：
 #   （空）        WiFi/BT only（4G 链与 venus 全关，内存最大化——slim/micro 配）
@@ -54,7 +54,7 @@ TYPES=(
   "venus-4g|$VENUS_FRAG|$DTS_PREFIX-venus-4g.dts"
   "venus-4g-gpu|$VENUS_FRAG:$GPU_FRAG|$DTS_PREFIX-venus-4g-gpu.dts"
   "minimal|$BASE_FRAG:$MINIMAL_FRAG|$DTS_PREFIX.dts"
-  "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD|/dev/mmcblk0p14"
+  "mf601sl|$MF601SL_FRAG|msm8916-thwc-mf601sl-v07.dts|$MF601SL_BOARD|/dev/mmcblk0p14||cpuidle.off=1"
   "mf32|$MF32_FRAG|msm8916-thwc-mf32.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
   "mf32-gpu|$MF32_FRAG:$GPU_FRAG|msm8916-thwc-mf32-gpu.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
   "mf32-venus|$MF32_FRAG:$VENUS_FRAG|msm8916-thwc-mf32-venus.dts|$MF32_BOARD|PARTLABEL=rootfs|inline"
@@ -65,7 +65,7 @@ WANT=("$@")
 rc_total=0
 
 for entry in "${TYPES[@]}"; do
-    IFS='|' read -r suffix frags dtsname board_dir_override board_root_override dtb_layout_override <<< "$entry"
+    IFS='|' read -r suffix frags dtsname board_dir_override board_root_override dtb_layout_override extra_cmdline <<< "$entry"
     if [ ${#WANT[@]} -gt 0 ]; then
         keep=0
         for w in "${WANT[@]}"; do [ "$w" = "$suffix" ] && keep=1; done
@@ -112,6 +112,7 @@ for entry in "${TYPES[@]}"; do
     # 打包 boot 镜像（Image.gz + 板型 DTB）
     BOOT_ROOT="${board_root_override:-}" \
     BOOT_DTB_LAYOUT="${dtb_layout_override:-inline}" \
+    BOOT_EXTRA_CMDLINE="${extra_cmdline:-}" \
     python3 tools/package-boot-variant.py \
         "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
         "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \

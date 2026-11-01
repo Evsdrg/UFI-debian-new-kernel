@@ -44,7 +44,10 @@ mkfifo "$T/evdev"
 
 export MF601SL_LED_SYS="$LEDS" MF601SL_PSY_BAT="$PSY" MF601SL_NET_DIR="$NET" \
        MF601SL_REMOTEPROC="$T/remoteproc" MF601SL_NM_CONN_DIR="$NM" \
-       MF601SL_STATE="$ST" MF601SL_INPUT_DEV="$T/evdev"
+       MF601SL_STATE="$ST" MF601SL_INPUT_DEV="$T/evdev" \
+       MF601SL_REG_STATE="$T/regstate"
+# 默认注册正常（空文件 → 既非 denied 也非 limited）
+: > "$T/regstate"
 
 start() { "$BIN" & PID=$!; exec 9>"$T/evdev"; sleep 0.3; }
 stop()  { kill $PID 2>/dev/null; wait $PID 2>/dev/null; exec 9>&-; }
@@ -130,8 +133,8 @@ chk S8 green:power brightness=0
 stop
 echo 4200000 > "$PSY/voltage_now"
 
-echo "=== S9 低电（3.32V ≈ 18%）：红灯常亮 ==="
-echo 3320000 > "$PSY/voltage_now"
+echo "=== S9 低电（3.30V = 15%）：红灯常亮 ==="
+echo 3300000 > "$PSY/voltage_now"
 start
 key 1 0 100; key 0 0 0
 sleep 0.3
@@ -180,10 +183,11 @@ chk S14 red:wan brightness=0
 stop
 echo down > "$NET/wwan0/operstate"
 
-echo "=== S15 模组故障：红灯常亮 ==="
+echo "=== S15 模组故障/no SIM：红灯慢闪 ==="
 echo offline > "$T/remoteproc"
 start
 chk S15 red:wan brightness=1
+chk S15 red:wan trigger=timer
 chk S15 green:wan brightness=0
 stop
 echo running > "$T/remoteproc"
@@ -193,6 +197,24 @@ start
 chk S16 red:wan brightness=0
 chk S16 green:wan brightness=0
 stop
+
+echo "=== S17 注册被拒（registration-denied）：红灯常亮 ==="
+echo denied > "$T/regstate"
+start
+chk S17 red:wan brightness=1
+chk S17 red:wan trigger=none
+chk S17 green:wan brightness=0
+stop
+
+echo "=== S18 registration-limited 同样按被拒处理 ==="
+echo limited > "$T/regstate"
+start
+chk S18 red:wan brightness=1
+chk S18 green:wan brightness=0
+stop
+
+# 恢复：注册态清空，供后续场景（如果有）使用
+: > "$T/regstate"
 
 echo "----------------------------------------"
 echo "PASS=$pass FAIL=$fail"
