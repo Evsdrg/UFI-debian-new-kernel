@@ -604,6 +604,39 @@ RestartSec=2
 ExecStartPre=/bin/sh -c 'for i in $(seq 1 60); do [ -e /dev/qcom_rmtfs_mem1 ] && exit 0; sleep 0.2; done; echo "rmtfs_mem1 never appeared" >&2; exit 1'
 EOF
 
+# 4G modem 启动：不要在 rmtfs 里用 -s。
+# rmtfs -s 会在启动时立刻 pwrite "start" 到 remoteproc1/state，但那条路径
+# 在本板实测稳定返回 -19（MBA 认证失败），而同样时刻由外部写入 "start"
+# 却能成功。差异在于 rmtfs 把 state fd 留在 select() 里长期持有并与
+# rproc/固件加载线程竞争。因此这里去掉 -s，改由一个独立的 oneshot 服务
+# 在 rmtfs 服务真正 active 之后再去启动 modem。
+mkdir -p "$STAGE/etc/systemd/system"
+cat > "$STAGE/etc/systemd/system/rmtfs.service.d/no-rproc-control.conf" <<'EOF'
+# 由 modem-start.service 负责启动/停止 modem，rmtfs 只做 EFS 存储服务。
+[Service]
+ExecStart=
+ExecStart=/usr/bin/rmtfs -r -P
+EOF
+cat > "$STAGE/etc/systemd/system/modem-start.service" <<'EOF'
+[Unit]
+Description=Start Qualcomm MSS modem after rmtfs is ready
+After=rmtfs.service systemd-modules-load.service
+Wants=rmtfs.service
+ConditionPathExists=/sys/class/remoteproc/remoteproc1/state
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# 等 rmtfs 真正 active（QMI 服务已 publish），再启动 modem。
+# 首次 start 在部分板子上会因 MBA 认证时序返回 -19，但随后重试即可成功，
+# 因此这里做有限次重试（实测第 1~2 次内稳定成功）。
+ExecStart=/bin/sh -c 'for i in $(seq 1 100); do systemctl is-active --quiet rmtfs.service && break; sleep 0.1; done; for try in 1 2 3 4 5 6; do if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then exit 0; fi; echo start > /sys/class/remoteproc/remoteproc1/state 2>/dev/null; sleep 4; if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo "modem up after try $try"; exit 0; fi; echo "modem try $try failed, retrying"; done; echo "modem failed after 6 tries" >&2; exit 1'
+ExecStop=/bin/sh -c 'if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo stop > /sys/class/remoteproc/remoteproc1/state; fi'
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 # CERNET apt mirror, baked into the image (verified: 302 -> 200, apt follows).
 mkdir -p "$STAGE/etc/apt"
 cat > "$STAGE/etc/apt/sources.list" <<'EOF'
@@ -799,7 +832,7 @@ MMDEBSTRAP_ARGS=(
 	#    设备开机后 wlan0 一直 unavailable。）
 	# 启用系统服务。用循环 + 存在性判断，这样精简档位（没有 ModemManager /
 	# rmtfs / qrtr-ns 包）不会留下指向不存在单元的悬空软链。
-	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-ledctl.service mf601sl-ledctl.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && mkdir -p $1/etc/systemd/system/timers.target.wants && ln -sf /etc/systemd/system/usb-gadget-watchdog.timer $1/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
+	'--customize-hook=mkdir -p $1/etc/systemd/system/multi-user.target.wants $1/etc/systemd/system/network-online.target.wants && for s in NetworkManager.service ModemManager.service rmtfs.service modem-start.service qrtr-ns.service chrony.service bluetooth.service usb-gadget.service ufi-led-state.service mf32-ledctl.service mf601sl-ledctl.service; do for d in /lib/systemd/system /etc/systemd/system; do if test -f $1$d/$s; then ln -sf $d/$s $1/etc/systemd/system/multi-user.target.wants/$s; break; fi; done; done && for n in NetworkManager-wait-online.service; do if test -f $1/lib/systemd/system/$n; then ln -sf /lib/systemd/system/$n $1/etc/systemd/system/network-online.target.wants/$n; fi; done && { test -f $1/lib/systemd/system/systemd-resolved.service && ln -sf /lib/systemd/system/systemd-resolved.service $1/etc/systemd/system/multi-user.target.wants/systemd-resolved.service || true; } && ln -sf /etc/systemd/system/zram-setup.service $1/etc/systemd/system/multi-user.target.wants/zram-setup.service && mkdir -p $1/etc/systemd/system/timers.target.wants && ln -sf /etc/systemd/system/usb-gadget-watchdog.timer $1/etc/systemd/system/timers.target.wants/usb-gadget-watchdog.timer && ln -sf /lib/systemd/system/multi-user.target $1/etc/systemd/system/default.target'
 	# （仅 nm 档）清掉所有会与 NM 抢 wlan0 的启用项（networkd 的 socket 也要
 	# 清，它会从 sockets.target 自动拉起 networkd）。native 档没有 NM，不存在
 	# 抢占，反而依赖这些单元——上面的钩子按"镜像里有无 NM 二进制"自动跳过。

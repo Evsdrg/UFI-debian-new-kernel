@@ -49,13 +49,14 @@
 	battery: battery {
 		compatible = "simple-battery";
 		voltage-min-design-microvolt = <3000000>;
-		/* 标称 4.35V，按 4.25V 充电：BMS 的 OVERVOLTAGE 判定用的也是这个值，
-		 * 必须 >= 实际充电截止电压，否则充满时会报 Over voltage。 */
-		voltage-max-design-microvolt = <4250000>;
+		/* voltage-max-design 是电池真实规格（BMS 的 OVERVOLTAGE 判定基准），
+		 * 必须 >= 满电电压（4.35V），否则满电时永久误报 Over voltage。
+		 * 充电截止另由 charger 的 qcom,fast-charge-safe-voltage=4.25V 限制。 */
+		voltage-max-design-microvolt = <4350000>;
 		energy-full-design-microwatt-hours = <7980000>;
 		charge-full-design-microamp-hours = <2100000>;
 		ocv-capacity-celsius = <25>;
-		ocv-capacity-table-0 = <4250000 100>, <4200000 96>,
+		ocv-capacity-table-0 = <4350000 100>, <4300000 98>, <4250000 96>,
 				       <4100000 92>, <4050000 89>,
 				       <4000000 85>, <3950000 80>,
 				       <3900000 75>, <3850000 70>,
@@ -112,7 +113,6 @@
 			function = LED_FUNCTION_POWER;
 			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 112 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "heartbeat";
 			default-state = "off";
 		};
 
@@ -141,7 +141,6 @@
 			function = LED_FUNCTION_WLAN;
 			color = <LED_COLOR_ID_GREEN>;
 			gpios = <&tlmm 120 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "phy0tx";
 			default-state = "off";
 		};
 
@@ -255,6 +254,13 @@
 };
 
 /* ---- WiFi/BT：WCN3620 ---- */
+/* iris 子节点的 compatible 是板级属性，必须显式给：qcom_wcnss_iris.c 的
+ * iris_of_match 用它选 wcn3620_data（WCN3620 的电源/时钟参数）。dtsi 里的
+ * iris 节点故意不写 compatible（"Separate chip, compatible is board-specific"）。 */
+&wcnss_iris {
+	compatible = "qcom,wcn3620";
+};
+
 &wcnss {
 	status = "okay";
 };

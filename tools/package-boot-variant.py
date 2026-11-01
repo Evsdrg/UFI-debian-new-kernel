@@ -52,7 +52,12 @@ TAGS_OFFSET = "0x01e00000"
 # 内核支持的形式见 source/linux-7.2.9/block/early-lookup.c（/dev/<disk><part>）。
 DEFAULT_ROOT = "PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e"
 ROOT = os.environ.get("BOOT_ROOT") or DEFAULT_ROOT
+# BOOT_EXTRA_CMDLINE：追加到 cmdline 末尾（如 mf601sl 的 cpuidle.off=1）。
+# 用独立变量而不是让调用方拼整条 cmdline，避免各板型丢失公共前缀。
+EXTRA_CMDLINE = os.environ.get("BOOT_EXTRA_CMDLINE", "").strip()
 CMDLINE = f"earlycon console=ttyMSM0,115200 root={ROOT} rw rootwait"
+if EXTRA_CMDLINE:
+    CMDLINE += " " + EXTRA_CMDLINE
 
 
 def compile_dtb(dts_path: pathlib.Path, out_dtb: pathlib.Path) -> None:
