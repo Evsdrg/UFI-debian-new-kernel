@@ -309,6 +309,22 @@ _ws_guard() { # $1=值 $2=变量名
     fi
 }
 _ws_guard "${ROOTFS_ROOT_PASSWORD:-}" ROOTFS_ROOT_PASSWORD
+# 引号守卫：口令里出现引号字符，几乎都说明取值方式错了——直接 grep/cut 读
+# .local-creds 会把外层的单引号当成密码内容（镜像里真的存成 '1313144'，
+# 登录时却按 1313144 输入，无屏设备上直接锁死）。正确做法是用
+# `. tools/lib-creds.sh && cred ROOTFS_ROOT_PASSWORD`，由 shell 解析掉引号。
+_quote_guard() { # $1=值 $2=变量名
+    [[ -n "$1" ]] || return 0
+    if [[ "$1" == *[\"\']* ]]; then
+        {
+            echo "错误：$2 含引号字符，拒绝构建。"
+            echo "      常见原因：用 grep/cut 直接读 .local-creds，把外层引号当成了密码内容。"
+            echo "      正确做法：. tools/lib-creds.sh && cred $2（由 shell 解析掉引号）。"
+        } >&2
+        exit 1
+    fi
+}
+_quote_guard "${ROOTFS_ROOT_PASSWORD:-}" ROOTFS_ROOT_PASSWORD
 if [[ "$ROOTFS_NET" == nm ]]; then
 mkdir -p "$STAGE/etc/NetworkManager/system-connections" \
          "$STAGE/etc/NetworkManager/conf.d"
