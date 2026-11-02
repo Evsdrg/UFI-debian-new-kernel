@@ -380,18 +380,6 @@
 						phandle = <0x1d>;
 					};
 
-					/* CPU 核心供电（PM8916 S2）。原厂 3.10 由 CPR +
-					 * spm-regulator 写 SPMI 0x1700 控制；mainline 走 RPM
-					 * 通道（qcom_smd-regulator.c 的 rpm_pm8916_regulators
-					 * 已含 s2 条目），只要这里给节点就会注册出来。
-					 * 范围取 PM8916 手册 S2 的指定工作范围 0.9–1.35V。
-					 * 阶段 1：只注册，不挂 consumer，先确认能读到真实电压。 */
-					p1e2: s2 {
-						regulator-min-microvolt = <0xdbba0>;
-						regulator-max-microvolt = <0x149970>;
-						phandle = <0xad>;
-					};
-
 					p1e: s4 {
 						regulator-min-microvolt = <0x1b7740>;
 						regulator-max-microvolt = <0x200b20>;
