@@ -12,5 +12,6 @@
   "image_gz_sha256": "0973771fe7681bf9c7033a54070b435f78f8767faf079bdcef2d1e102bfe1939",
   "dtb_sha256": "8f6aa4b85b5e2b66e4c110ba4cf1650d1f23f9c469ca98d4b41fec869b989eb7",
   "boot_sha256": "b3281d9ccc9f512ae879e00a58378c2b7cc820b52d19ab19453b8d2b8485c9cd",
-  "flash_status": "not flashed"
+  "flash_status": "flashed and verified on 2026-11-01 (author machine)",
+  "notes": "rootfs 已含 4c0137a 的 LED 守护进程 uevent/timer 修复；root 口令为无引号形式（73f78b1 修复）"
 }
