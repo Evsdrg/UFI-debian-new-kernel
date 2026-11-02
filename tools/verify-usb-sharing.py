@@ -163,6 +163,27 @@ try:
                 stripped=line.strip()
                 check(not stripped.startswith(('network=','ssid=','psk=')),
                       f'{image.name}: wpa_supplicant conf ships preset Wi-Fi credentials: {stripped!r}')
+        # ---- root 口令完整性 ----
+
+        # 交付镜像的 root 口令必须**不含引号字符**。历史 bug：用 grep/cut 直接读
+        # .local-creds 会把外层的单引号当成口令内容（镜像里真的存成 '1313144'），
+        # 刷到无屏设备上按 1313144 登录会直接锁死。build-rootfs.sh 已有
+        # _quote_guard，这里在交付层再兜一道（防旧镜像/旁路构建混进发布）。
+        shadow = debugfs(image, 'cat /etc/shadow').decode('utf-8', errors='replace')
+        root_hash = next((l.split(':')[1] for l in shadow.splitlines() if l.startswith('root:')), '')
+        check(root_hash not in ('', '*', '!'), f'{image.name}: root account is locked or has no password')
+        # 用 crypt 实际验证：口令必须是 '1313144'，不能是 "'1313144'"。
+        # 两种都试，明确区分，报错信息直接指出是哪种错。
+        def _crypt(pw):
+            p = subprocess.run(['perl', '-e', 'print crypt($ARGV[0],$ARGV[1])', pw, root_hash],
+                               capture_output=True, text=True)
+            return p.stdout
+        ok_plain  = _crypt('1313144')   == root_hash
+        ok_quoted = _crypt("'1313144'") == root_hash
+        check(ok_plain,
+              f'{image.name}: root password is not 1313144'
+              + (" （实际是含单引号的 '1313144'——用 grep/cut 读 .local-creds 的典型后果）" if ok_quoted else ''))
+
         print(f'rootfs[{image.name}]=USB_DELIVERY_OK')
 except (RuntimeError, OSError) as e:
     print('USB_CHECK_FAILED: '+str(e),file=sys.stderr)
