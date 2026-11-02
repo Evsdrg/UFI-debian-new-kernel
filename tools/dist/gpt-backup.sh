@@ -10,6 +10,7 @@
 #
 # 子命令：
 #   layout                          打印内置分区表（OpenStick 默认）
+#   pull <output.img>               从 9008 设备**一次性连续**拉取整盘 eMMC（必须先做！）
 #   split <full.img> <outdir>       整片镜像 → <outdir>/<分区名>.img + manifest.txt
 #   verify <dir>                    校验 <dir>/manifest.txt 与文件哈希、长度
 #   write <dir> [--yes] [选项]      按 manifest 写回设备（默认只写安全集合）
@@ -180,6 +181,40 @@ print(f'\n已写出 {len(manifest)} 个分区到 {outdir}/, manifest: {mpath}')
 PY
 }
 
+cmd_pull() {
+    [ $# -eq 1 ] || { echo "用法: gpt-backup.sh pull <output.img>" >&2; exit 1; }
+    out=$1
+    [ -e "$out" ] && { echo "$out 已存在，拒绝覆盖（备份件不可再生）" >&2; exit 1; }
+    need_cmd python3
+    [ -x "$EDL_DIR/venv/bin/python" ] || { echo "缺少 edl venv: $EDL_DIR/venv/bin/python" >&2; exit 1; }
+    [ -f "$EDL_PY" ] || { echo "缺少 edl.py: $EDL_PY" >&2; exit 1; }
+    [ -f "$EDL_LOADER" ] || { echo "缺少 loader: $EDL_LOADER" >&2; exit 1; }
+    lsusb 2>/dev/null | grep -q '05c6:9008' || { echo "设备不在 9008（未检测到 05c6:9008）" >&2; exit 1; }
+
+    sectors=$(( TOTAL_SIZE / 512 ))
+    [ $(( sectors * 512 )) -eq "$TOTAL_SIZE" ] || { echo "TOTAL_SIZE 不是 512 整数倍" >&2; exit 1; }
+
+    cat >&2 <<'WARN'
+警告：本命令会一次性连续读取整盘 eMMC。
+  * 必须一次读完，**不要中途 Ctrl-C / kill**：分段或中断会把 Sahara 状态弄脏，
+    设备只能靠物理拔插才能恢复。
+  * 耗时参考：3.9 GB 实测约 3.5 分钟（~18.6 MB/s）。命令内置 3600 秒超时。
+WARN
+
+    echo "== 拉取整盘：${sectors} 扇区（$(( TOTAL_SIZE / 1024 / 1024 )) MiB）→ $out =="
+    "$EDL_DIR/venv/bin/python" "$EDL_PY" rs 0 "$sectors" "$out" \
+        --loader="$EDL_LOADER" --sectorsize=512
+
+    got=$(stat -c%s "$out" 2>/dev/null || echo 0)
+    if [ "$got" -ne "$TOTAL_SIZE" ]; then
+        echo "✗ 读回 $got 字节，应为 $TOTAL_SIZE。备份不完整，不要用于回写。" >&2
+        exit 1
+    fi
+    echo "== SHA256 =="
+    sha256sum "$out"
+    echo "== 完成。备份件是不可再生数据，请不要删除或覆盖。 =="
+}
+
 cmd_split() {
     [ $# -eq 2 ] || { echo "用法: gpt-backup.sh split <full.img> <outdir>" >&2; exit 1; }
     need_cmd python3
@@ -215,7 +250,16 @@ for n, off, ln, cls, dg in rows:
         toff, tlen, _ = table[n]
         if toff != off or tlen != ln:
             print(f'  ✗ {n}: 与内置表不符 (manifest {off:#x}/{ln:#x}, 表 {toff:#x}/{tlen:#x})'); bad+=1; continue
-    h = hashlib.sha256(open(p,'rb').read()).hexdigest()
+    h = hashlib.sha256()
+    # 流式哈希：分区可达 3.4 GB（rootfs），一次性 read() 会把整个分区读进
+    # 内存，在 21 GB 的机器上跑多分区校验时可能 OOM。按 4 MiB 分块。
+    with open(p, 'rb') as fh:
+        while True:
+            chunk = fh.read(4 << 20)
+            if not chunk:
+                break
+            h.update(chunk)
+    h = h.hexdigest()
     if h != dg:
         print(f'  ✗ {n}: sha256 不符'); bad+=1; continue
     print(f'  ✓ {n:10s} {ln:#010x} {cls}')
@@ -308,6 +352,7 @@ sub=${1:-}
 shift
 case "$sub" in
     layout) cmd_layout ;;
+    pull) cmd_pull "$@" ;;
     split) cmd_split "$@" ;;
     verify) cmd_verify "$@" ;;
     write) cmd_write "$@" ;;

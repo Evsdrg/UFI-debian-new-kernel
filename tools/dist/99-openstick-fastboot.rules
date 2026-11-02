@@ -1,0 +1,14 @@
+# Android / Qualcomm 设备的非 root 访问规则（openstick 工作区用）
+#
+# 目的：让 fastboot 与 edl.py 不必每次 sudo。
+#   - 18d1:d00d  Google/Android fastboot（OpenStick 的 lk1st / lk2nd）
+#   - 05c6:9008  Qualcomm EDL / Sahara（9008 模式）
+#   - 05c6:f000  Qualcomm 复合（诊断/存储模式，读 GPT 时可能遇到）
+#
+# 权限：设备节点给 plugdev 组读写，并打上 uaccess 标签（当前登录会话可直接访问）。
+# 生效：sudo udevadm control --reload-rules && sudo udevadm trigger
+# 验证：重新插拔设备后 `fastboot devices` 应无需 sudo 就能列出设备。
+
+SUBSYSTEM=="usb", ATTR{idVendor}=="18d1", ATTR{idProduct}=="d00d", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="9008", MODE="0660", GROUP="plugdev", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="05c6", ATTR{idProduct}=="f000", MODE="0660", GROUP="plugdev", TAG+="uaccess"

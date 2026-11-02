@@ -87,6 +87,28 @@ fastboot -c "earlycon console=ttyMSM0,115200 root=<实际值> rw rootwait" boot 
 EDL 恢复涉及整片和底层分区，操作前必须确认备份与 loader 与设备匹配。
 本项目只使用 Miko 自带的 MSM8916 loader；公开 Firehose loader 不被这些设备接受。
 
+### 非 root 访问（免 sudo）
+
+本工作区提供 `tools/dist/99-openstick-fastboot.rules`，把 `18d1:d00d`（fastboot）、
+`05c6:9008`（EDL）与 `05c6:f000` 交给 `plugdev` 组并打 `uaccess` 标签：
+
+```sh
+sudo cp tools/dist/99-openstick-fastboot.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+# 重新插拔设备后生效；验证：fastboot devices 不再需要 sudo
+```
+
+### 整盘备份（第一步，不可省）
+
+```sh
+tools/dist/gpt-backup.sh pull out/<board>-device/emmc-full.bin   # 一次性连续拉取，禁止分段
+tools/dist/gpt-backup.sh split out/<board>-device/emmc-full.bin out/<board>-device/parts
+tools/dist/gpt-backup.sh verify out/<board>-device/parts          # 逐分区长度+sha256
+```
+
+`pull` 会拒绝覆盖已存在的文件（备份件不可再生），并在读完后校验字节数、打印
+SHA256。**不要中途 Ctrl-C**：中断会把 Sahara 状态弄脏，只能物理拔插恢复。
+
 ## 机制说明
 
 `systemctl reboot --reboot-argument=bootloader` 会把参数交给内核。

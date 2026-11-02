@@ -58,16 +58,37 @@ mux+分频器，输出 = parent×2/(N+1)。**DTS 的 OPP 只能选表里已有�
 
 ## 三、降压不可行（已定案，不是"还没试"）
 
-电压由固件掌控，且没有可调数据：
+先厘清供电轨：**CPU 核心由 PM8916 的 S2 供电**（手册 LM80-P0436-35 Table 3-16
+原文 "application processor cores"，0.375–1.562 V 可编程、支持 DVS）；
+**S3 是 WAN/WLAN 模拟轨**（原文 "Analog blocks of WAN, WLAN"），与 CPU 无关。
 
-- `msm8916.dtsi` 的 CPU 节点**没有 `cpu-supply`**，cpufreq-dt 从不碰电压。
+mainline 拿不到这条轨的控制权，四道锁：
+
+- **S2 没有暴露成 regulator 节点**。`msm8916-pm8916.dtsi` 只注册 s1（rpmpd 用作
+  VDDCX）、s3、s4；`/sys/class/regulator/` 实测只有 `s3 s4 l1..l18`，没有 `s2`。
+- CPU 节点**没有 `cpu-supply`**、OPP 表**没有任何 `opp-microvolt`**，cpufreq-dt
+  打印 `no regulator for cpu` 后只调频、从不碰电压。
 - 每个核的 ACC 与 SAW2 节点是 `status = "reserved"`，注释写明
   "Controlled by PSCI firmware" —— Linux 被明确告知不要管。
-- 没有任何 OPP 带 `opp-microvolt`，根本没有 per-opp 电压表。
-- `pm8916_s3`（L2/APC 侧供电轨）是 `regulator-always-on`，固定在 1.30 V；
-  写 `/sys/class/regulator/*/microvolts` 会被拒绝。
 - **没有功率/电流传感器**，SPMI ADC 只暴露 USBIN、VSYS、VDD_VADC、GND_REF
   与内部参考 —— CPU 轨连观测都观测不到，改了也测不出效果。
+
+原厂是怎么做的（从原厂 boot.bin 的 DTB 解出）：CPU 电压走
+`qcom,spm-regulator@1700`（SPMI 直写 PM8916 S2，1.05–1.35 V）+ `qcom,cpr-regulator`
+（RBCPR 硬件闭环，按 PVS 熔丝 per-chip 校准）+ `qcom,mem-acc-regulator`。
+**这三个驱动 mainline 一个都没有**（`qcom,cpr-regulator` / `qcom,spm-regulator` /
+`qcom,mem-acc-regulator` / `qcom,qpnp-regulator` / `qcom,spm-v2` 全部零命中）。
+mainline 只有 `drivers/pmdomain/qcom/cpr.c`，但它只匹配 `qcom,qcs404-cpr`，
+且参数是硬编码的 QCS404 描述，不读 DTS。
+
+RPM 通道也不通：原厂把 `rpm-regulator-smpa2` 整个 `status = "disabled"`
+（因为 CPU 走 SPMI/CPR 直供，两个控制源不能共存）。实测给它加 s2 节点后
+设备无法启动。
+
+**决策：不补。** 补齐需要新写 3 个驱动 + 翻译原厂 DTB 的 13 个 nvmem cell +
+per-chip 压测定标，工作量以周计；而本项目设备是**插线常驻的微型服务器**
+（短信转发等），市电常供、功耗不是瓶颈，40% 的动态功耗收益换不来这份
+维护成本和写错电压的硬件风险。
 
 要碰到 CPU 电压只能做原始 PMIC/SPM 寄存器写（`devmem` 或 Firehose poke），
 而工程安全规则禁止这么做；也没有 speed-bin 电压数据可选安全值。

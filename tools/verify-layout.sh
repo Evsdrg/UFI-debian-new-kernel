@@ -171,6 +171,27 @@ for board in ufi103s-ufi003 ufi001b ufi001c sp970 uz801; do
   fi
 done
 
+printf '\n== thwc 板级产物（mf32 / mf601sl）==\n'
+# 这两块板不走 UFI 的 DTS 集合，单独校验：DTS 存在 + boot 产物 + 关键启动链属性。
+# 如果产物还没构建，只提示不算失败（与上面 board boot status 的语义一致）。
+for b in mf32 mf601sl; do
+  case "$b" in
+    mf32) dts="$BASE/boards/thwc-mf32/dts/msm8916-thwc-mf32.dts" ;;
+    mf601sl) dts="$BASE/boards/thwc-mf601sl/dts/msm8916-thwc-mf601sl-v07.dts" ;;
+  esac
+  test -f "$dts" || { printf 'ERROR: %s DTS 缺失: %s\n' "$b" "$dts" >&2; exit 1; }
+  if compgen -G "$(boot_dir "thwc-$b")/boot-board-*.img" > /dev/null; then
+    printf 'thwc:%s=boot-present\n' "$b"
+  else
+    printf 'thwc:%s=no-boot-image (run tools/build-board-set.sh %s)\n' "$b" "$b"
+  fi
+done
+# mf601sl 必须带 cpuidle.off=1（PSCI 深睡会挂死，见 docs/ISSUES.md）；
+# 这个参数要同时固化在板型表与 build.json 里，不能只靠手工打包。
+grep -q 'cpuidle.off=1' "$BASE/tools/build-board-set.sh" \
+  || { printf 'ERROR: 板型表丢了 cpuidle.off=1（mf601sl 会反复重启）\n' >&2; exit 1; }
+printf 'mf601sl_cpuidle_off=ok\n'
+
 printf '\n== venus codec variant ==\n'
 # 这一段校验 max 档的三件套配套：boot（GPU 内核，含 venus）+ rootfs
 # （含 baseline 与 venus-4g-gpu 两棵模块树、venus 固件、ffmpeg）+ venus 模块。
