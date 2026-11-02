@@ -191,6 +191,51 @@ static int write_str(const char *path, const char *val)
 
 /* ---------------------------------------------------------------- LED */
 
+/*
+ * LED 写入缓存。
+ *
+ * 两个作用：
+ *   1) 幂等：render() 每轮都会「设定」全部灯的目标状态，若目标与当前一致
+ *      就跳过写入，避免反复重写 sysfs。
+ *   2) 消除自反馈：写 LED sysfs 会发出 NETLINK_KOBJECT_UEVENT。进程监听
+ *      uevent，收到自己写的事件 → sample_battery + render → 再写 →
+ *      无限循环（CPU 空转、timer 被反复重启导致 LED 抽搐）。
+ *      配合 main() 里只处理 SUBSYSTEM=power_supply 的事件，双保险。
+ */
+enum led_state {
+	LED_UNKNOWN = 0,
+	LED_OFF,
+	LED_SOLID,
+	LED_BLINK,
+};
+
+struct led_cache {
+	const char *name;
+	enum led_state state;
+	int on_ms;
+	int off_ms;
+};
+
+static struct led_cache g_led_cache[] = {
+	{ "4g_1", LED_UNKNOWN, 0, 0 },
+	{ "4g_type", LED_UNKNOWN, 0, 0 },
+	{ "wifistatus", LED_UNKNOWN, 0, 0 },
+	{ "bat1", LED_UNKNOWN, 0, 0 },
+	{ "batl2", LED_UNKNOWN, 0, 0 },
+	{ "batl3", LED_UNKNOWN, 0, 0 },
+	{ "batl4", LED_UNKNOWN, 0, 0 },
+};
+
+static struct led_cache *led_cache_get(const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(g_led_cache); i++)
+		if (!strcmp(g_led_cache[i].name, name))
+			return &g_led_cache[i];
+	return NULL;
+}
+
 static void led_path(char *buf, size_t len, const char *name,
 		     const char *attr)
 {
@@ -199,32 +244,50 @@ static void led_path(char *buf, size_t len, const char *name,
 
 static void led_solid(const char *name)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160];
 
+	if (c && c->state == LED_SOLID)
+		return;
 	led_path(path, sizeof(path), name, "trigger");
 	write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
 	write_str(path, "1");
+	if (c)
+		c->state = LED_SOLID;
 }
 
 static void led_off(const char *name)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160];
 
+	if (c && c->state == LED_OFF)
+		return;
 	led_path(path, sizeof(path), name, "trigger");
 	write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
 	write_str(path, "0");
+	if (c)
+		c->state = LED_OFF;
 }
 
 static void led_blink(const char *name, int on_ms, int off_ms)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160], val[16];
+
+	/* 目标与当前一致就不写：重写 trigger 会把 timer 相位重置。 */
+	if (c && c->state == LED_BLINK && c->on_ms == on_ms &&
+	    c->off_ms == off_ms)
+		return;
 
 	led_path(path, sizeof(path), name, "trigger");
 	write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
 	write_str(path, "1");
+	/* delay_on/off 是 ledtrig-timer 注册的属性，必须在 trigger=timer 之后写，
+	 * 否则写到不存在的属性上会静默失败，内核就用默认 500/500ms。 */
 	led_path(path, sizeof(path), name, "trigger");
 	if (write_str(path, "timer")) {
 		led_off(name);
@@ -236,6 +299,11 @@ static void led_blink(const char *name, int on_ms, int off_ms)
 	snprintf(val, sizeof(val), "%d", off_ms);
 	led_path(path, sizeof(path), name, "delay_off");
 	write_str(path, val);
+	if (c) {
+		c->state = LED_BLINK;
+		c->on_ms = on_ms;
+		c->off_ms = off_ms;
+	}
 }
 
 static void all_leds_off(void)
@@ -625,6 +693,33 @@ static int open_uevent(void)
 	return fd;
 }
 
+/*
+ * 排空 uevent 队列，返回是否含 SUBSYSTEM=power_supply 事件。
+ *
+ * 必须过滤：写 LED sysfs 也会发 uevent（实测
+ * `change /devices/platform/leds/leds/<name>`）。不过滤会形成
+ * 「收到自己的写事件 → sample_battery + render → 再写 LED」的自反馈死循环，
+ * CPU 空转且 timer trigger 被反复重启，LED 看着一直在快速闪烁。
+ */
+static bool drain_uevent(int fd)
+{
+	char buf[4096];
+	bool power_supply = false;
+	ssize_t n;
+
+	while ((n = read(fd, buf, sizeof(buf) - 1)) > 0) {
+		char *p = buf;
+
+		buf[n] = '\0';
+		while ((size_t)(p - buf) < (size_t)n) {
+			if (!strcmp(p, "SUBSYSTEM=power_supply"))
+				power_supply = true;
+			p += strlen(p) + 1;
+		}
+	}
+	return power_supply;
+}
+
 static int find_pwrkey_event(char *buf, size_t len)
 {
 	DIR *dir;
@@ -762,12 +857,10 @@ int main(void)
 			render(&st);
 		}
 		if (pfd[2].revents & POLLIN) {
-			char buf[8192];
-
-			while (read(uefd, buf, sizeof(buf)) > 0)
-				;
-			sample_battery(&st);
-			render(&st);
+			if (drain_uevent(uefd)) {
+				sample_battery(&st);
+				render(&st);
+			}
 		}
 	}
 

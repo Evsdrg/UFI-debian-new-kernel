@@ -212,6 +212,51 @@ static int write_str(const char *path, const char *val)
 
 /* ---------------------------------------------------------------- LED */
 
+/*
+ * LED 写入缓存。
+ *
+ * 两个作用：
+ *   1) 幂等：render() 每轮都会“设定”全部 6 颗灯的目标状态，若目标与当前
+ *      一致就跳过写入。否则每次都重写 sysfs。
+ *   2) 消除自反馈：写 LED sysfs 会发出 NETLINK_KOBJECT_UEVENT（实测
+ *      `change /devices/platform/leds/leds/green:wlan`）。进程监听 uevent，
+ *      收到自己的写事件 → 再 render → 再写 → 无限循环，CPU 空转、
+ *      timer trigger 被反复重启导致 LED 快速抽搐。
+ *      配合 main() 里只处理 SUBSYSTEM=power_supply 的 uevent，双保险。
+ */
+enum led_state {
+	LED_UNKNOWN = 0,
+	LED_OFF,
+	LED_SOLID,
+	LED_BLINK,
+};
+
+struct led_cache {
+	const char *name;
+	enum led_state state;
+	int on_ms;
+	int off_ms;
+};
+
+static struct led_cache g_led_cache[] = {
+	{ LED_POWER_RED, LED_UNKNOWN, 0, 0 },
+	{ LED_POWER_GREEN, LED_UNKNOWN, 0, 0 },
+	{ LED_WAN_RED, LED_UNKNOWN, 0, 0 },
+	{ LED_WAN_GREEN, LED_UNKNOWN, 0, 0 },
+	{ LED_WLAN_RED, LED_UNKNOWN, 0, 0 },
+	{ LED_WLAN_GREEN, LED_UNKNOWN, 0, 0 },
+};
+
+static struct led_cache *led_cache_get(const char *name)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(g_led_cache); i++)
+		if (!strcmp(g_led_cache[i].name, name))
+			return &g_led_cache[i];
+	return NULL;
+}
+
 static void led_path(char *buf, size_t len, const char *name,
 		     const char *attr)
 {
@@ -220,28 +265,51 @@ static void led_path(char *buf, size_t len, const char *name,
 
 static void led_solid(const char *name)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160];
 
+	if (c && c->state == LED_SOLID)
+		return;
 	led_path(path, sizeof(path), name, "trigger");
 	(void)write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
 	(void)write_str(path, "1");
+	if (c)
+		c->state = LED_SOLID;
 }
 
 static void led_off(const char *name)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160];
 
+	if (c && c->state == LED_OFF)
+		return;
 	led_path(path, sizeof(path), name, "trigger");
 	(void)write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
 	(void)write_str(path, "0");
+	if (c)
+		c->state = LED_OFF;
 }
 
 static void led_blink(const char *name, int on_ms, int off_ms)
 {
+	struct led_cache *c = led_cache_get(name);
 	char path[160], val[16];
 
+	/* 目标与当前一致就什么都不写：timer trigger 一旦被重写就会从 0
+	 * 重新计时，闪烁会卡在同一个相位上看着像抽搐。 */
+	if (c && c->state == LED_BLINK && c->on_ms == on_ms &&
+	    c->off_ms == off_ms)
+		return;
+
+	/*
+	 * 顺序很关键：delay_on/delay_off 是 ledtrig-timer 注册的 sysfs 属性，
+	 * 只有 trigger=timer 之后才存在。先写 delay_* 再切 timer，写会静默失败
+	 * （属性不存在），内核就用默认的 500/500ms——比预期的 1000/1000 快一倍，
+	 * 且每次重写 trigger 都重置相位，看着像抽搐。必须先切 timer 再写延时。
+	 */
 	led_path(path, sizeof(path), name, "trigger");
 	(void)write_str(path, "none");
 	led_path(path, sizeof(path), name, "brightness");
@@ -257,6 +325,11 @@ static void led_blink(const char *name, int on_ms, int off_ms)
 	snprintf(val, sizeof(val), "%d", off_ms);
 	led_path(path, sizeof(path), name, "delay_off");
 	(void)write_str(path, val);
+	if (c) {
+		c->state = LED_BLINK;
+		c->on_ms = on_ms;
+		c->off_ms = off_ms;
+	}
 }
 
 static void all_leds_off(void)
@@ -703,6 +776,39 @@ static int open_uevent(void)
 	return fd;
 }
 
+/*
+ * 排空 NETLINK_KOBJECT_UEVENT 队列，返回其中是否有 power_supply 事件。
+ *
+ * 为什么必须过滤：写 LED sysfs 也会发 uevent（实测
+ * `change /devices/platform/leds/leds/green:wlan`）。进程监听 uevent 后
+ * 收到自己写 LED 产生的事件 → sample_battery + render → 再写 LED → 再发
+ * uevent，形成自反馈死循环：CPU 空转约 8%，timer trigger 被反复重启，
+ * 表现为 LED 快速抽搐。这里只接受 SUBSYSTEM=power_supply 的事件，
+ * 其它（leds、mmc、input …）全部丢弃。
+ *
+ * netlink kobject uevent 是 SOCK_DGRAM，每条消息是一串以 '\0' 分隔的
+ * 字符串：首项 "action@devpath"，其后是 KEY=VALUE。整条消息必须一次
+ * read 读完（多读会被截断）。
+ */
+static bool drain_uevent(int fd)
+{
+	char buf[4096];
+	bool power_supply = false;
+	ssize_t n;
+
+	while ((n = read(fd, buf, sizeof(buf) - 1)) > 0) {
+		char *p = buf;
+
+		buf[n] = '\0';
+		while ((size_t)(p - buf) < (size_t)n) {
+			if (!strcmp(p, "SUBSYSTEM=power_supply"))
+				power_supply = true;
+			p += strlen(p) + 1;
+		}
+	}
+	return power_supply;
+}
+
 static int find_pwrkey_event(char *buf, size_t len)
 {
 	DIR *dir;
@@ -837,12 +943,10 @@ int main(void)
 			render(&st);
 		}
 		if (pfd[2].revents & POLLIN) {
-			char buf[8192];
-
-			while (read(uefd, buf, sizeof(buf)) > 0)
-				;
-			sample_battery(&st);
-			render(&st);
+			if (drain_uevent(uefd)) {
+				sample_battery(&st);
+				render(&st);
+			}
 		}
 	}
 

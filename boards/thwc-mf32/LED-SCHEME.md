@@ -118,12 +118,29 @@ HARD_RESET——不经过内核、不同步文件系统。这是硬件保底救�
 
 ## 八、实现
 
-- `tools/mf32-led-state.sh`：状态机 + 渲染，支持 `monitor`（服务主循环）、`once`（单次渲染）、`off`（关机）。
-- `tools/mf32-led-selftest.sh`：假 sysfs + 假 nmcli/systemctl 注水，覆盖状态灯优先级、
-  电量条 peek/危急/充电填充/滞回。**改状态机必须先跑它。**
-- `tools/mf32-powerkey.sh`：电源键状态机（单击 peek / 双击关机 / 长按交给硬件）。
+**当前实现是 C 守护进程 `tools/mf32-ledctl.c`**（单进程，事件驱动），早期 shell 版
+`tools/mf32-led-state.sh` / `mf32-powerkey.sh` 已废弃。
+
+- **事件驱动**：`poll(2)` 同时等待 evdev（电源键）、`NETLINK_ROUTE`（网络接口
+  变化）与 `NETLINK_KOBJECT_UEVENT`（power_supply 变化），稳态无轮询、
+  无周期性唤醒。闪烁交给内核 `timer` trigger，用户态不设心跳。
+- **uevent 必须按 SUBSYSTEM 过滤**：写 LED sysfs 本身也会发 kobject uevent
+  （实测 `change /devices/platform/leds/leds/<name>`，每 20ms 一条）。不过滤会
+  形成「收到自己写的事件 → 采样电池 + render → 再写 LED」的自反馈死循环：
+  实测 CPU 占用约 8%（18–20 jiffies / 2s），`timer` trigger 被反复重置导致
+  7 颗灯一起快速抽搐。修复后 CPU 实测 **0 jiffies / 2s**。
+  双保险：只处理 `SUBSYSTEM=power_supply` 的事件 + LED 目标状态缓存（目标
+  不变就不写 sysfs）。
+- **`delay_on`/`delay_off` 必须在 `trigger=timer` 之后写**：这是 ledtrig-timer
+  注册的 sysfs 属性，切 trigger 之前写会静默失败（属性不存在），内核就退到
+  默认 500/500ms——比设计的 1000/1000 快一倍，看起来就是「快速闪烁」。
+- **编译**：`build-rootfs.sh` 的 `build_ledctl()` 用
+  `aarch64-linux-gnu-gcc -std=gnu23 -O2 -Wall -Wextra -Werror -Wshadow
+  -Wformat=2 -Wstrict-prototypes -Wmissing-prototypes -static`，零告警，
+  静态链接。
+- **自测**：`tools/mf32-ledctl-selftest.sh`（假 sysfs + 假 evdev 注水，
+  12 个场景 21 项断言）。**改状态机必须先跑它。**
 - 路径可用环境变量替换（`MF32_LED_SYS`、`MF32_PSY_SYS`、`MF32_STATE`），自测不依赖实机。
-- 配置覆盖 `/etc/default/mf32-led-state`：阈值、节拍、`QUIET=1`（夜间静音：连 peek 也不显示电量条）。
 
 ## 附：硬件 PWM 不可用（为什么没有呼吸灯）
 

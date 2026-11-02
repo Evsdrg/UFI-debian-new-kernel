@@ -84,12 +84,22 @@
 - **事件驱动**：`poll(2)` 同时等待 evdev（电源键）、`NETLINK_ROUTE`（网络接口
   变化）与 `NETLINK_KOBJECT_UEVENT`（power_supply 变化），稳态无轮询、
   无周期性唤醒。闪烁交给内核 `timer` trigger，用户态不设心跳。
+- **uevent 必须按 SUBSYSTEM 过滤**：写 LED sysfs 本身也会发 kobject uevent
+  （实测 `change /devices/platform/leds/leds/<name>`，每 20ms 一条）。不过滤会
+  形成「收到自己写的事件 → 采样电池 + render → 再写 LED」的自反馈死循环：
+  实测 CPU 占用约 8%（18–20 jiffies / 2s），`timer` trigger 被反复重置导致
+  6 颗灯一起快速抽搐。修复后 CPU 实测 **0 jiffies / 2s**（完全阻塞在 poll）。
+  双保险：只处理 `SUBSYSTEM=power_supply` 的事件 + LED 目标状态缓存（目标
+  不变就不写 sysfs）。
+- **`delay_on`/`delay_off` 必须在 `trigger=timer` 之后写**：这是 ledtrig-timer
+  注册的 sysfs 属性，切 trigger 之前写会静默失败（属性不存在），内核就退到
+  默认 500/500ms——比设计的 1000/1000 快一倍，看起来就是「快速闪烁」。
 - **编译**：`build-rootfs.sh` 内的 `build_ledctl()` 用
   `aarch64-linux-gnu-gcc -std=gnu23 -O2 -Wall -Wextra -Werror -Wshadow
   -Wformat=2 -Wstrict-prototypes -Wmissing-prototypes -static` 交叉编译，
   **零告警**，静态链接，不依赖镜像内 glibc 版本。
 - **自测**：`tools/mf601sl-ledctl-selftest.sh`（假 sysfs + 假 evdev 注水，
-  16 个场景 31 项断言）。该脚本只在开发机跑，不装进镜像。
+  18 个场景 37 项断言）。该脚本只在开发机跑，不装进镜像。
 
 ## 六、与 MF32 的关系
 
