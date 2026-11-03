@@ -68,5 +68,17 @@ ROOTFS_VENUS="${ROOTFS_VENUS:-$ROOTFS_BASE}"
 # 固件集（构建输入，拷贝进 rootfs；不可再生，见 artifacts/README.md）。
 FIRMWARE_DIR="${FIRMWARE_DIR:-$ARTIFACTS_FIRMWARE/common}"
 
+# ---------------------------------------------------------------- 中间产物
+# 编译中间产物（内核编译树、板级 DTB 中间态、mmdebstrap 临时目录、构建日志）
+# 一律放在工作区之外的大盘上：工作区只保留最终产物（artifacts/ 与 out/ 下的
+# 发布包、备份与证据）。
+#
+# 默认 /scratch/openstick；可用 OPENSTICK_SCRATCH 整体改根，或用下面三个
+# SCRATCH_* 单独改子目录。注意 /tmp 常是 tmpfs，大构建会把它填满。
+SCRATCH="${OPENSTICK_SCRATCH:-/scratch/openstick}"
+SCRATCH_BUILD="${SCRATCH_BUILD:-$SCRATCH/build}"
+SCRATCH_TMP="${SCRATCH_TMP:-$SCRATCH/tmp}"
+SCRATCH_LOGS="${SCRATCH_LOGS:-$SCRATCH/logs}"
+
 # 基线板型的构建树（Image.gz 所在）。
-KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$BASE/build/variant-$KERNEL_VERSION-board-baseline}"
+KERNEL_BUILD_DIR="${KERNEL_BUILD_DIR:-$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-baseline}"

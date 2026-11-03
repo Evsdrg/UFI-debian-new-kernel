@@ -50,7 +50,7 @@ MIRROR="https://mirrors.cernet.edu.cn/debian"
 # KERNEL_RELEASE 由 tools/kver.sh 从 source/kernel-version.env 派生；
 # MODULE_TREE 默认也指向该版本对应的模块树（可用环境变量覆盖）。
 MODULE_TREE="${MODULE_TREE:-$MODULES_DIR}"
-RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$OUT_DIR/rpmsg-wwan-final}"
+RPMSG_MODULE_DIR="${RPMSG_MODULE_DIR:-$SCRATCH_BUILD/rpmsg-wwan-final}"
 
 # network-manager-l10n 是 NetworkManager 的中文（及其它语言）翻译包，
 # NM 主包只 Recommends 它，不显式安装的话 nmcli/nmtui 输出全是英文。
@@ -234,7 +234,9 @@ mkdir -p "$OUT_DIR"
 # STAGE 必须每次构建唯一：早先固定为 "$OUT_DIR/stage"，两个构建并行（或一个
 # 刚删完 stage 另一个还在读）会互相踩——实测过 minimal 的镜像里混进了 tiny 的
 # modules-load 内容，就是因为共用了这个目录。带上 flavor 与 PID 即可隔离。
-STAGE="$OUT_DIR/stage-$ROOTFS_FLAVOR-$$"
+# stage 是编译中间产物，放 scratch（工作区只留最终产物）。
+mkdir -p "$SCRATCH_TMP"
+STAGE="$SCRATCH_TMP/stage-$ROOTFS_FLAVOR-$$"
 rm -rf "$STAGE"; mkdir -p "$STAGE"
 trap 'rm -rf "$STAGE"' EXIT
 

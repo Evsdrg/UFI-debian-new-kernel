@@ -51,7 +51,15 @@ KERNEL_BASE_CFG = BASE / f"source/configs/common-{KERNEL_VERSION}-os.config"
 KERNEL_RELEASE = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-dirty"
 KERNEL_RELEASE_VENUS = f"{KERNEL_VERSION}{KERNEL_LOCALVERSION}-venus-dirty"
 
-KERNEL_BUILD_DIR = BASE / f"build/variant-{KERNEL_VERSION}-board-baseline"
+# ---------------------------------------------------------------- 中间产物
+# 编译中间产物一律放在工作区之外（默认 /scratch/openstick）。
+# 与 tools/kver.sh 保持同一套派生；改这里时两边一起改。
+SCRATCH = pathlib.Path(os.environ.get("OPENSTICK_SCRATCH", "/scratch/openstick"))
+SCRATCH_BUILD = pathlib.Path(os.environ.get("SCRATCH_BUILD", str(SCRATCH / "build")))
+SCRATCH_TMP = pathlib.Path(os.environ.get("SCRATCH_TMP", str(SCRATCH / "tmp")))
+SCRATCH_LOGS = pathlib.Path(os.environ.get("SCRATCH_LOGS", str(SCRATCH / "logs")))
+
+KERNEL_BUILD_DIR = SCRATCH_BUILD / f"variant-{KERNEL_VERSION}-board-baseline"
 IMAGE_GZ = KERNEL_BUILD_DIR / "arch/arm64/boot/Image.gz"
 
 # 产物根：所有构建产物集中在这里，不再散落到 boards/、shared/ 等目录。

@@ -3,10 +3,13 @@
 # 不依赖实机；跑完输出 PASS/FAIL，全部通过退出 0。
 set -u
 cd "$(dirname "$0")/.."
-BIN=${MF32_LEDCTL_BIN:-/tmp/mf32-ledctl}
+# 临时目录放 scratch，不占 /tmp（见 tools/kver.sh 的 SCRATCH 说明）。
+. tools/kver.sh
+mkdir -p "$SCRATCH_TMP"
+BIN=${MF32_LEDCTL_BIN:-$SCRATCH_TMP/mf32-ledctl}
 [ -x "$BIN" ] || { echo "缺少 $BIN（先交叉编译）" >&2; exit 1; }
 
-T=$(mktemp -d)
+T=$(TMPDIR="$SCRATCH_TMP" mktemp -d)
 trap 'rm -rf "$T"' EXIT
 LEDS=$T/leds; PSY=$T/psy/bms; NET=$T/net; NM=$T/nm; ST=$T/state
 mkdir -p "$LEDS" "$PSY" "$NET" "$NM" "$ST"

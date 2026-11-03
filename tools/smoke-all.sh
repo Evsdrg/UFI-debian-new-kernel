@@ -8,10 +8,10 @@ cd "$BASE"
 V="$KERNEL_VERSION"
 
 declare -A K=(
-  [max]="$BASE/build/variant-$V-board-venus-4g-gpu/arch/arm64/boot/Image.gz"
-  [basic]="$BASE/build/variant-$V-board-4g/arch/arm64/boot/Image.gz"
-  [slim]="$BASE/build/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
-  [micro]="$BASE/build/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
+  [max]="$SCRATCH_BUILD/variant-$V-board-venus-4g-gpu/arch/arm64/boot/Image.gz"
+  [basic]="$SCRATCH_BUILD/variant-$V-board-4g/arch/arm64/boot/Image.gz"
+  [slim]="$SCRATCH_BUILD/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
+  [micro]="$SCRATCH_BUILD/variant-$V-board-baseline/arch/arm64/boot/Image.gz"
 )
 
 rc=0

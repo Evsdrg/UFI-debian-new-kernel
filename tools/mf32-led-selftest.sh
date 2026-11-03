@@ -4,8 +4,11 @@
 # 不依赖实机；跑完输出 PASS/FAIL 明细，全部通过退出 0。
 set -u
 cd "$(dirname "$0")/.."
+# 临时目录放 scratch，不占 /tmp（见 tools/kver.sh 的 SCRATCH 说明）。
+. tools/kver.sh
+mkdir -p "$SCRATCH_TMP"
 SCRIPT=tools/mf32-led-state.sh
-T=$(mktemp -d)
+T=$(TMPDIR="$SCRATCH_TMP" mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 # 假 sysfs 骨架：只建实机存在的 7 颗灯

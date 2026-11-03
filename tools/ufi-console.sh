@@ -19,6 +19,9 @@ set -u
 PORT="${UFI_CONSOLE_PORT:-/dev/ttyACM0}"
 BAUD="${UFI_CONSOLE_BAUD:-115200}"
 . "$(dirname "$0")/lib-creds.sh"
+# 临时文件放 scratch（中间产物不进工作区，也不占 /tmp）；见 tools/kver.sh。
+. "$(dirname "$0")/kver.sh"
+mkdir -p "$SCRATCH_TMP"
 # 本机 sudo 口令：环境变量 > .local-creds；缺失时 cred 会给出提示并退出。
 SUDO_PW="$(cred SUDO_PW '访问串口需要 sudo')"
 
@@ -35,7 +38,7 @@ read_for() {
     local secs=$1; shift
     configure
     local f
-    f=$(mktemp /tmp/ufi-console.XXXXXX)
+    f=$(TMPDIR="$SCRATCH_TMP" mktemp ufi-console.XXXXXX)
     sudo_do timeout "$secs" cat "$PORT" >"$f" &
     local catpid=$!
     if [ "$#" -gt 0 ]; then

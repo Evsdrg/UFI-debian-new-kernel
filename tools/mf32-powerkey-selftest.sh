@@ -3,8 +3,11 @@
 # systemctl 以假 shim 捕获（不真关机）。全过退出 0。
 set -u
 cd "$(dirname "$0")/.."
+# 临时目录放 scratch，不占 /tmp（见 tools/kver.sh 的 SCRATCH 说明）。
+. tools/kver.sh
+mkdir -p "$SCRATCH_TMP"
 SCRIPT=tools/mf32-powerkey.sh
-T=$(mktemp -d)
+T=$(TMPDIR="$SCRATCH_TMP" mktemp -d)
 trap 'rm -rf "$T"' EXIT
 
 STATE=$T/state; mkdir -p "$STATE"

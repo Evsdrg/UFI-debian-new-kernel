@@ -13,8 +13,12 @@
 #
 # --jobs N：并发构建 N 个档位。每个任务有独立的 STAGE（build-rootfs.sh 用 $$）
 # 与独立的 mmdebstrap 临时目录，互不干扰。并发时每任务输出写
-# out/build-logs/<board>-<flavor>.log，控制台只打进度与结果。
+# <scratch>/logs/<board>-<flavor>.log，控制台只打进度与结果。
 # 本机 32 核 / 21 GB，实测单任务峰值 2–4 GB，建议 --jobs 3~5。
+#
+# 中间产物（内核编译树、mmdebstrap 临时目录、构建日志）默认落在
+# /scratch/openstick（见 tools/kver.sh 的 SCRATCH）；工作区只保留
+# artifacts/ 与 out/ 下的最终产物。用 OPENSTICK_SCRATCH 可改根。
 #
 # 产物输出位置与覆盖保护：
 #   ROOTFS_OUT_DIR=<dir>   写到其他目录（默认 artifacts/rootfs）
@@ -132,8 +136,8 @@ else
     ALL_BOARDS=("$BOARD")
 fi
 
-mkdir -p "$ARTIFACTS_ROOTFS" "$BASE/out/tmp"
-LOG_DIR="$BASE/out/build-logs"
+mkdir -p "$ARTIFACTS_ROOTFS" "$SCRATCH_TMP" "$SCRATCH_LOGS"
+LOG_DIR="$SCRATCH_LOGS"
 mkdir -p "$LOG_DIR"
 
 # 单个 (board,flavor) 的完整构建。抽成函数是为了 --jobs>1 时能放进子 shell
@@ -167,8 +171,8 @@ run_one() {
     extlinux_kernel=""
     extlinux_dtb=""
     if [ "$board" = mf32 ]; then
-        extlinux_kernel="$BASE/build/variant-$KERNEL_VERSION-board-mf32/arch/arm64/boot/Image.gz"
-        extlinux_dtb="$BASE/build/boards/thwc-mf32/board-mf32-7.2.9.dtb"
+        extlinux_kernel="$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-mf32/arch/arm64/boot/Image.gz"
+        extlinux_dtb="$SCRATCH_BUILD/boards/thwc-mf32/board-mf32-7.2.9.dtb"
         for f in "$extlinux_kernel" "$extlinux_dtb"; do
             [ -f "$f" ] || { echo "!! $board: 缺 extlinux 输入 $f" >&2; return 1; }
         done
@@ -193,7 +197,7 @@ run_one() {
     mkdir -p "$(dirname "$out_path")"
 
     MMDEBSTRAP_FORMAT=ext4 \
-    TMPDIR="$BASE/out/tmp" \
+    TMPDIR="$SCRATCH_TMP" \
     KERNEL_RELEASE="$release" \
     MODULE_TREE="$tree" \
     EXTRA_MODULE_TREES="${BOARD_EXTRA_TREES}" \

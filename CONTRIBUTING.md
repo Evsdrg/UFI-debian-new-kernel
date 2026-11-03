@@ -154,8 +154,10 @@ Adreno 306 支持 XRGB8888/ARGB8888/RGB565/R8/GR88；**NV12/NV21/YUYV/YUYV 全�
 - **`MMDEBSTRAP_FORMAT` 默认是 `directory`**：不显式设 `ext4` 就只产出目录树，
   没有可刷的 `.ext4` 镜像。
 - **构建主机的 `/tmp` 若是 tmpfs 且偏小**：mmdebstrap 临时目录落在 `/tmp` 会在装桌面
-  包阶段 `No space left on device`（报错在 dpkg 解包，看不出是 tmpfs 小）。把 `TMPDIR`
-  指到大盘目录。
+  包阶段 `No space left on device`（报错在 dpkg 解包，看不出是 tmpfs 小）。本仓所有
+  中间产物（内核编译树、mmdebstrap 临时目录、构建日志）默认落在
+  `/scratch/openstick`（由 `tools/kver.sh` 的 `SCRATCH` 派生，可用
+  `OPENSTICK_SCRATCH` 改根）；`/scratch` 不存在时自己建一个并改这个默认值。
 - **构建主机缺 arm64 的 `arch-test` 探针**：mmdebstrap 会用 `arch-test` 做模拟能力
   预检，若它不认识 arm64 就会报 `arm64 can neither be executed natively nor via qemu
   user emulation`——这个报错具误导性，binfmt/qemu 其实是好的，缺的只是探针文件。

@@ -66,7 +66,8 @@ bash tools/build-matrix.sh
 bash tools/build-matrix.sh max basic-native
 
 # 单个档位，且不用 build-matrix 的配对表时，直接调 build-rootfs.sh：
-MMDEBSTRAP_FORMAT=ext4 TMPDIR="$PWD/out/tmp" \
+# （TMPDIR 默认已是 scratch，见 tools/kver.sh；这里显式写一遍便于阅读）
+MMDEBSTRAP_FORMAT=ext4 TMPDIR="${OPENSTICK_SCRATCH:-/scratch/openstick}/tmp" \
 KERNEL_RELEASE=7.2.9-ufix0x-venus-4g-gpu-dirty \
 MODULE_TREE=$PWD/artifacts/modules/7.2.9-ufix0x-venus-4g-gpu-dirty \
 EXTRA_MODULE_TREES=$PWD/artifacts/modules/7.2.9-ufix0x-dirty \
@@ -156,7 +157,7 @@ bash tools/smoke-all.sh
 
 # 单个镜像
 tools/qemu-smoke.sh artifacts/rootfs/ufi103s-7.2.9-micro-native.ext4 \
-                   build/variant-7.2.9-board-baseline/arch/arm64/boot/Image.gz
+                   /scratch/openstick/build/variant-7.2.9-board-baseline/arch/arm64/boot/Image.gz
 ```
 
 `tools/qemu-smoke.sh` 自己做三件事：从 boot 构建树里取裸 `Image`、把镜像

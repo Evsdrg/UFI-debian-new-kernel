@@ -71,7 +71,8 @@ python3 "$BASE/tools/verify-usb-sharing.py" "$ROOTFS"
 
 printf '\n== rootfs ==\n'
 test -f "$ROOTFS"
-e2fsck -fn "$ROOTFS" >/tmp/ufi-layout-e2fsck.log 2>&1
+mkdir -p "$SCRATCH_TMP"
+e2fsck -fn "$ROOTFS" >"$SCRATCH_TMP/ufi-layout-e2fsck.log" 2>&1
 printf 'rootfs=%s\n' "$ROOTFS"
 sha256sum "$ROOTFS"
 for path in \
@@ -218,7 +219,7 @@ done
 
 # 构建树还在时（未清理中间产物）做一次解析后配置的强校验；
 # 构建树是可再生中间态，清掉后降级到片段检查（上面已断言片段内容）。
-VENUS_BUILD="$BASE/build/variant-$KERNEL_VERSION-board-venus-4g-gpu"
+VENUS_BUILD="$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-venus-4g-gpu"
 if [ -f "$VENUS_BUILD/.config" ]; then
   grep -q 'CONFIG_VIDEO_QCOM_VENUS=m' "$VENUS_BUILD/.config"
   grep -q 'CONFIG_MEDIA_PLATFORM_SUPPORT=y' "$VENUS_BUILD/.config"

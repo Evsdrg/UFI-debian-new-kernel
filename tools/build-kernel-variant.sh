@@ -23,7 +23,8 @@ MODDEST="${3:?missing modules destination}"
 # 构建目录带上内核版本：同名变体在不同内核版本下必须落在不同目录，
 # 否则升级时重编会覆盖掉旧版本的 Image.gz（旧版本的 boot 镜像就再也
 # 拼不回来了，因为内核镜像不在 git 里）。BUILD_DIR 可显式覆盖。
-BUILD="${BUILD_DIR:-$BASE/build/variant-$KERNEL_VERSION-$NAME}"
+# 默认落在 scratch（中间产物不进工作区，见 tools/kver.sh 的 SCRATCH 说明）。
+BUILD="${BUILD_DIR:-$SCRATCH_BUILD/variant-$KERNEL_VERSION-$NAME}"
 BASE_CFG="$KERNEL_BASE_CFG"
 
 # make -C chdirs into the source tree, so relative paths (fragments, install

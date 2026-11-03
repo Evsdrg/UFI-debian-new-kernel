@@ -89,10 +89,11 @@ for entry in "${TYPES[@]}"; do
     echo "==> 板型 [$VARIANT] release=$RELEASE"
 
     # 逐板型 LOCALVERSION 片段（临时文件，构建时最后合并、优先生效）
-    LVFRAG=$(mktemp /tmp/lv-$VARIANT-XXXXXX.config)
+    mkdir -p "$SCRATCH_TMP"
+    LVFRAG=$(TMPDIR="$SCRATCH_TMP" mktemp lv-$VARIANT-XXXXXX.config)
     printf 'CONFIG_LOCALVERSION="%s"\n' "${KERNEL_LOCALVERSION}${suffix:+-$suffix}" > "$LVFRAG"
 
-    BUILD_DIR="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT" \
+    BUILD_DIR="$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-$VARIANT" \
     bash tools/build-kernel-variant.sh "board-$VARIANT" \
         "$frags:$LVFRAG" "$TREE" || { rc_total=1; rm -f "$LVFRAG"; continue; }
     rm -f "$LVFRAG"
@@ -100,7 +101,7 @@ for entry in "${TYPES[@]}"; do
     # GPU 板型：render-only 校验（原 build-gpu-variant.sh 的断言，该脚本已删除）
     case "$VARIANT" in
     *gpu)
-        CFG="$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/.config"
+        CFG="$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-$VARIANT/.config"
         if grep -q '^CONFIG_DRM_MSM_KMS=y' "$CFG"; then
             echo "错误：DRM_MSM_KMS=y —— 显示组件没关干净" >&2; rc_total=1; continue
         fi
@@ -115,7 +116,7 @@ for entry in "${TYPES[@]}"; do
     BOOT_EXTRA_CMDLINE="${extra_cmdline:-}" \
     python3 tools/package-boot-variant.py \
         "board-$VARIANT-$KERNEL_VERSION" "$dtsname" \
-        "$BASE/build/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \
+        "$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-$VARIANT/arch/arm64/boot/Image.gz" \
         "$RELEASE" \
         "$ARTIFACTS_BOOT/$BOARD_OUT_NAME" "$THIS_BOARD_DIR" || { rc_total=1; continue; }
 done

@@ -65,7 +65,7 @@ try:
             for symbol in ('NFT_CT', 'NFT_REJECT'):
                 check(not re.search(rf'^# CONFIG_{symbol} is not set$', frag.read_text(), re.M),
                       f'{frag}: turns CONFIG_{symbol} off')
-        cfg=BASE/f'build/variant-{KERNEL_VERSION}-board-{variant}/.config'
+        cfg=kver.SCRATCH_BUILD/f'variant-{KERNEL_VERSION}-board-{variant}/.config'
         if cfg.is_file():
             text=cfg.read_text()
             for symbol in SYMBOLS:

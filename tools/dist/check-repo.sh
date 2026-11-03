@@ -19,6 +19,10 @@ BASE=$(cd "$(dirname "$0")/../.." && pwd)
 KERNEL=${1:-}
 FAIL=0
 
+# 临时文件放 scratch，不用 /tmp（见 tools/kver.sh 的 SCRATCH 说明）。
+. "$BASE/tools/kver.sh"
+mkdir -p "$SCRATCH_TMP"
+
 ok()  { printf '  ok    %s\n' "$1"; }
 bad() { printf '  FAIL  %s\n' "$1"; FAIL=1; }
 
@@ -46,7 +50,7 @@ if [ -n "$KERNEL" ]; then
        git -C "$KERNEL" cat-file -e "HEAD:$rel/smd.c" 2>/dev/null; then
         for p in "$BASE"/source/patches/000[123]-wifi-*.patch; do
             [ -f "$p" ] || continue
-            TMP=$(mktemp -d)
+            TMP=$(TMPDIR="$SCRATCH_TMP" mktemp -d)
             mkdir -p "$TMP/$rel"
             # Pristine content straight out of the commit, not the working tree.
             for f in debug.c debug.h main.c smd.c wcn36xx.h; do

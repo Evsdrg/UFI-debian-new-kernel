@@ -24,9 +24,9 @@ import kver  # noqa: E402  (版本单一事实来源，见 tools/kver.py)
 BASE = kver.BASE
 SRC = kver.KERNEL_SRC
 MKBOOTIMG = BASE / "mkbootimg/mkbootimg"
-# 中间产物（.dtb 与拼接前的 kernel-dtb）留在 build/ 下，属可再生中间态。
-# 目录名随板目录变化（build/boards/<board-basename>），避免不同板型互相覆盖。
-BUILD_BOARDS = BASE / "build/boards"
+# 中间产物（.dtb 与拼接前的 kernel-dtb）留在 scratch 下，属可再生中间态。
+# 目录名随板目录变化（<scratch>/build/boards/<board-basename>），避免不同板型互相覆盖。
+BUILD_BOARDS = kver.SCRATCH_BUILD / "boards"
 # This board's DTS live under its board directory, not inside the kernel tree;
 # see boards/README.md for the layout.
 BOARD = BASE / "boards/ufi00x/ufi103s-ufi003"

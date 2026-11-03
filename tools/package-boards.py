@@ -36,7 +36,7 @@ for board, (family, name) in BOARDS.items():
     bdir = board_dir(board)
     # 产物统一落到 artifacts/boot/<board>（见 artifacts/README.md）。
     out = kver.ARTIFACTS_BOOT / board
-    build = BASE / 'build/boards' / board
+    build = kver.SCRATCH_BUILD / 'boards' / board
     build.mkdir(parents=True, exist_ok=True)
     source = bdir / 'dts' / f'msm8916-handsome-openstick-{name}.dts'
     pre = subprocess.check_output(['cpp', '-nostdinc', '-undef', '-D__DTS__', '-x', 'assembler-with-cpp', '-I', str(BASE / 'source/dts/common'), '-I', str(K / 'arch/arm64/boot/dts/qcom'), '-I', str(K / 'include'), str(source)])
