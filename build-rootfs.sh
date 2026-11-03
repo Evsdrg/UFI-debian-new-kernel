@@ -646,7 +646,13 @@ RemainAfterExit=yes
 # 等 rmtfs 真正 active（QMI 服务已 publish），再启动 modem。
 # 首次 start 在部分板子上会因 MBA 认证时序返回 -19，但随后重试即可成功，
 # 因此这里做有限次重试（实测第 1~2 次内稳定成功）。
-ExecStart=/bin/sh -c 'for i in $(seq 1 100); do systemctl is-active --quiet rmtfs.service && break; sleep 0.1; done; for try in 1 2 3 4 5 6; do if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then exit 0; fi; echo start > /sys/class/remoteproc/remoteproc1/state 2>/dev/null; sleep 4; if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo "modem up after try $try"; exit 0; fi; echo "modem try $try failed, retrying"; done; echo "modem failed after 6 tries" >&2; exit 1'
+# -19（= MBA 固件在 RMB_MBA_STATUS_REG 里返回 0xFFFFFFED）不是内核错误，
+# 而是上一轮 Q6 没完全停稳、AXI 端口未进入 idle 时重新 reset 导致的重复失败。
+# 因此每次失败后必须先写 stop，让 q6v5_mba_reclaim() 完整走完
+# （halt AXI 端口 -> assert reset -> 关时钟/电源/电源域），再开始下一轮；
+# 否则硬件状态残留会让后续尝试继续吃 -19。实测 6 次已用满，故放宽到 12 次、
+# 间隔 8 秒，覆盖最坏情况。
+ExecStart=/bin/sh -c 'for i in $(seq 1 100); do systemctl is-active --quiet rmtfs.service && break; sleep 0.1; done; for try in $(seq 1 12); do if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo "modem already running (try $try)"; exit 0; fi; echo start > /sys/class/remoteproc/remoteproc1/state 2>/dev/null; sleep 8; if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo "modem up after try $try"; exit 0; fi; echo "modem try $try failed, forcing reclaim before retry"; echo stop > /sys/class/remoteproc/remoteproc1/state 2>/dev/null; sleep 2; done; echo "modem failed after 12 tries" >&2; exit 1'
 ExecStop=/bin/sh -c 'if [ "$(cat /sys/class/remoteproc/remoteproc1/state)" = "running" ]; then echo stop > /sys/class/remoteproc/remoteproc1/state; fi'
 
 [Install]
