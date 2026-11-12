@@ -6,7 +6,7 @@
 
 矩阵的完整定义（各档的功能集、内核/DTB 配对）见 `BUILD-MATRIX.md`。
 
-## 档位 × 网络栈（2026-10-07，内核 7.2.9 实测）
+## 档位 × 网络栈（2026-10-07，内核 7.2.9 实测，历史记录）
 
 | 镜像 | 档位 | 网络栈 | 文件体积 | 内容体积 | 4G | 蓝牙 | 中文 | 桌面/GPU |
 |---|---|---|---|---|---|---|---|---|
@@ -66,13 +66,16 @@ bash tools/build-matrix.sh
 bash tools/build-matrix.sh max basic-native
 
 # 单个档位，且不用 build-matrix 的配对表时，直接调 build-rootfs.sh：
+# 版本从单一事实来源读，不写死——写死会在升级内核后变成指向不存在路径的错误示例。
 # （TMPDIR 默认已是 scratch，见 tools/kver.sh；这里显式写一遍便于阅读）
+. source/kernel-version.env
+REL="$KERNEL_VERSION$KERNEL_LOCALVERSION"
 MMDEBSTRAP_FORMAT=ext4 TMPDIR="${OPENSTICK_SCRATCH:-/scratch/openstick}/tmp" \
-KERNEL_RELEASE=7.2.9-ufix0x-venus-4g-gpu-dirty \
-MODULE_TREE=$PWD/artifacts/modules/7.2.9-ufix0x-venus-4g-gpu-dirty \
-EXTRA_MODULE_TREES=$PWD/artifacts/modules/7.2.9-ufix0x-dirty \
+KERNEL_RELEASE="$REL-venus-4g-gpu-dirty" \
+MODULE_TREE=$PWD/artifacts/modules/"$REL-venus-4g-gpu-dirty" \
+EXTRA_MODULE_TREES=$PWD/artifacts/modules/"$REL-dirty" \
 EXTRA_FIRMWARE_DIR=$PWD/artifacts/firmware/ufi103s-venus \
-ROOTFS_PATH=$PWD/artifacts/rootfs/ufi103s-7.2.9-max.ext4 \
+ROOTFS_PATH=$PWD/artifacts/rootfs/ufi103s-<ver>-max.ext4 \
 EXTRA_PKGS="ffmpeg,v4l-utils" ROOTFS_DESKTOP=1 \
 ROOTFS_FLAVOR=max ROOTFS_NET=nm \
 bash build-rootfs.sh

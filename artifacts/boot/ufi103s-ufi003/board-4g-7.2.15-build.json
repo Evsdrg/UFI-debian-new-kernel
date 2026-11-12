@@ -1,0 +1,17 @@
+{
+  "variant": "board-4g-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-4g-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s-4g.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-board-4g-7.2.15.img",
+  "boot_size": 7911424,
+  "kernel_size": 7909257,
+  "appended_dtb_offset": 7861194,
+  "appended_dtb_size": 50111,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "b4d6ca48e1a2420374e1c781d0e19b2e915d2cb83b61997a2915f434355ae31f",
+  "dtb_sha256": "37929bb985c44f3f44c71f382747982e9d84cfb18d304deb31c12d364a3a4023",
+  "boot_sha256": "7bd80575709397b89118e4073813c1ec869c4897585c15d95847a14c237afcd5",
+  "flash_status": "not flashed"
+}

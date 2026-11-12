@@ -8,11 +8,11 @@ Debian 13」差在哪里。每项都指向权威定义处。
 
 ---
 
-## 一、内核（Linux 7.2.9）
+## 一、内核（Linux 7.2.15）
 
 ### 1.1 补丁：5 个，均在 `source/patches/`
 
-在 `source/patches/`，在 pristine 7.2.9 上按序干净套用
+在 `source/patches/`，在 pristine 7.2.15 上按序干净套用
 （无 fuzz、无 reject），反向套用也干净。分发镜像（`builds/`）由同一份源码与
 补丁编出，`tools/dist/gen-manifest.sh` 把哈希写进各自的 `build.json`。
 
@@ -48,7 +48,7 @@ Debian 13」差在哪里。每项都指向权威定义处。
 
 ### 1.3 内核配置
 
-`source/configs/`：`common-7.2.9-os.config`（主配置）+ 变体片段
+`source/configs/`：`common-7.2.15-os.config`（主配置）+ 变体片段
 （`ufi103s-venus.config`、`ufi103s-gpu.config`、`kernel-size.config`）。
 
 相对 Debian 默认配置的实质改动：

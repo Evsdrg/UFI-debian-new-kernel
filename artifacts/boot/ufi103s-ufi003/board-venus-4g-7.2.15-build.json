@@ -1,0 +1,17 @@
+{
+  "variant": "board-venus-4g-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-venus-4g-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s-venus-4g.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-board-venus-4g-7.2.15.img",
+  "boot_size": 8003584,
+  "kernel_size": 7999620,
+  "appended_dtb_offset": 7951565,
+  "appended_dtb_size": 50103,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "8e5ae2867167bfb181d1ca3787c2c72c6d9150ce9cd7fb04bff0ee0e85d38791",
+  "dtb_sha256": "8d3ea9453c447bc65f7bd5c23e14eca21d4d1d1c12ea399d5d48fbbba39eb9bd",
+  "boot_sha256": "0dcd8590e3a6a8841f49d920b29cda0da4e7d81c2f5456ff3dfd3b518ba40a01",
+  "flash_status": "not flashed"
+}

@@ -5,7 +5,7 @@ MSM8916 机型，WiFi 为 **WCN3660b**。独立设计：reset 键与三颗 LED �
 
 - DTS：`dts/msm8916-handsome-openstick-uz801.dts`
 - DTB：`boot/board.dtb`
-- 内核：同家族共用（当前 7.2.9，6 个变体见 `CONTRIBUTING.md` §4.1）
+- 内核：同家族共用（版本由 `source/kernel-version.env` 决定，当前 7.2.15，6 个变体见 `CONTRIBUTING.md` §4.1）
 - 设备树标识：`model` = `Handsome OpenStick UZ801`，`compatible` = `handsome,uz801`, `qcom,msm8916`
 - boot 镜像：**暂无 7.2.y 产物**；需要为该板型完成构建与实机验证
 

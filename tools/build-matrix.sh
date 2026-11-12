@@ -172,7 +172,7 @@ run_one() {
     extlinux_dtb=""
     if [ "$board" = mf32 ]; then
         extlinux_kernel="$SCRATCH_BUILD/variant-$KERNEL_VERSION-board-mf32/arch/arm64/boot/Image.gz"
-        extlinux_dtb="$SCRATCH_BUILD/boards/thwc-mf32/board-mf32-7.2.9.dtb"
+        extlinux_dtb="$SCRATCH_BUILD/boards/thwc-mf32/board-mf32-$KERNEL_VERSION.dtb"
         for f in "$extlinux_kernel" "$extlinux_dtb"; do
             [ -f "$f" ] || { echo "!! $board: 缺 extlinux 输入 $f" >&2; return 1; }
         done

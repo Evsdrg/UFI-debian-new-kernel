@@ -1,0 +1,17 @@
+{
+  "variant": "board-baseline-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-dirty",
+  "dts": "msm8916-handsome-openstick-ufi103s.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e rw rootwait",
+  "boot_image": "boot-board-baseline-7.2.15.img",
+  "boot_size": 7911424,
+  "kernel_size": 7909246,
+  "appended_dtb_offset": 7861139,
+  "appended_dtb_size": 50155,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "f9bc5535994cd370cfd7dc2436408f298e4ad74b25204f580f33f1a6aa095ed1",
+  "dtb_sha256": "2a2b8501680fe38c10838bc8b959cb65d050efb3bb61ceb6d3e0155805a5bf98",
+  "boot_sha256": "3458600db49d5d85ac628d5ed2c469d154b98ead6f58cdfe523d511de46b1396",
+  "flash_status": "not flashed"
+}

@@ -3,9 +3,12 @@
 #
 # sha256, vermagic and the boot cmdline are read from the files. Anything
 # that cannot be read is fixed text, and that text does not claim a flash
-# or a retest: these directories are the 7.2.9 ufi103s set; the generic
-# sentence below says "not flashed", and any directory whose verification
-# state differs carries its own STATUS.txt.
+# or a retest: the generic sentence below says "not flashed", and any
+# directory whose verification state differs carries its own STATUS.txt.
+#
+# The kernel version in that sentence is derived from each directory's own
+# vermagic, not hardcoded: a hardcoded version silently becomes a lie as soon
+# as the board set is rebuilt on a newer kernel.
 #
 # One directory must contain exactly one *.img and exactly one wcn36xx.ko.
 # A single kernel_release stamped onto a mixed directory was a real bug in
@@ -17,7 +20,7 @@ set -eu
 # This script lives in tools/dist/; the repository root is two levels up.
 BASE=$(cd "$(dirname "$0")/../.." && pwd)
 NOW=$(date -u +%FT%TZ)
-STATUS="packaged from the 7.2.9 ufi103s board set; this exact image has not been flashed. The WiFi patch was measured on the author's ufi103s (WCN3620) on 6.18.49; this package is not that retest."
+STATUS=""   # 每个目录按自己的 vermagic 重算，见主循环
 
 # Per-variant status override: drop a one-line text file next to the image.
 # Used where a variant's verification state differs from the generic sentence
@@ -64,6 +67,10 @@ for D in "$BASE"/builds/boot/*; do
     fi
     vermagic=$(modinfo -F vermagic "$ko")
     release=${vermagic%% *}
+    # 版本号从本目录自己的 vermagic 派生（7.2.15-ufix0x-... -> 7.2.15）。
+    kver_short=$(printf '%s\n' "$release" | sed -n 's/^\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p')
+    [ -n "$kver_short" ] || kver_short="unknown"
+    STATUS="packaged from the $kver_short ufi103s board set; this exact image has not been flashed. The WiFi patch was measured on the author's ufi103s (WCN3620) on 6.18.49; this package is not that retest."
     cmdline=$(cmdline_of "$img")
     status=$(status_for "$D")
     case "$cmdline$vermagic" in

@@ -46,7 +46,14 @@ ROOTFS="${ROOTFS_PATH:-}"
 MMDEBSTRAP_FORMAT="${MMDEBSTRAP_FORMAT:-directory}"
 # 设备 root 口令：从环境变量取（不设则不在镜像里设口令）。
 ROOTFS_ROOT_PASSWORD="${ROOTFS_ROOT_PASSWORD:-}"
-MIRROR="https://mirrors.cernet.edu.cn/debian"
+# Debian 镜像源。可用 MIRROR 环境变量覆盖。
+#
+# 默认用 tuna 而不是 cernet：cernet 是个 302 重定向器，会随机把同一个包
+# 导到 chinanet/ustc/hust 等不同后端。测过反过来——部分后端只有 ~100 KB/s，
+# 甚至连接静默断开，导致 apt 在 poll 上永久挂死（实测卡死两次：88 分钟
+# 与 7 分钟，socket 数归 0 且无重试）。max 档要下七百多个 deb，最容易碰上。
+# tuna 实测 23 MB/s 且稳定。
+MIRROR="${MIRROR:-https://mirrors.tuna.tsinghua.edu.cn/debian}"
 # KERNEL_RELEASE 由 tools/kver.sh 从 source/kernel-version.env 派生；
 # MODULE_TREE 默认也指向该版本对应的模块树（可用环境变量覆盖）。
 MODULE_TREE="${MODULE_TREE:-$MODULES_DIR}"
@@ -826,6 +833,15 @@ MMDEBSTRAP_ARGS=(
 	--mode=unshare
 	--variant=apt
 	--format="$MMDEBSTRAP_FORMAT"
+	# apt 下载的健壮性旋钮。大档位（max 装桌面套件）要下七八百个 deb，
+	# 默认配置下只要某条 https 连接静默断开，apt 就会在 poll 上永久停住
+	# ——实测卡过两次（88 分钟与 7 分钟，socket 数归 0、无任何重试）。
+	# 用重试 + 超时让它自己恢复，而不是靠人盯着发现后手工杀掉重来。
+	'--aptopt=Acquire::Retries "5"'
+	'--aptopt=Acquire::http::Timeout "30"'
+	'--aptopt=Acquire::https::Timeout "30"'
+	'--aptopt=Acquire::Queue-Mode "access"'
+	'--aptopt=Acquire::http::Pipeline-Depth "0"'
 	"--include=$PKGS_EXTRA"
 	# 精简档位的体积裁剪（doc/man/非中文 locale）。数组为空时不展开任何参数。
 	"${PATH_EXCLUDES[@]}"

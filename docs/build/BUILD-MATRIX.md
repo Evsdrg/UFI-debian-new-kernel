@@ -1,8 +1,9 @@
 # 构建矩阵：设备 × 档位 × 网络栈
 
-本文说明当前 7.2.9 产物如何选择。命名规则见
+本文说明当前产物如何选择。命名规则见
 [`CONTRIBUTING.md`](../../CONTRIBUTING.md) §4.1：release 由
-`source/kernel-version.env` 中的版本与 `KERNEL_LOCALVERSION` 派生。
+`source/kernel-version.env` 中的版本与 `KERNEL_LOCALVERSION` 派生
+（当前为 7.2.15）。下文出现的 `<ver>` 指该版本号。
 
 ## 一、rootfs 档位
 
@@ -38,12 +39,12 @@
 
 **mf601sl 是另一块板**，DTS 在 `boards/thwc-mf601sl/`、内核片段是
 `source/configs/mf601sl.config`。它保留完整 4G 链、启用 LBC 充电 + BMS 电量计，
-release 为 `7.2.9-ufix0x-mf601sl-dirty`。**不能套用 minimal 的内存裁剪**
+release 为 `<ver>-ufix0x-mf601sl-dirty`。**不能套用 minimal 的内存裁剪**
 （会关掉 modem 链）。详见 [`docs/hardware/MF601SL.md`](../hardware/MF601SL.md)。
 
 **mf32 也是独立板型**，DTS 在 `boards/thwc-mf32/`、内核片段是
 `source/configs/mf32.config`。保留完整 4G、电池、SD 与 LED/电源键服务；
-关闭 Venus 并回收未使用的 GPS 预留。release 为 `7.2.9-ufix0x-mf32-dirty`，
+关闭 Venus 并回收未使用的 GPS 预留。release 为 `<ver>-ufix0x-mf32-dirty`，
 cmdline 与 rootfs 使用 `PARTLABEL=rootfs`，实际分区标签必须实机核对。
 详见 [`boards/thwc-mf32/README.md`](../../boards/thwc-mf32/README.md)。
 
@@ -88,7 +89,7 @@ pinctrl/clk/interconnect、无关文件系统（nfs/cifs/fuse/overlay…）、�
 内存与体积实测详见 [`../validation/2026-10-16-validation.md`](../validation/2026-10-16-validation.md)。
 
 每板型独立内核 release 与模块树（vermagic 含 release，不可复用），
-boot 镜像 `boot-board-<板型>-7.2.9.img`。刷机配对：max↔venus-4g-gpu、
+boot 镜像 `boot-board-<板型>-<ver>.img`。刷机配对：max↔venus-4g-gpu、
 basic↔4g、slim/micro↔空或 minimal，boot 与 rootfs 必须成对。
 
 ## 三、USB 网络共享（所有档默认）

@@ -184,8 +184,8 @@ Adreno 306 支持 XRGB8888/ARGB8888/RGB565/R8/GR88；**NV12/NV21/YUYV/YUYV 全�
 脚本不要硬编码版本号。
 
 **内核命名 = 设备令牌 + 板型（DTS 后缀）**。设备令牌写在 `KERNEL_LOCALVERSION`（当前
-`-ufix0x`）。每个板型独立 release 与模块树，如 `7.2.9-ufix0x-dirty`、
-`7.2.9-ufix0x-venus-4g-gpu-dirty`。板型级构建用 `tools/build-board-set.sh`（表驱动）。
+`-ufix0x`）。每个板型独立 release 与模块树，如 `<ver>-ufix0x-dirty`、
+`<ver>-ufix0x-venus-4g-gpu-dirty`。板型级构建用 `tools/build-board-set.sh`（表驱动）。
 **重刷时内核与模块树必须成对**，只刷 boot.img 会让模块全部静默失配（vermagic 含 release）。
 
 > 内核镜像**不是逐位可复现的**（构建序号/时间戳/build-id 会变，解压后仅几十字节不同）；

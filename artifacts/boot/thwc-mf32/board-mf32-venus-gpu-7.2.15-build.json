@@ -1,0 +1,17 @@
+{
+  "variant": "board-mf32-venus-gpu-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-mf32-venus-gpu-dirty",
+  "dts": "msm8916-thwc-mf32-venus-gpu.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "boot_image": "boot-board-mf32-venus-gpu-7.2.15.img",
+  "boot_size": 8017920,
+  "kernel_size": 8013988,
+  "appended_dtb_offset": 7961753,
+  "appended_dtb_size": 54283,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "aa3103b8b058f3673dec91ac3cba18c79dd6c5c207309afbc8a64daea169b513",
+  "dtb_sha256": "f5f7e40e86a184f9c6494c38ae7c725e9f6b4a1475d804fb26d5c91cc2cf5106",
+  "boot_sha256": "1d6251cfbdfc8d7e7e61fd1aebeafc23de75b5eafc9818eeb9819df2450a440e",
+  "flash_status": "not flashed"
+}

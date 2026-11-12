@@ -27,7 +27,7 @@ artifacts/
 | `boot-board-<板型>-<版本>.img` | ❌ | 可刷产物。`<板型>` 是功能组合（`baseline`/`4g`/`venus`/`venus-4g`/`venus-4g-gpu`/`minimal`） |
 | `board-<板型>-<版本>-build.json` | ✅ | **产物元数据**：内核 release、cmdline、镜像与 DTB 的 sha256、`flash_status`。`flash.sh` 刷前比对它 |
 | `kernel-board-<板型>-<版本>-dtb` | ❌ | `Image.gz` + DTB 的拼接中间态，可从内核镜像与 DTS 重建 |
-| `empty-ramdisk` | ❌ | 空的 initramfs（legacy boot image 需要这个字段） |
+| `empty-ramdisk` | ❌ | 空 ramdisk。**全家族刻意不使用 initramfs**（启动驱动全内置，理由见 `docs/build/UPSTREAM.md`）；legacy boot image 需要这个字段存在 |
 
 UFI103s 有六个 7.2.9 boot 变体（五个功能组合 + `minimal`）；
 MF601SL 与 MF32 各有独立板级镜像。其它四块 UFI 家族板目前只有裸 DTB。

@@ -7,12 +7,13 @@ MSM8916 电池型 4G MiFi。与 UFI103s 同 SoC，但具有电池、microSD、
 
 | 项 | 状态 |
 |---|---|
-| 板级 DTS | 已生成并编译，基于同目录反编译 DTS 做定点调整 |
-| 内核与模块 | `7.2.9-ufix0x-mf32-dirty`，678 个模块 |
+| 板级 DTS | 已生成并编译；权威基线是实机 `baseline.dtb` 的反编译结果（`c3c97089`） |
+| 内核与模块 | `7.2.9-ufix0x-mf32-dirty`，678 个模块（7.2.15 已构建，待实机验证） |
 | rootfs | Debian 13 basic 档，含 MF32 LED/电源键服务 |
 | 静态检查 | USB 交付断言、e2fsck、LED 37/37、电源键 11/11 通过 |
 | QEMU | 能到 login，无非预期 FAILED |
-| **实机** | **尚未验证**；本工作区没有 MF32 硬件 |
+| **实机** | **✅ 2026-10-30 已验证**（设备 e81940f）：从闪存启动 Debian 13，
+RNDIS 自动开放、SSH 可用、失败服务 0、rootfs 自动扩容到 3.3G |
 
 ## 硬件依据
 
@@ -81,8 +82,24 @@ MMDEBSTRAP_FORMAT=ext4 bash build-rootfs.sh
 `rootfs`；如果不同，需要同时调整 cmdline 与 `/etc/fstab`。
 
 不要根据其它机型的分区编号直接刷入，不要在未备份的情况下测试。
-本板仍未验证 fastboot 可达性、关机充电、插充电器自动开机、长按硬复位、
-电池/SIM/SD 与 LED 实际对应关系。
+本板仍未验证关机充电、插充电器自动开机、长按硬复位、4G 数据业务与
+SIM 读写；LED 与按键的物理对应关系已逐灯/逐键实测确认（见
+`LED-SCHEME.md` 与 `POWER-KEYS.md`）。
+
+### boot 镜像不带 initramfs
+
+本板的 boot 曾带一个 12.8MB initramfs（2026-10-30 手工生成，未进构建链）。
+2026-11-10 已按全家族统一策略移除，理由与全部实测依据见
+[`docs/build/UPSTREAM.md`](../../docs/build/UPSTREAM.md) 的
+「启动镜像不使用 initramfs」一节。要点：
+
+- 启动驱动全部内置（`MMC`/`MMC_SDHCI_MSM`/`MMC_BLOCK`/`EXT4_FS`/`DEVTMPFS_MOUNT` 均 `=y`）
+- LK 侧 `if (ramdisk_size)` 有显式保护，为 0 时不设 `linux,initrd-*`
+- MF601SL 以 `ramdisk_size=0` 实机连续跑过 39 小时，配置与 MF32 逐字相同
+- boot 体积从 20.7MB 降到 7.9MB
+
+**因此 7.2.15 的 MF32 boot 需要一次实机重刷验证**：它同时改变了内核版本
+与 initramfs 策略两个变量。验证方法见 `测试说明.md`。
 
 ## 测试包
 

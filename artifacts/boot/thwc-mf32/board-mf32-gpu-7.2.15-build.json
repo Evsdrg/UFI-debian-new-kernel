@@ -1,0 +1,17 @@
+{
+  "variant": "board-mf32-gpu-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-mf32-gpu-dirty",
+  "dts": "msm8916-thwc-mf32-gpu.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "boot_image": "boot-board-mf32-gpu-7.2.15.img",
+  "boot_size": 7927808,
+  "kernel_size": 7924033,
+  "appended_dtb_offset": 7871794,
+  "appended_dtb_size": 54287,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "8d5526bafceea693ddf65c67f0af76ff8582b8c1255bf94691fc72b500f978f6",
+  "dtb_sha256": "fefb537ab798ee0082ff402d76d8d3f2e015a7412c7459e53ccec137b9cf34c0",
+  "boot_sha256": "24f9750347108e7245e3df6929b59d3a7ab88e0f617be558606447822b26b59c",
+  "flash_status": "not flashed"
+}

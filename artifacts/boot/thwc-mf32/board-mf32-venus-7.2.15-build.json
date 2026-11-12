@@ -1,0 +1,17 @@
+{
+  "variant": "board-mf32-venus-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-mf32-venus-dirty",
+  "dts": "msm8916-thwc-mf32-venus.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=PARTLABEL=rootfs rw rootwait",
+  "boot_image": "boot-board-mf32-venus-7.2.15.img",
+  "boot_size": 8007680,
+  "kernel_size": 8004825,
+  "appended_dtb_offset": 7952610,
+  "appended_dtb_size": 54263,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "1d8d93c6647d907432a5bdae547d03b7c6be2706c5f6a4a88eb65152fd19c95b",
+  "dtb_sha256": "6c731c9dd568b562d8389e032839a245e992a02bdb9f9d0750107b33d43602ce",
+  "boot_sha256": "53c87ca08035012454924249f8c9714177adb3193487f67d6c5f19c80e944a74",
+  "flash_status": "not flashed"
+}

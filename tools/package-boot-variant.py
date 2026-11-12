@@ -49,7 +49,7 @@ TAGS_OFFSET = "0x01e00000"
 #                        前提是 p14 确实是 rootfs 分区：容量不一致时 fastboot
 #                        写入就会失败，不会出现"刷进去了但起不来"的静默错配。
 #
-# 内核支持的形式见 source/linux-7.2.9/block/early-lookup.c（/dev/<disk><part>）。
+# 内核支持的形式见 source/linux-<ver>/block/early-lookup.c（/dev/<disk><part>）。
 DEFAULT_ROOT = "PARTUUID=a7ab80e8-e9d1-e8cd-f157-93f69b1d141e"
 ROOT = os.environ.get("BOOT_ROOT") or DEFAULT_ROOT
 # BOOT_EXTRA_CMDLINE：追加到 cmdline 末尾（如 mf601sl 的 cpuidle.off=1）。
@@ -146,6 +146,11 @@ def main() -> int:
     else:
         kernel_dtb.write_bytes(image_path.read_bytes() + dtb.read_bytes())
 
+    # 空 ramdisk，且**全家族刻意不带 initramfs**（见 docs/build/UPSTREAM.md）。
+    # 启动驱动（MMC/MMC_SDHCI_MSM/MMC_BLOCK/EXT4_FS/DEVTMPFS_MOUNT）全部 =y，
+    # 内核在 prepare_namespace() 里自行解析 root= 并挂根。LK 侧 `if (ramdisk_size)`
+    # 有保护，0 时既不设 linux,initrd-* 也不打 ATAG_INITRD2，属规范行为。
+    # MF601SL 以 ramdisk_size=0 实机跑过 39 小时，是对此的直接验证。
     ramdisk = out / "empty-ramdisk"
     ramdisk.write_bytes(b"")
 
@@ -210,6 +215,10 @@ def main() -> int:
         "appended_dtb_offset": dtb_offset,
         "appended_dtb_size": dtb.stat().st_size,
         "dtb_layout": dtb_layout,
+        # 恒为 0：本家族不使用 initramfs，理由见上方 ramdisk 处的注释。
+        # 写进元数据是为了让“发布物里没有 initramfs”成为可断言的事实，
+        # 而不是只能靠翻这一版脚本的缺省行为去推断。
+        "ramdisk_size": 0,
         "image_gz_sha256": hashlib.sha256(image_path.read_bytes()).hexdigest(),
         "dtb_sha256": hashlib.sha256(dtb.read_bytes()).hexdigest(),
         "boot_sha256": hashlib.sha256(data).hexdigest(),

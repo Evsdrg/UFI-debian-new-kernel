@@ -304,3 +304,32 @@ grep -q 'ENC_H % 32' "$BASE/tools/venus-transcode.sh" \
 grep -q 'ENC_H=${ENC_H:-736}' "$BASE/tools/venus-transcode.sh" \
   || { printf 'ERROR: default ENC_H is not 736 (32-aligned)\n' >&2; exit 1; }
 printf 'venus_alignment_guard=ok (default 1280x736)\n'
+
+printf '\n== no-initramfs guard ==\n'
+# 全家族 boot 一律空 ramdisk，不带 initramfs。依据与实测见 docs/build/UPSTREAM.md。
+# 启动驱动（MMC/MMC_SDHCI_MSM/MMC_BLOCK/EXT4_FS/DEVTMPFS_MOUNT）全部 =y，
+# 内核在 prepare_namespace() 自行挂根；LK 侧 `if (ramdisk_size)` 有保护。
+# 这条断言防的是「以后有人为了对齐某个上游镜像又把 initramfs 加回来」。
+python3 - "$BASE" "$KERNEL_VERSION" <<'PY'
+import struct, sys, pathlib
+
+base = pathlib.Path(sys.argv[1])
+ver = sys.argv[2]
+imgs = sorted(base.glob(f"artifacts/boot/*/boot-board-*-{ver}.img"))
+if not imgs:
+    print(f"no_boot_images=fail (没有找到任何 *-{ver}.img)")
+    raise SystemExit(1)
+bad = []
+for img in imgs:
+    hdr = img.read_bytes()[:64]
+    ramdisk_size = struct.unpack_from("<I", hdr, 16)[0]
+    second_size = struct.unpack_from("<I", hdr, 24)[0]
+    if ramdisk_size or second_size:
+        bad.append(f"{img.name}: ramdisk={ramdisk_size} second={second_size}")
+if bad:
+    print("no_initramfs=fail")
+    for b in bad:
+        print("  " + b)
+    raise SystemExit(1)
+print(f"no_initramfs=ok ({len(imgs)} boot images, all ramdisk_size=0)")
+PY

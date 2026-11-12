@@ -7,10 +7,14 @@ MSM8916 电池型 4G MiFi。与 UFI103s 同 SoC 但硬件差异大：**有电池
 
 | 项 | 状态 |
 |---|---|
-| 设备树 | ✅ 已写（`dts/msm8916-thwc-mf601sl-v07.dts`），cpp+dtc 编译通过 |
-| 内核 | ✅ 已构建（`7.2.9-ufix0x-mf601sl-dirty`，678 个模块） |
-| 测试包 | ✅ 已生成（`out/mf601sl-build/package/`，118MB，含 boot + rootfs + 模块） |
-| **实机验证** | ❌ **未做**（本工作区无此设备） |
+| 设备树 | ✅ 已写（`dts/msm8916-thwc-mf601sl-v07.dts`），cpp+dtc 编译零警告 |
+| 内核 | ✅ 7.2.9 与 7.2.15 均已构建（678 个模块） |
+| 测试包 | ✅ 已发布（`v7.2.9-r5`，架构 + rootfs + 模块） |
+| 静态检查 | ✅ USB 交付断言、e2fsck、ledctl 37/37、电源键 11/11 |
+| QEMU | ✅ 到 login，无非预期 FAILED |
+| **实机（7.2.9）** | ✅ **已验证**：官方 destructive 刷入后连续运行 39 小时，
+失败服务 0，RNDIS/WiFi/zram/LED/4G 驱动正常 |
+| **实机（7.2.15）** | ❌ **待验证**（本版只完成构建与 QEMU 冒烟） |
 
 ## 硬件（依据见 `docs/hardware/MF601SL.md`）
 
@@ -28,7 +32,7 @@ MSM8916 电池型 4G MiFi。与 UFI103s 同 SoC 但硬件差异大：**有电池
 
 ## 内核配置差异
 
-只需在 `common-7.2.9-os.config` 上叠加 `source/configs/mf601sl.config`：
+只需在 `common-<版本>-os.config` 上叠加 `source/configs/mf601sl.config`：
 - `CHARGER_PM8916_LBC=m`（充电 + **USB extcon**，缺了 RNDIS 不工作）
 - `BATTERY_PM8916_BMS_VM=m`（电量计）
 - `INPUT_PM8XXX_VIBRATOR=y`
@@ -42,19 +46,19 @@ MSM8916 电池型 4G MiFi。与 UFI103s 同 SoC 但硬件差异大：**有电池
 bash tools/build-board-set.sh mf601sl
 ```
 
-产出：
-- `artifacts/boot/thwc-mf601sl/boot-board-mf601sl-7.2.9.img`
-- `artifacts/modules/7.2.9-ufix0x-mf601sl-dirty/`
+产出（`<ver>` 由 `source/kernel-version.env` 决定，当前 7.2.15）：
+- `artifacts/boot/thwc-mf601sl/boot-board-mf601sl-<ver>.img`
+- `artifacts/modules/<ver>-ufix0x-mf601sl-dirty/`
 
 ## 测试包
 
 `out/mf601sl-build/package/`（不入库，118MB）内含：
 
 ```
-boot-mf601sl-7.2.9.img                    内核 + DTB
-mf601sl-dtb-7.2.9.dtb                     单独设备树
-modules-7.2.9-ufix0x-mf601sl-dirty.tar.gz 678 个模块（与 boot 同 vermagic）
-rootfs-mf601sl-7.2.9-basic.ext4.gz        Debian 13 basic 档（312MB → 105MB）
+boot-mf601sl-<ver>.img                    内核 + DTB（无 initramfs，见 docs/build/UPSTREAM.md）
+mf601sl-dtb-<ver>.dtb                     单独设备树
+modules-<ver>-ufix0x-mf601sl-dirty.tar.gz 678 个模块（与 boot 同 vermagic）
+rootfs-mf601sl-<ver>-basic.ext4.gz        Debian 13 basic 档
 build.json / 来源与不确定项.md / SHA256SUMS.txt
 ```
 

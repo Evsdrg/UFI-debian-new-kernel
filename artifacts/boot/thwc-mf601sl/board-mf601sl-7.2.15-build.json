@@ -1,0 +1,17 @@
+{
+  "variant": "board-mf601sl-7.2.15",
+  "kernel_release": "7.2.15-ufix0x-mf601sl-dirty",
+  "dts": "msm8916-thwc-mf601sl-v07.dts",
+  "cmdline": "earlycon console=ttyMSM0,115200 root=/dev/mmcblk0p14 rw rootwait cpuidle.off=1",
+  "boot_image": "boot-board-mf601sl-7.2.15.img",
+  "boot_size": 7913472,
+  "kernel_size": 7910876,
+  "appended_dtb_offset": 7861880,
+  "appended_dtb_size": 51044,
+  "dtb_layout": "inline",
+  "ramdisk_size": 0,
+  "image_gz_sha256": "28f68fff03b3c9e89e3481f59b7327187207c637f7073370b6dcf20b2dd9ddb0",
+  "dtb_sha256": "8f6aa4b85b5e2b66e4c110ba4cf1650d1f23f9c469ca98d4b41fec869b989eb7",
+  "boot_sha256": "5221c84678459d1a53932a76690ef536490b786dbda57c5e59ae1a9759ce3cc8",
+  "flash_status": "not flashed"
+}
