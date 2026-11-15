@@ -27,6 +27,17 @@ MODULES = ('net/netfilter/nf_tables.ko', 'net/netfilter/nf_conntrack.ko',
 def check(condition, message):
     if not condition: raise RuntimeError(message)
 
+def expected_root_password():
+    """期望口令经 tools/lib-creds.sh 取：由 shell source .local-creds，
+    引号与转义因此和 build-rootfs.sh 同源；grep/cut 会留下外层引号。"""
+    p = subprocess.run(['bash', '-c', '. "$1"; cred ROOTFS_ROOT_PASSWORD', '_',
+                        str(BASE/'tools/lib-creds.sh')],
+                       capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError('cannot resolve ROOTFS_ROOT_PASSWORD: '+p.stderr.strip()
+                           + '（在仓库根创建 .local-creds，或用同名环境变量覆盖）')
+    return p.stdout
+
 def debugfs(image, command):
     p = subprocess.run(['debugfs','-R',command,str(image)],capture_output=True,check=False)
     check(p.returncode == 0, f'{image}: debugfs failed: {p.stderr.decode(errors="replace")}')
@@ -83,6 +94,8 @@ try:
     # ROOTFS_RELEASE=<release> 显式指定镜像里的内核 release，用于非 UFI 板型
     # （如 mf601sl）。缺省时按 UFI 档位命名规则推导。
     forced_release=os.environ.get('ROOTFS_RELEASE','')
+    # 期望口令只解析一次；取不到就直接失败，不用硬编码值冒充交付校验。
+    expected_pw=expected_root_password()
     for image in images:
         check(image.is_file(), f'missing rootfs image: {image}')
         native=image.stem.endswith('-native')
@@ -173,24 +186,24 @@ try:
                       f'{image.name}: wpa_supplicant conf ships preset Wi-Fi credentials: {stripped!r}')
         # ---- root 口令完整性 ----
 
-        # 交付镜像的 root 口令必须**不含引号字符**。历史 bug：用 grep/cut 直接读
-        # .local-creds 会把外层的单引号当成口令内容（镜像里真的存成 '1313144'），
-        # 刷到无屏设备上按 1313144 登录会直接锁死。build-rootfs.sh 已有
+        # 交付镜像的 root 口令必须与 .local-creds 解析后的值一致，且不含引号字符。
+        # 历史 bug：用 grep/cut 直接读 .local-creds 会把外层单引号当成口令内容，
+        # 刷到无屏设备上按不带引号的口令登录会直接锁死。build-rootfs.sh 已有
         # _quote_guard，这里在交付层再兜一道（防旧镜像/旁路构建混进发布）。
         shadow = debugfs(image, 'cat /etc/shadow').decode('utf-8', errors='replace')
         root_hash = next((l.split(':')[1] for l in shadow.splitlines() if l.startswith('root:')), '')
         check(root_hash not in ('', '*', '!'), f'{image.name}: root account is locked or has no password')
-        # 用 crypt 实际验证：口令必须是 '1313144'，不能是 "'1313144'"。
+        # 用 crypt 实际验证：口令必须匹配期望值，不能是带外层引号的形式。
         # 两种都试，明确区分，报错信息直接指出是哪种错。
         def _crypt(pw):
             p = subprocess.run(['perl', '-e', 'print crypt($ARGV[0],$ARGV[1])', pw, root_hash],
                                capture_output=True, text=True)
             return p.stdout
-        ok_plain  = _crypt('1313144')   == root_hash
-        ok_quoted = _crypt("'1313144'") == root_hash
+        ok_plain  = _crypt(expected_pw)    == root_hash
+        ok_quoted = _crypt("'"+expected_pw+"'") == root_hash
         check(ok_plain,
-              f'{image.name}: root password is not 1313144'
-              + (" （实际是含单引号的 '1313144'——用 grep/cut 读 .local-creds 的典型后果）" if ok_quoted else ''))
+              f'{image.name}: root password does not match .local-creds'
+              + (' （镜像里存的是带外层引号的口令——直接 grep/cut 读 .local-creds 的典型后果）' if ok_quoted else ''))
 
         print(f'rootfs[{image.name}]=USB_DELIVERY_OK')
 except (RuntimeError, OSError, configparser.Error) as e:
