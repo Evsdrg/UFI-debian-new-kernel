@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """USB delivery assertions for all resolved kernels and NM/native rootfs images."""
+import configparser
 import hashlib
 from pathlib import Path
 import os
@@ -144,6 +145,13 @@ try:
             if not native:
                 apn_conn = '/etc/NetworkManager/system-connections/4g-auto.nmconnection'
                 exact_asset(image, apn_conn, BASE / 'tools/nm-connections/4g-auto.nmconnection')
+                profile = configparser.ConfigParser(interpolation=None)
+                profile.read_string(debugfs(image, 'cat ' + apn_conn).decode())
+                # ConfigParser.getboolean() 也接受 yes，会掩盖 GLib keyfile 的解析错误。
+                check(profile.get('gsm', 'auto-config', fallback='') == 'true',
+                      f'{image.name}: APN auto-config must be keyfile boolean true')
+                check(not profile.get('connection', 'interface-name', fallback=''),
+                      f'{image.name}: GSM profile must not bind the data interface name')
                 check('Mode:  0600' in stat(image, apn_conn),
                       f'{image.name}: unsafe keyfile mode for 4g-auto')
         elif flavor in ('slim', 'micro'):
@@ -185,6 +193,6 @@ try:
               + (" （实际是含单引号的 '1313144'——用 grep/cut 读 .local-creds 的典型后果）" if ok_quoted else ''))
 
         print(f'rootfs[{image.name}]=USB_DELIVERY_OK')
-except (RuntimeError, OSError) as e:
+except (RuntimeError, OSError, configparser.Error) as e:
     print('USB_CHECK_FAILED: '+str(e),file=sys.stderr)
     sys.exit(1)

@@ -476,7 +476,9 @@ static bool modem_reg_denied(void)
 		return strcmp(line, "denied") == 0 || strcmp(line, "limited") == 0;
 	}
 
-	fp = popen("qmicli -d /dev/wwan0qmi0 --nas-get-serving-system 2>/dev/null",
+	/* 与 ModemManager 共用端口，必须经 proxy 分发 QMI 应答。 */
+	fp = popen("qmicli --device-open-proxy -d /dev/wwan0qmi0 "
+		   "--nas-get-serving-system 2>/dev/null",
 		   "r");
 	if (!fp)
 		return false;

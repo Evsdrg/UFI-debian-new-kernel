@@ -602,7 +602,7 @@ install -D -m 644 "$WORKDIR/tools/usb-gadget-watchdog.timer" "$STAGE/etc/systemd
 if [[ "$ROOTFS_NET" == nm ]]; then
     install -D -m 600 "$WORKDIR/tools/nm-connections/usb-share.nmconnection" \
         "$STAGE/etc/NetworkManager/system-connections/usb-share.nmconnection"
-    # 4G 自动配置连接：gsm.auto-config=yes，按运营商 MCC/MNC 从
+    # 4G 自动配置连接：keyfile 用 auto-config=true，按运营商 MCC/MNC 从
     # serviceproviders.xml 自动取 APN。仅在装了 4G 组件时才有意义。
     if [[ "$ROOTFS_4G" == 1 ]]; then
         install -D -m 600 "$WORKDIR/tools/nm-connections/4g-auto.nmconnection" \

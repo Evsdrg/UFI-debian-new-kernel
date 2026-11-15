@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Unprivileged configfs fault-injection and native lifecycle regression tests."""
+"""USB lifecycle and GSM keyfile regressions; requires nmcli with --offline."""
+import configparser
 import os
 from pathlib import Path
 import subprocess
@@ -169,5 +170,22 @@ class WatchdogTests(unittest.TestCase):
         rc, out, started = self._run(active=True)
         self.assertEqual(rc, 0)
         self.assertEqual(out, '', '已 active 时不应有输出')
+
+class MobileBroadbandTests(unittest.TestCase):
+    def test_auto_profile_survives_nm_keyfile_parser(self):
+        # 用真正的 keyfile 解析器：Python getboolean() 会错误地接受 yes。
+        source = BASE/'tools/nm-connections/4g-auto.nmconnection'
+        result = subprocess.run(
+            ['nmcli', '--offline', 'connection', 'modify', 'connection.id', '4g-auto'],
+            input=source.read_text(), capture_output=True, text=True,
+            env=dict(os.environ, LC_ALL='C'), timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        profile = configparser.ConfigParser(interpolation=None)
+        profile.read_string(result.stdout)
+        self.assertEqual(profile.get('gsm', 'auto-config', fallback=''), 'true',
+                         'auto-config was lost while parsing the keyfile')
+        self.assertFalse(profile.get('connection', 'interface-name', fallback=''),
+                         'GSM profile must match the control device, not bind wwan0')
+
 
 if __name__ == '__main__': unittest.main(verbosity=2)

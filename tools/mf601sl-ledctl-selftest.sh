@@ -220,6 +220,37 @@ stop
 # 恢复：注册态清空，供后续场景（如果有）使用
 : > "$T/regstate"
 
+# 经过真实 popen 路径校验查询参数，避免注册状态文件桩掩盖 QMI 端口争抢。
+echo "=== S19 实际 QMI 查询必须通过 proxy，注册被拒灯态不变 ==="
+mkdir -p "$T/bin"
+cat > "$T/bin/mmcli" <<'EOF'
+#!/bin/sh
+printf 'state: searching\n'
+EOF
+cat > "$T/bin/qmicli" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$@" >> "$MF601SL_QUERY_LOG"
+if [ "$#" -ne 4 ] || [ "$1" != --device-open-proxy ] || \
+   [ "$2" != -d ] || [ "$3" != /dev/wwan0qmi0 ] || \
+   [ "$4" != --nas-get-serving-system ]; then
+    printf 'unsafe QMI query\n' >> "$MF601SL_QUERY_LOG"
+    exit 1
+fi
+printf "Registration state: 'registration-denied'\n"
+EOF
+chmod +x "$T/bin/mmcli" "$T/bin/qmicli"
+export PATH="$T/bin:$PATH" MF601SL_QUERY_LOG="$T/query.log"
+unset MF601SL_REG_STATE
+start
+chk S19 red:wan brightness=1 trigger=none
+chk S19 green:wan brightness=0
+stop
+if [ -s "$T/query.log" ] && ! grep -q 'unsafe QMI query' "$T/query.log"; then
+    pass=$((pass+1))
+else
+    fail=$((fail+1)); echo "FAIL(S19) QMI 查询未走 proxy"
+fi
+
 echo "----------------------------------------"
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" = 0 ]
