@@ -70,7 +70,7 @@ SSH 断开后 xrdp 会话与 xterm 不会自动回收，`loginctl list-sessions`
 - `wlan0=192.0.2.109`，`usb0=10.42.0.1`
 - **当时仅从 RAM 启动，未写 boot 分区**；后续整机刷入见下文
 
-原始日志与截图见 `archive/old-experiments/validation-20261015/`。
+原始日志与截图本地保留（不随仓库发布）。
 
 ---
 
@@ -175,7 +175,7 @@ SSH 断开后 xrdp 会话与 xterm 不会自动回收，`loginctl list-sessions`
 
 ## 验证
 
-**1. 静态：7 张镜像全部合格**（独立脚本 `archive/old-experiments/no-wifi-20261016/verify-images.sh`，不采信交付脚本）：
+**1. 静态：7 张镜像全部合格**（当时用独立脚本核验，不采信交付脚本）：
 
 | 镜像 | WiFi profile | wpa 网络段 | USB 共享资产 |
 |---|---|---|---|
@@ -225,7 +225,7 @@ HTTPS 卡死；探测到路径 MTU 1492 为 PPPoE 典型值），并临时加过
 - `usb0=10.42.0.1`，插电脑即得 `10.42.0.x`；无 WiFi 时只有 USB 一条管理通道
 - 失败服务 0
 
-原始日志见 `archive/old-experiments/no-wifi-20261016/`、`out/flash-20261016/`。
+原始日志见 `out/flash-20261016/`（其余验证日志本地保留，不随仓库发布）。
 
 ---
 
@@ -292,4 +292,4 @@ mpss/mba/rmtfs/venus_mem 预留），在 baseline 变体上就已存在；内核
   `CONFIG_MAGIC_SYSRQ=n` 已裁），无害。
 - MPEG-4/GPU/4G/散热：minimal 不含这些链，不适用。
 
-原始日志见 `archive/old-experiments/minimal-v2/`、`archive/old-experiments/minimal-v3/`。
+原始日志本地保留（不随仓库发布）。
